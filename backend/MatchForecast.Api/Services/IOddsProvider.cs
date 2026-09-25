@@ -1,4 +1,4 @@
-using MatchForecast.Api.Models;
+using MatchForecast.Models.Response;
 
 namespace MatchForecast.Api.Services;
 

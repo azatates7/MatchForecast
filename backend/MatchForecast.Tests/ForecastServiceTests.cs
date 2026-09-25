@@ -1,4 +1,5 @@
-using MatchForecast.Api.Models;
+using MatchForecast.Models.Common;
+using MatchForecast.Models.Response;
 using MatchForecast.Api.Options;
 using MatchForecast.Api.Services;
 using Microsoft.Extensions.Caching.Memory;

@@ -1,5 +1,6 @@
 using System.Text.Json;
-using MatchForecast.Api.Models;
+using MatchForecast.Models.Common;
+using MatchForecast.Models.Response;
 using MatchForecast.Api.Options;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;

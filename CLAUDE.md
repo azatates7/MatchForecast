@@ -2,7 +2,7 @@
 
 MatchForecast is a full-stack application that fetches daily football fixtures and all betting markets from an API, analyzes them using an LLM (Anthropic Claude), and presents the top 5 highest-probability options with confidence scores and reasoning.
 
-- **Backend:** .NET 10 Minimal API (`backend/MatchForecast.Api`)
+- **Backend:** .NET 10 Minimal API (`backend/MatchForecast.Api`), Class Library Models (`backend/MatchForecast.Models`), xUnit Tests (`backend/MatchForecast.Tests`)
 - **Frontend:** React 19 + TypeScript + Vite (`frontend`)
 - **External Data Provider:** API-Football (api-sports.io v3)
 - **AI Engine:** Anthropic Claude (Messages API)
@@ -25,10 +25,11 @@ MatchForecast is a full-stack application that fetches daily football fixtures a
   - Defined `IForecastAiClient` interface and implemented `ClaudeForecastClient` connecting to Anthropic Claude (`claude-sonnet-5`).
   - Implemented `ForecastPrompt` utility for building structured prompts with unique option identifiers (e.g. `5.3`), implied odds calculation (`100 / odd`), and system instructions restricting AI outputs strictly to valid market options.
   - Implemented `ForecastService` to orchestrate match loading, prompt generation, AI response JSON parsing, option filtering/deduplication, confidence clamping (0–100%), and result caching (`IMemoryCache`).
-- **Models & Error Handling:**
-  - Implemented strongly-typed records: `MatchSummary`, `MatchOdds`, `Market`, `OddOption`, `Prediction`, `ForecastResult`.
-  - Added `ForecastException` for user-facing domain errors with status codes (e.g., 404, 502).
-  - Integrated basic exception handling delegate converting errors to RFC 7807 `ProblemDetails`.
+- **Shared Models Library (`backend/MatchForecast.Models`):**
+  - Extracted domain models into a standalone `.NET 10` class library.
+  - Organized into clean namespaces: `MatchForecast.Models.Request`, `MatchForecast.Models.Response`, and `MatchForecast.Models.Common`.
+  - Implemented strongly-typed records & exceptions: `MatchSummary`, `MatchOdds`, `ForecastResult`, `Market`, `OddOption`, `Prediction`, `ForecastQueryRequest`, `ForecastException`.
+  - Added project references to `MatchForecast.Models` across `MatchForecast.Api` and `MatchForecast.Tests`.
 - **Test Suite (`backend/MatchForecast.Tests`):**
   - Created xUnit test project referencing `MatchForecast.Api` with `Microsoft.AspNetCore.Mvc.Testing` and `Moq`.
   - Added integration tests (`MatchesApiIntegrationTests.cs`) covering `/api/matches`, `/api/matches/{id}/odds`, and `/api/matches/{id}/forecast`.

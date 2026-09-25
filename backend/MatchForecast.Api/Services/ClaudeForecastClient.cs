@@ -1,6 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using MatchForecast.Api.Models;
+using MatchForecast.Models.Common;
 using MatchForecast.Api.Options;
 using Microsoft.Extensions.Options;
 
