@@ -11,6 +11,16 @@ builder.Services.Configure<AiOptions>(builder.Configuration.GetSection(AiOptions
 builder.Services.AddMemoryCache();
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new()
+    {
+        Title = "MatchForecast API",
+        Version = "v1",
+        Description = "Futbol maçları ve LLM (Claude) destekli tahmin analizi API'si"
+    });
+});
 
 var useMock = builder.Configuration.GetValue($"{OddsProviderOptions.Section}:UseMock", true);
 if (useMock)
@@ -57,7 +67,14 @@ app.UseExceptionHandler(errorApp => errorApp.Run(async ctx =>
 }));
 
 if (app.Environment.IsDevelopment())
+{
     app.MapOpenApi();
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "MatchForecast API v1");
+    });
+}
 
 app.UseCors();
 
@@ -73,3 +90,5 @@ api.MapGet("/{id:int}/forecast", (int id, bool? refresh, ForecastService service
     service.GetForecastAsync(id, refresh ?? false, ct));
 
 app.Run();
+
+public partial class Program { }
