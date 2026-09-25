@@ -1,4 +1,5 @@
-using MatchForecast.Api.Models;
+using MatchForecast.Models.Common;
+using MatchForecast.Models.Response;
 using MatchForecast.Api.Options;
 using MatchForecast.Api.Services;
 using Microsoft.AspNetCore.Diagnostics;
@@ -80,8 +81,11 @@ app.UseCors();
 
 var api = app.MapGroup("/api/matches");
 
-api.MapGet("", (DateOnly? date, IOddsProvider odds, CancellationToken ct) =>
-    odds.GetMatchesAsync(date ?? DateOnly.FromDateTime(DateTime.Now), ct));
+api.MapGet("", (string? date, IOddsProvider odds, CancellationToken ct) =>
+{
+    var parsedDate = DateOnly.TryParse(date, out var d) ? d : DateOnly.FromDateTime(DateTime.Now);
+    return odds.GetMatchesAsync(parsedDate, ct);
+});
 
 api.MapGet("/{id:int}/odds", async (int id, IOddsProvider odds, CancellationToken ct) =>
     await odds.GetOddsAsync(id, ct) is { } result ? Results.Ok(result) : Results.NotFound());

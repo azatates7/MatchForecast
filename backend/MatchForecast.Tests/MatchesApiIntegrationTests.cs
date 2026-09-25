@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
-using MatchForecast.Api.Models;
+using MatchForecast.Models.Common;
+using MatchForecast.Models.Response;
 using MatchForecast.Api.Services;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;

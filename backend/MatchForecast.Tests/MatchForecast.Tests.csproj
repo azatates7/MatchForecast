@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MatchForecast.Api\MatchForecast.Api.csproj" />
+    <ProjectReference Include="..\MatchForecast.Models\MatchForecast.Models.csproj" />
   </ItemGroup>
 
 </Project>
