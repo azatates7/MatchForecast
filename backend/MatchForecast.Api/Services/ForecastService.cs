@@ -26,12 +26,19 @@ public sealed class ForecastService(
         if (!refresh && cache.TryGetValue(key, out ForecastResult? cached) && cached is not null)
             return cached;
 
-        var match = await odds.GetMatchAsync(fixtureId, ct)
-            ?? throw new ForecastException("Maç bulunamadı.", StatusCodes.Status404NotFound);
+        var match = await odds.GetMatchAsync(fixtureId, ct);
+        if (match is null)
+        {
+            logger.LogWarning("Fixture {FixtureId} not found.", fixtureId);
+            throw new ForecastException("Maç bulunamadı.", StatusCodes.Status404NotFound);
+        }
 
         var matchOdds = await odds.GetOddsAsync(fixtureId, ct);
         if (matchOdds is null || matchOdds.Markets.Count == 0)
+        {
+            logger.LogWarning("No odds available for fixture {FixtureId}.", fixtureId);
             throw new ForecastException("Bu maç için henüz oran yayınlanmamış.", StatusCodes.Status404NotFound);
+        }
 
         var userPrompt = ForecastPrompt.BuildUser(match, matchOdds, out var index);
         var raw = await ai.CompleteAsync(ForecastPrompt.System, userPrompt, ct);
@@ -74,7 +81,10 @@ public sealed class ForecastService(
         var start = raw.IndexOf('{');
         var end = raw.LastIndexOf('}');
         if (start < 0 || end <= start)
+        {
+            logger.LogWarning("AI response does not contain valid JSON bounds. Raw: {Raw}", raw);
             throw new ForecastException("Yapay zeka cevabı JSON içermiyor.");
+        }
 
         try
         {

@@ -7,15 +7,21 @@ using Microsoft.Extensions.Options;
 namespace MatchForecast.Api.Services;
 
 /// <summary>Anthropic Messages API istemcisi. Başka bir sağlayıcı için IForecastAiClient'ı uygulamak yeterli.</summary>
-public sealed class ClaudeForecastClient(HttpClient http, IOptions<AiOptions> options) : IForecastAiClient
+public sealed class ClaudeForecastClient(
+    HttpClient http,
+    IOptions<AiOptions> options,
+    ILogger<ClaudeForecastClient> logger) : IForecastAiClient
 {
     private readonly AiOptions _opt = options.Value;
 
     public async Task<string> CompleteAsync(string systemPrompt, string userPrompt, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(_opt.ApiKey))
+        {
+            logger.LogError("Ai:ApiKey configuration is missing or empty.");
             throw new ForecastException("Ai:ApiKey tanımlı değil. appsettings veya user-secrets ile ekleyin.",
                 StatusCodes.Status500InternalServerError);
+        }
 
         var body = new
         {
@@ -28,7 +34,10 @@ public sealed class ClaudeForecastClient(HttpClient http, IOptions<AiOptions> op
         using var res = await http.PostAsJsonAsync("v1/messages", body, ct);
         var raw = await res.Content.ReadAsStringAsync(ct);
         if (!res.IsSuccessStatusCode)
+        {
+            logger.LogError("Claude API call failed with status code {StatusCode}. Raw response: {Raw}", (int)res.StatusCode, raw);
             throw new ForecastException($"AI servisi HTTP {(int)res.StatusCode}: {Truncate(raw, 300)}");
+        }
 
         using var doc = JsonDocument.Parse(raw);
         return string.Concat(doc.RootElement.GetProperty("content").EnumerateArray()

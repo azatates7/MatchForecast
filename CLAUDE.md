@@ -26,10 +26,11 @@ MatchForecast is a full-stack application that fetches daily football fixtures a
   - Implemented `ForecastPrompt` utility for building structured prompts with unique option identifiers (e.g. `5.3`), implied odds calculation (`100 / odd`), and system instructions restricting AI outputs strictly to valid market options.
   - Implemented `ForecastService` to orchestrate match loading, prompt generation, AI response JSON parsing, option filtering/deduplication, confidence clamping (0–100%), and result caching (`IMemoryCache`).
 - **Shared Models Library (`backend/MatchForecast.Models`):**
-  - Extracted domain models into a standalone `.NET 10` class library.
-  - Organized into clean namespaces: `MatchForecast.Models.Request`, `MatchForecast.Models.Response`, and `MatchForecast.Models.Common`.
-  - Implemented strongly-typed records & exceptions: `MatchSummary`, `MatchOdds`, `ForecastResult`, `Market`, `OddOption`, `Prediction`, `ForecastQueryRequest`, `ForecastException`.
-  - Added project references to `MatchForecast.Models` across `MatchForecast.Api` and `MatchForecast.Tests`.
+  - Extracted domain models into a standalone `.NET 10` class library (`Request`, `Response`, `Common` namespaces).
+- **Daily Logging & Exception Audit (`NLog.Web.AspNetCore`):**
+  - Configured NLog in `Program.cs` (`builder.Host.UseNLog()`).
+  - Added `nlog.config` with daily rolling log files (`logs/matchforecast-${shortdate}.log`) and console logging.
+  - Added structured pre-exception log messages (`logger.LogError` / `logger.LogWarning`) across `ForecastService`, `ClaudeForecastClient`, `ApiFootballOddsProvider`, and centralized exception middleware before any `ForecastException` or unhandled error is thrown.
 - **Test Suite (`backend/MatchForecast.Tests`):**
   - Created xUnit test project referencing `MatchForecast.Api` with `Microsoft.AspNetCore.Mvc.Testing` and `Moq`.
   - Added integration tests (`MatchesApiIntegrationTests.cs`) covering `/api/matches`, `/api/matches/{id}/odds`, and `/api/matches/{id}/forecast`.
@@ -65,10 +66,10 @@ The application will be enhanced with enterprise-grade features and production i
 
 ### Planned Features Breakdown
 
-#### 1. Logger (Structured Logging Setup)
-- [ ] Integrate **Serilog** (or NLog) into `backend/MatchForecast.Api`.
-- [ ] Configure structured JSON console and file log sinks.
-- [ ] Enrich logs with Correlation IDs, HTTP request context, user IDs, and environment metadata.
+#### 1. Logger (Structured Daily Logging Setup)
+- [x] Integrated **NLog** (`NLog.Web.AspNetCore`) into `backend/MatchForecast.Api`.
+- [x] Configured daily rolling file targets (`logs/matchforecast-${shortdate}.log`) and console output via `nlog.config`.
+- [x] Added structured pre-exception logging across services and exception middleware.
 
 #### 2. JWT Authentication
 - [ ] Add JWT Bearer authentication scheme using `Microsoft.AspNetCore.Authentication.JwtBearer`.
