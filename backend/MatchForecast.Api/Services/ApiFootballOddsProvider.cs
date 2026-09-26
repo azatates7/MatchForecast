@@ -87,7 +87,10 @@ public sealed class ApiFootballOddsProvider(
     {
         using var res = await http.GetAsync(path, ct);
         if (!res.IsSuccessStatusCode)
+        {
+            logger.LogError("API-Football HTTP request to {Path} failed with status code {StatusCode}", path, (int)res.StatusCode);
             throw new ForecastException($"API-Football HTTP {(int)res.StatusCode} döndü.");
+        }
 
         var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
 

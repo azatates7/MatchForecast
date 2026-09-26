@@ -1,3 +1,5 @@
+using NLog;
+using NLog.Web;
 using MatchForecast.Models.Common;
 using MatchForecast.Models.Response;
 using MatchForecast.Api.Options;
@@ -5,67 +7,87 @@ using MatchForecast.Api.Services;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.Extensions.Options;
 
-var builder = WebApplication.CreateBuilder(args);
+var logger = LogManager.Setup().LoadConfigurationFromAppSettings().GetCurrentClassLogger();
+logger.Debug("Initializing MatchForecast API host...");
 
-builder.Services.Configure<OddsProviderOptions>(builder.Configuration.GetSection(OddsProviderOptions.Section));
-builder.Services.Configure<AiOptions>(builder.Configuration.GetSection(AiOptions.Section));
-builder.Services.AddMemoryCache();
-builder.Services.AddProblemDetails();
-builder.Services.AddOpenApi();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
+try
 {
-    c.SwaggerDoc("v1", new()
+    var builder = WebApplication.CreateBuilder(args);
+
+    // Setup NLog as logging provider
+    builder.Logging.ClearProviders();
+    builder.Host.UseNLog();
+
+    builder.Services.Configure<OddsProviderOptions>(builder.Configuration.GetSection(OddsProviderOptions.Section));
+    builder.Services.Configure<AiOptions>(builder.Configuration.GetSection(AiOptions.Section));
+    builder.Services.AddMemoryCache();
+    builder.Services.AddProblemDetails();
+    builder.Services.AddOpenApi();
+    builder.Services.AddEndpointsApiExplorer();
+    builder.Services.AddSwaggerGen(c =>
     {
-        Title = "MatchForecast API",
-        Version = "v1",
-        Description = "Futbol maçları ve LLM (Claude) destekli tahmin analizi API'si"
+        c.SwaggerDoc("v1", new()
+        {
+            Title = "MatchForecast API",
+            Version = "v1",
+            Description = "Futbol maçları ve LLM (Claude) destekli tahmin analizi API'si"
+        });
     });
-});
 
-var useMock = builder.Configuration.GetValue($"{OddsProviderOptions.Section}:UseMock", true);
-if (useMock)
-{
-    builder.Services.AddSingleton<IOddsProvider, MockOddsProvider>();
-}
-else
-{
-    builder.Services.AddHttpClient<IOddsProvider, ApiFootballOddsProvider>((sp, c) =>
+    var useMock = builder.Configuration.GetValue($"{OddsProviderOptions.Section}:UseMock", true);
+    if (useMock)
     {
-        var o = sp.GetRequiredService<IOptions<OddsProviderOptions>>().Value;
+        builder.Services.AddSingleton<IOddsProvider, MockOddsProvider>();
+    }
+    else
+    {
+        builder.Services.AddHttpClient<IOddsProvider, ApiFootballOddsProvider>((sp, c) =>
+        {
+            var o = sp.GetRequiredService<IOptions<OddsProviderOptions>>().Value;
+            c.BaseAddress = new Uri(o.BaseUrl);
+            c.DefaultRequestHeaders.Add("x-apisports-key", o.ApiKey);
+        });
+    }
+
+    builder.Services.AddHttpClient<IForecastAiClient, ClaudeForecastClient>((sp, c) =>
+    {
+        var o = sp.GetRequiredService<IOptions<AiOptions>>().Value;
         c.BaseAddress = new Uri(o.BaseUrl);
-        c.DefaultRequestHeaders.Add("x-apisports-key", o.ApiKey);
+        c.Timeout = TimeSpan.FromSeconds(90);
+        c.DefaultRequestHeaders.Add("x-api-key", o.ApiKey);
+        c.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
     });
-}
 
-builder.Services.AddHttpClient<IForecastAiClient, ClaudeForecastClient>((sp, c) =>
-{
-    var o = sp.GetRequiredService<IOptions<AiOptions>>().Value;
-    c.BaseAddress = new Uri(o.BaseUrl);
-    c.Timeout = TimeSpan.FromSeconds(90);
-    c.DefaultRequestHeaders.Add("x-api-key", o.ApiKey);
-    c.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
-});
+    builder.Services.AddScoped<ForecastService>();
 
-builder.Services.AddScoped<ForecastService>();
+    builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
+        .WithOrigins(builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [])
+        .AllowAnyHeader()
+        .AllowAnyMethod()));
 
-builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
-    .WithOrigins(builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [])
-    .AllowAnyHeader()
-    .AllowAnyMethod()));
+    var app = builder.Build();
 
-var app = builder.Build();
+    // ForecastException -> kullanıcıya gösterilebilir ProblemDetails; diğer hatalar -> 500
+    app.UseExceptionHandler(errorApp => errorApp.Run(async ctx =>
+    {
+        var ex = ctx.Features.Get<IExceptionHandlerFeature>()?.Error;
+        var reqLogger = ctx.RequestServices.GetRequiredService<ILogger<Program>>();
 
-// ForecastException -> kullanıcıya gösterilebilir ProblemDetails; diğer hatalar -> 500
-app.UseExceptionHandler(errorApp => errorApp.Run(async ctx =>
-{
-    var ex = ctx.Features.Get<IExceptionHandlerFeature>()?.Error;
-    var (status, detail) = ex is ForecastException fe
-        ? (fe.StatusCode, fe.Message)
-        : (StatusCodes.Status500InternalServerError, "Beklenmeyen bir hata oluştu.");
-    ctx.Response.StatusCode = status;
-    await Results.Problem(detail: detail, statusCode: status).ExecuteAsync(ctx);
-}));
+        if (ex is ForecastException fe)
+        {
+            reqLogger.LogWarning(ex, "ForecastException caught by handler: {Message} (Status {StatusCode})", fe.Message, fe.StatusCode);
+        }
+        else if (ex is not null)
+        {
+            reqLogger.LogError(ex, "Unhandled exception caught by handler: {Message}", ex.Message);
+        }
+
+        var (status, detail) = ex is ForecastException feEx
+            ? (feEx.StatusCode, feEx.Message)
+            : (StatusCodes.Status500InternalServerError, "Beklenmeyen bir hata oluştu.");
+        ctx.Response.StatusCode = status;
+        await Results.Problem(detail: detail, statusCode: status).ExecuteAsync(ctx);
+    }));
 
 if (app.Environment.IsDevelopment())
 {
@@ -93,6 +115,16 @@ api.MapGet("/{id:int}/odds", async (int id, IOddsProvider odds, CancellationToke
 api.MapGet("/{id:int}/forecast", (int id, bool? refresh, ForecastService service, CancellationToken ct) =>
     service.GetForecastAsync(id, refresh ?? false, ct));
 
-app.Run();
+    app.Run();
+}
+catch (Exception ex)
+{
+    logger.Error(ex, "Stopped program because of exception during startup");
+    throw;
+}
+finally
+{
+    LogManager.Shutdown();
+}
 
 public partial class Program { }
