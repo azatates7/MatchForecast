@@ -21,6 +21,19 @@ public sealed class ApiFootballOddsProvider(
     private readonly OddsProviderOptions _opt = options.Value;
     private TimeSpan CacheTtl => TimeSpan.FromMinutes(_opt.CacheMinutes);
 
+    private static readonly HashSet<string> PopularLeagues = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Süper Lig", "Super Lig",
+        "UEFA Champions League", "Champions League",
+        "Premier League",
+        "La Liga",
+        "Serie A",
+        "Bundesliga",
+        "Ligue 1",
+        "UEFA Europa League", "Europa League",
+        "UEFA Europa Conference League", "Conference League"
+    };
+
     public async Task<IReadOnlyList<MatchSummary>> GetMatchesAsync(DateOnly date, CancellationToken ct)
     {
         var key = $"fixtures:{date:yyyy-MM-dd}";
@@ -35,6 +48,16 @@ public sealed class ApiFootballOddsProvider(
                 .OrderBy(m => m.Kickoff)
                 .ToList();
         }) ?? [];
+    }
+
+    public async Task<IReadOnlyList<MatchSummary>> GetPopularMatchesAsync(DateOnly date, int count, CancellationToken ct)
+    {
+        var all = await GetMatchesAsync(date, ct);
+        return all
+            .OrderByDescending(m => PopularLeagues.Contains(m.League))
+            .ThenBy(m => m.Kickoff)
+            .Take(count)
+            .ToList();
     }
 
     public async Task<MatchSummary?> GetMatchAsync(int fixtureId, CancellationToken ct)

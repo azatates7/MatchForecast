@@ -50,6 +50,35 @@ public class MatchesApiIntegrationTests : IClassFixture<WebApplicationFactory<Pr
     }
 
     [Fact]
+    public async Task GetPopularMatches_ReturnsOkWithTopPopularMatches()
+    {
+        // Arrange
+        var mockOdds = new Mock<IOddsProvider>();
+        var sampleMatch = new MatchSummary(100, DateTimeOffset.Now, "Süper Lig", "Turkey", "Galatasaray", "Fenerbahçe", "NS");
+        mockOdds.Setup(o => o.GetPopularMatchesAsync(It.IsAny<DateOnly>(), 10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([sampleMatch]);
+
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureTestServices(services =>
+            {
+                services.AddSingleton(mockOdds.Object);
+            });
+        }).CreateClient();
+
+        // Act
+        var response = await client.GetAsync("/api/matches/popular?count=10");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var matches = await response.Content.ReadFromJsonAsync<List<MatchSummary>>();
+        Assert.NotNull(matches);
+        Assert.Single(matches);
+        Assert.Equal("Galatasaray", matches[0].HomeTeam);
+        Assert.Equal("Fenerbahçe", matches[0].AwayTeam);
+    }
+
+    [Fact]
     public async Task GetOdds_ReturnsOk_WhenOddsExist()
     {
         // Arrange

@@ -19,12 +19,13 @@ MatchForecast is a full-stack application that fetches daily football fixtures a
   - Added OpenAPI & Swagger UI support (`AddOpenApi`, `AddEndpointsApiExplorer`, `AddSwaggerGen`, `UseSwagger`, `UseSwaggerUI` available at `/swagger`).
 - **Odds & Fixtures Integration:**
   - Defined `IOddsProvider` interface for decoupled data abstraction.
-  - Implemented `MockOddsProvider` providing 5 default sample matches and market odds for local keyless development (`OddsProvider:UseMock = true`).
+  - Implemented `GetPopularMatchesAsync` to extract the **top 10 most popular matches** of the daily betting bulletin (prioritizing Süper Lig, Champions League, Premier League, La Liga, Serie A, Bundesliga, Ligue 1).
+  - Updated `MockOddsProvider` with 10 top popular bulletin fixtures for keyless development.
   - Implemented `ApiFootballOddsProvider` connecting to API-Football (`v3.football.api-sports.io`) via `HttpClient` using `x-apisports-key`.
 - **AI Forecast Engine:**
   - Defined `IForecastAiClient` interface and implemented `ClaudeForecastClient` connecting to Anthropic Claude (`claude-sonnet-5`).
   - Implemented `ForecastPrompt` utility for building structured prompts with unique option identifiers (e.g. `5.3`), implied odds calculation (`100 / odd`), and system instructions restricting AI outputs strictly to valid market options.
-  - Implemented `ForecastService` to orchestrate match loading, prompt generation, AI response JSON parsing, option filtering/deduplication, confidence clamping (0–100%), and result caching (`IMemoryCache`).
+  - Implemented `ForecastService` supporting single fixture analysis (`GetForecastAsync`) and daily top 10 popular bulletin batch forecasting (`GetPopularForecastsAsync`).
 - **Shared Models Library (`backend/MatchForecast.Models`):**
   - Extracted domain models into a standalone `.NET 10` class library (`Request`, `Response`, `Common` namespaces).
 - **Daily Logging & Exception Audit (`NLog.Web.AspNetCore`):**
@@ -56,8 +57,8 @@ MatchForecast is a full-stack application that fetches daily football fixtures a
 The application will be enhanced with enterprise-grade features and production infrastructure in the following order:
 
 ```
-[1. Logger] ──► [2. JWT Auth] ──► [3. Token Management] ──► [4. OAuth 2.0]
-                                                                  │
+
+                                                                                      │
 [8. Exception Middleware] ◄── [7. Logging Middleware] ◄── [6. Rate Limiting] ◄── [5. Redis]
            │
            ▼
@@ -66,12 +67,12 @@ The application will be enhanced with enterprise-grade features and production i
 
 ### Planned Features Breakdown
 
-#### 1. Logger (Structured Daily Logging Setup)
+#### 1. Logger (Structured Daily Logging Setup) — ✅ COMPLETED
 - [x] Integrated **NLog** (`NLog.Web.AspNetCore`) into `backend/MatchForecast.Api`.
 - [x] Configured daily rolling file targets (`logs/matchforecast-${shortdate}.log`) and console output via `nlog.config`.
 - [x] Added structured pre-exception logging across services and exception middleware.
 
-#### 2. JWT Authentication
+#### 2. JWT Authentication (Next Step)
 - [ ] Add JWT Bearer authentication scheme using `Microsoft.AspNetCore.Authentication.JwtBearer`.
 - [ ] Define `JwtOptions` (SecretKey, Issuer, Audience, ExpiryMinutes).
 - [ ] Create authentication endpoints (`/api/auth/register`, `/api/auth/login`, `/api/auth/me`).

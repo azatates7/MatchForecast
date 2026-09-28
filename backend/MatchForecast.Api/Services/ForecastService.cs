@@ -20,6 +20,27 @@ public sealed class ForecastService(
         NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowReadingFromString
     };
 
+    public async Task<IReadOnlyList<ForecastResult>> GetPopularForecastsAsync(DateOnly date, int count, bool refresh, CancellationToken ct)
+    {
+        var popularMatches = await odds.GetPopularMatchesAsync(date, count, ct);
+        var results = new List<ForecastResult>();
+
+        foreach (var match in popularMatches)
+        {
+            try
+            {
+                var forecast = await GetForecastAsync(match.Id, refresh, ct);
+                results.Add(forecast);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Could not generate forecast for popular match {Id} ({Home} vs {Away})", match.Id, match.HomeTeam, match.AwayTeam);
+            }
+        }
+
+        return results;
+    }
+
     public async Task<ForecastResult> GetForecastAsync(int fixtureId, bool refresh, CancellationToken ct)
     {
         var key = $"forecast:{fixtureId}";

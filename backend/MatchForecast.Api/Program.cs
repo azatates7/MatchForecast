@@ -34,20 +34,12 @@ try
         });
     });
 
-    var useMock = builder.Configuration.GetValue($"{OddsProviderOptions.Section}:UseMock", true);
-    if (useMock)
+    // Use public no‑API‑key provider
+    builder.Services.AddHttpClient<IOddsProvider, PublicOddsProvider>((sp, c) =>
     {
-        builder.Services.AddSingleton<IOddsProvider, MockOddsProvider>();
-    }
-    else
-    {
-        builder.Services.AddHttpClient<IOddsProvider, ApiFootballOddsProvider>((sp, c) =>
-        {
-            var o = sp.GetRequiredService<IOptions<OddsProviderOptions>>().Value;
-            c.BaseAddress = new Uri(o.BaseUrl);
-            c.DefaultRequestHeaders.Add("x-apisports-key", o.ApiKey);
-        });
-    }
+        // Base address is ESPN public API (no auth needed)
+        c.BaseAddress = new Uri("https://site.api.espn.com/");
+    });
 
     builder.Services.AddHttpClient<IForecastAiClient, ClaudeForecastClient>((sp, c) =>
     {
@@ -105,8 +97,20 @@ var api = app.MapGroup("/api/matches");
 
 api.MapGet("", (string? date, IOddsProvider odds, CancellationToken ct) =>
 {
-    var parsedDate = DateOnly.TryParse(date, out var d) ? d : DateOnly.FromDateTime(DateTime.Now);
+    var parsedDate = DateOnly.TryParse(date, out var d) ? d : DateOnly.FromDateTime(DateTime.Today);
     return odds.GetMatchesAsync(parsedDate, ct);
+});
+
+api.MapGet("/popular", (string? date, int? count, IOddsProvider odds, CancellationToken ct) =>
+{
+    var parsedDate = DateOnly.TryParse(date, out var d) ? d : DateOnly.FromDateTime(DateTime.Today);
+    return odds.GetPopularMatchesAsync(parsedDate, count ?? 10, ct);
+});
+
+api.MapGet("/popular/forecasts", (string? date, int? count, bool? refresh, ForecastService service, CancellationToken ct) =>
+{
+    var parsedDate = DateOnly.TryParse(date, out var d) ? d : DateOnly.FromDateTime(DateTime.Today);
+    return service.GetPopularForecastsAsync(parsedDate, count ?? 10, refresh ?? false, ct);
 });
 
 api.MapGet("/{id:int}/odds", async (int id, IOddsProvider odds, CancellationToken ct) =>

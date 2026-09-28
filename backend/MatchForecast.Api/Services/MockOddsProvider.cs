@@ -12,15 +12,23 @@ public sealed class MockOddsProvider : IOddsProvider
     // (id, lig, ülke, ev, deplasman, saat, ev gücü 0..1)
     private static readonly (int Id, string League, string Country, string Home, string Away, int Hour, double HomeStrength)[] Seed =
     [
-        (900001, "Süper Lig", "Turkey", "Galatasaray", "Kasımpaşa", 19, 0.78),
-        (900002, "Süper Lig", "Turkey", "Samsunspor", "Fenerbahçe", 20, 0.35),
-        (900003, "Premier League", "England", "Arsenal", "Brentford", 21, 0.72),
-        (900004, "La Liga", "Spain", "Getafe", "Osasuna", 22, 0.50),
-        (900005, "Serie A", "Italy", "Inter", "Napoli", 21, 0.55),
+        (900001, "Süper Lig", "Turkey", "Galatasaray", "Fenerbahçe", 19, 0.54),
+        (900002, "Süper Lig", "Turkey", "Beşiktaş", "Trabzonspor", 20, 0.55),
+        (900003, "Premier League", "England", "Manchester City", "Liverpool", 18, 0.58),
+        (900004, "Premier League", "England", "Arsenal", "Chelsea", 21, 0.65),
+        (900005, "La Liga", "Spain", "Real Madrid", "Barcelona", 22, 0.54),
+        (900006, "La Liga", "Spain", "Atletico Madrid", "Sevilla", 19, 0.62),
+        (900007, "Serie A", "Italy", "Inter", "Juventus", 21, 0.55),
+        (900008, "Serie A", "Italy", "Milan", "Roma", 19, 0.58),
+        (900009, "Bundesliga", "Germany", "Bayern München", "Borussia Dortmund", 18, 0.68),
+        (900010, "Ligue 1", "France", "PSG", "Marseille", 22, 0.72),
     ];
 
     public Task<IReadOnlyList<MatchSummary>> GetMatchesAsync(DateOnly date, CancellationToken ct) =>
         Task.FromResult<IReadOnlyList<MatchSummary>>(Seed.Select(s => ToSummary(s, date)).ToList());
+
+    public Task<IReadOnlyList<MatchSummary>> GetPopularMatchesAsync(DateOnly date, int count, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<MatchSummary>>(Seed.Take(count).Select(s => ToSummary(s, date)).ToList());
 
     public Task<MatchSummary?> GetMatchAsync(int fixtureId, CancellationToken ct)
     {
