@@ -107,6 +107,7 @@ The application will be enhanced with enterprise-grade features and production i
 - [ ] Log incoming request metadata (HTTP Method, Path, Query Parameters, Client IP, Request Headers).
 - [ ] Log outgoing response metadata (Status Code, Execution Duration in ms).
 - [ ] Generate and trace unique `X-Correlation-ID` headers across request-response lifecycles.
+- [ ] Without some titles (password, key, secret etc. )
 
 #### 8. Exception Middleware
 - [ ] Implement centralized `ExceptionHandlingMiddleware` replacing inline `app.UseExceptionHandler`.
