@@ -6,6 +6,7 @@ using MatchForecast.Api.Options;
 using MatchForecast.Api.Services;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.Extensions.Options;
+using MatchForecast.Api.Middleware;
 
 var logger = LogManager.Setup().LoadConfigurationFromAppSettings().GetCurrentClassLogger();
 logger.Debug("Initializing MatchForecast API host...");
@@ -106,6 +107,9 @@ api.MapGet("/popular", (string? date, int? count, IOddsProvider odds, Cancellati
     var parsedDate = DateOnly.TryParse(date, out var d) ? d : DateOnly.FromDateTime(DateTime.Today);
     return odds.GetPopularMatchesAsync(parsedDate, count ?? 10, ct);
 });
+
+app.UseMiddleware<ExceptionMiddleware>();
+app.UseMiddleware<LoggingMiddleware>();
 
 api.MapGet("/popular/forecasts", (string? date, int? count, bool? refresh, ForecastService service, CancellationToken ct) =>
 {
