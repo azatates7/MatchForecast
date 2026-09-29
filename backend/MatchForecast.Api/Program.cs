@@ -1,7 +1,6 @@
 using NLog;
 using NLog.Web;
 using MatchForecast.Models.Common;
-using MatchForecast.Models.Response;
 using MatchForecast.Api.Options;
 using MatchForecast.Api.Services;
 using Microsoft.AspNetCore.Diagnostics;
@@ -23,6 +22,10 @@ try
     builder.Services.Configure<AiOptions>(builder.Configuration.GetSection(AiOptions.Section));
     builder.Services.AddMemoryCache();
     builder.Services.AddProblemDetails();
+
+    // Controllers klasöründeki [ApiController] sınıfları otomatik keşfedilir; yeni endpoint için Program.cs'e dokunmaya gerek yok.
+    builder.Services.AddControllers();
+
     builder.Services.AddOpenApi();
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen(c =>
@@ -35,12 +38,21 @@ try
         });
     });
 
-    // Use public no‑API‑key provider
-    builder.Services.AddHttpClient<IOddsProvider, PublicOddsProvider>((sp, c) =>
+    // OddsProvider:UseMock=true -> anahtarsız örnek veri; false -> API-Football (x-apisports-key gerekir)
+    var oddsOpt = builder.Configuration.GetSection(OddsProviderOptions.Section).Get<OddsProviderOptions>() ?? new();
+    if (oddsOpt.UseMock)
     {
-        // Base address is ESPN public API (no auth needed)
-        c.BaseAddress = new Uri("https://site.api.espn.com/");
-    });
+        builder.Services.AddSingleton<IOddsProvider, MockOddsProvider>();
+    }
+    else
+    {
+        builder.Services.AddHttpClient<IOddsProvider, ApiFootballOddsProvider>((sp, c) =>
+        {
+            var o = sp.GetRequiredService<IOptions<OddsProviderOptions>>().Value;
+            c.BaseAddress = new Uri(o.BaseUrl);
+            c.DefaultRequestHeaders.Add("x-apisports-key", o.ApiKey);
+        });
+    }
 
     builder.Services.AddHttpClient<IForecastAiClient, ClaudeForecastClient>((sp, c) =>
     {
@@ -82,46 +94,22 @@ try
         await Results.Problem(detail: detail, statusCode: status).ExecuteAsync(ctx);
     }));
 
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
+    if (app.Environment.IsDevelopment())
     {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "MatchForecast API v1");
-    });
-}
+        app.MapOpenApi();
+        app.UseSwagger();
+        app.UseSwaggerUI(c =>
+        {
+            c.SwaggerEndpoint("/swagger/v1/swagger.json", "MatchForecast API v1");
+        });
+    }
 
-app.UseCors();
+    app.UseCors();
 
-var api = app.MapGroup("/api/matches");
+    app.UseMiddleware<ExceptionMiddleware>();
+    app.UseMiddleware<LoggingMiddleware>();
 
-api.MapGet("", (string? date, IOddsProvider odds, CancellationToken ct) =>
-{
-    var parsedDate = DateOnly.TryParse(date, out var d) ? d : DateOnly.FromDateTime(DateTime.Today);
-    return odds.GetMatchesAsync(parsedDate, ct);
-});
-
-api.MapGet("/popular", (string? date, int? count, IOddsProvider odds, CancellationToken ct) =>
-{
-    var parsedDate = DateOnly.TryParse(date, out var d) ? d : DateOnly.FromDateTime(DateTime.Today);
-    return odds.GetPopularMatchesAsync(parsedDate, count ?? 10, ct);
-});
-
-app.UseMiddleware<ExceptionMiddleware>();
-app.UseMiddleware<LoggingMiddleware>();
-
-api.MapGet("/popular/forecasts", (string? date, int? count, bool? refresh, ForecastService service, CancellationToken ct) =>
-{
-    var parsedDate = DateOnly.TryParse(date, out var d) ? d : DateOnly.FromDateTime(DateTime.Today);
-    return service.GetPopularForecastsAsync(parsedDate, count ?? 10, refresh ?? false, ct);
-});
-
-api.MapGet("/{id:int}/odds", async (int id, IOddsProvider odds, CancellationToken ct) =>
-    await odds.GetOddsAsync(id, ct) is { } result ? Results.Ok(result) : Results.NotFound());
-
-api.MapGet("/{id:int}/forecast", (int id, bool? refresh, ForecastService service, CancellationToken ct) =>
-    service.GetForecastAsync(id, refresh ?? false, ct));
+    app.MapControllers();
 
     app.Run();
 }

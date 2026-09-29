@@ -1,5 +1,4 @@
-using System.Net;
-using System.Text.Json;
+using MatchForecast.Models.Common;
 
 namespace MatchForecast.Api.Middleware;
 
@@ -24,23 +23,31 @@ public class ExceptionMiddleware
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex,
-                "Unhandled exception. Path: {Path}, Method: {Method}",
-                context.Request.Path,
-                context.Request.Method);
+            // ForecastException kendi status kodunu (404, 502 vb.) ve kullanıcıya gösterilebilir mesajını taşır; diğer hatalar 500.
+            var (status, detail) = ex is ForecastException fe
+                ? (fe.StatusCode, fe.Message)
+                : (StatusCodes.Status500InternalServerError, "Beklenmeyen bir hata oluştu.");
 
-            context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
-            context.Response.ContentType = "application/json";
-
-            var response = new
+            if (status >= StatusCodes.Status500InternalServerError)
             {
-                success = false,
-                message = "Beklenmeyen bir hata oluştu.",
-                statusCode = 500
-            };
+                _logger.LogError(ex,
+                    "Unhandled exception. Path: {Path}, Method: {Method}, Status: {Status}",
+                    context.Request.Path,
+                    context.Request.Method,
+                    status);
+            }
+            else
+            {
+                _logger.LogWarning(ex,
+                    "Handled exception. Path: {Path}, Method: {Method}, Status: {Status}",
+                    context.Request.Path,
+                    context.Request.Method,
+                    status);
+            }
 
-            await context.Response.WriteAsync(
-                JsonSerializer.Serialize(response));
+            // Frontend (api.ts) ProblemDetails içindeki "detail" alanını okur.
+            context.Response.StatusCode = status;
+            await Results.Problem(detail: detail, statusCode: status).ExecuteAsync(context);
         }
     }
 }
