@@ -1,6 +1,8 @@
 using MatchForecast.Models.Common;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 
-namespace MatchForecast.Api.Middleware;
+namespace MatchForecast.Logger.Middleware;
 
 public class ExceptionMiddleware
 {

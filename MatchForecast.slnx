@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/backend/">
+    <Project Path="backend/MatchForecast.Api/MatchForecast.Api.csproj" />
+    <Project Path="backend/MatchForecast.Logger/MatchForecast.Logger.csproj" />
+    <Project Path="backend/MatchForecast.Models/MatchForecast.Models.csproj" />
+    <Project Path="backend/MatchForecast.Tests/MatchForecast.Tests.csproj" />
+  </Folder>
+</Solution>

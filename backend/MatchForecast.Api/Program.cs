@@ -1,11 +1,9 @@
 using NLog;
 using NLog.Web;
-using MatchForecast.Models.Common;
 using MatchForecast.Api.Options;
 using MatchForecast.Api.Services;
-using Microsoft.AspNetCore.Diagnostics;
+using MatchForecast.Logger.Extensions;
 using Microsoft.Extensions.Options;
-using MatchForecast.Api.Middleware;
 
 var logger = LogManager.Setup().LoadConfigurationFromAppSettings().GetCurrentClassLogger();
 logger.Debug("Initializing MatchForecast API host...");
@@ -38,29 +36,19 @@ try
         });
     });
 
-    // OddsProvider:UseMock=true -> anahtarsız örnek veri; false -> API-Football (x-apisports-key gerekir)
-    var oddsOpt = builder.Configuration.GetSection(OddsProviderOptions.Section).Get<OddsProviderOptions>() ?? new();
-    if (oddsOpt.UseMock)
+    builder.Services.AddHttpClient<IOddsProvider, ApiFootballOddsProvider>((sp, c) =>
     {
-        builder.Services.AddSingleton<IOddsProvider, MockOddsProvider>();
-    }
-    else
-    {
-        builder.Services.AddHttpClient<IOddsProvider, ApiFootballOddsProvider>((sp, c) =>
-        {
-            var o = sp.GetRequiredService<IOptions<OddsProviderOptions>>().Value;
-            c.BaseAddress = new Uri(o.BaseUrl);
-            c.DefaultRequestHeaders.Add("x-apisports-key", o.ApiKey);
-        });
-    }
+        var o = sp.GetRequiredService<IOptions<OddsProviderOptions>>().Value;
+        c.BaseAddress = new Uri(o.BaseUrl);
+        c.DefaultRequestHeaders.Add("x-apisports-key", o.ApiKey);
+    });
 
-    builder.Services.AddHttpClient<IForecastAiClient, ClaudeForecastClient>((sp, c) =>
+    builder.Services.AddHttpClient<IForecastAiClient, GeminiForecastClient>((sp, c) =>
     {
         var o = sp.GetRequiredService<IOptions<AiOptions>>().Value;
         c.BaseAddress = new Uri(o.BaseUrl);
         c.Timeout = TimeSpan.FromSeconds(90);
-        c.DefaultRequestHeaders.Add("x-api-key", o.ApiKey);
-        c.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
+        c.DefaultRequestHeaders.Add("x-goog-api-key", o.ApiKey);
     });
 
     builder.Services.AddScoped<ForecastService>();
@@ -71,28 +59,6 @@ try
         .AllowAnyMethod()));
 
     var app = builder.Build();
-
-    // ForecastException -> kullanıcıya gösterilebilir ProblemDetails; diğer hatalar -> 500
-    app.UseExceptionHandler(errorApp => errorApp.Run(async ctx =>
-    {
-        var ex = ctx.Features.Get<IExceptionHandlerFeature>()?.Error;
-        var reqLogger = ctx.RequestServices.GetRequiredService<ILogger<Program>>();
-
-        if (ex is ForecastException fe)
-        {
-            reqLogger.LogWarning(ex, "ForecastException caught by handler: {Message} (Status {StatusCode})", fe.Message, fe.StatusCode);
-        }
-        else if (ex is not null)
-        {
-            reqLogger.LogError(ex, "Unhandled exception caught by handler: {Message}", ex.Message);
-        }
-
-        var (status, detail) = ex is ForecastException feEx
-            ? (feEx.StatusCode, feEx.Message)
-            : (StatusCodes.Status500InternalServerError, "Beklenmeyen bir hata oluştu.");
-        ctx.Response.StatusCode = status;
-        await Results.Problem(detail: detail, statusCode: status).ExecuteAsync(ctx);
-    }));
 
     if (app.Environment.IsDevelopment())
     {
@@ -106,8 +72,9 @@ try
 
     app.UseCors();
 
-    app.UseMiddleware<ExceptionMiddleware>();
-    app.UseMiddleware<LoggingMiddleware>();
+    // Middlewares from MatchForecast.Logger project
+    app.UseMatchForecastExceptionHandling();
+    app.UseMatchForecastLogging();
 
     app.MapControllers();
 

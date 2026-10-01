@@ -16,12 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MatchForecast.Models\MatchForecast.Models.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Update="nlog.config">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    <ProjectReference Include="..\MatchForecast.Logger\MatchForecast.Logger.csproj" />
   </ItemGroup>
 
 </Project>

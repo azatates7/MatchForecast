@@ -3,8 +3,10 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Unicode;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 
-namespace MatchForecast.Api.Middleware;
+namespace MatchForecast.Logger.Middleware;
 
 public class LoggingMiddleware
 {

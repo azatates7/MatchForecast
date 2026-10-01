@@ -25,10 +25,16 @@ public sealed class MockOddsProvider : IOddsProvider
     ];
 
     public Task<IReadOnlyList<MatchSummary>> GetMatchesAsync(DateOnly date, CancellationToken ct) =>
-        Task.FromResult<IReadOnlyList<MatchSummary>>(Seed.Select(s => ToSummary(s, date)).ToList());
+        Task.FromResult<IReadOnlyList<MatchSummary>>(Upcoming(date).ToList());
 
     public Task<IReadOnlyList<MatchSummary>> GetPopularMatchesAsync(DateOnly date, int count, CancellationToken ct) =>
-        Task.FromResult<IReadOnlyList<MatchSummary>>(Seed.Take(count).Select(s => ToSummary(s, date)).ToList());
+        Task.FromResult<IReadOnlyList<MatchSummary>>(Upcoming(date).Take(count).ToList());
+
+    // Bitmiş maçlar elenir; gerçek provider ile aynı davranış.
+    private static IEnumerable<MatchSummary> Upcoming(DateOnly date) =>
+        Seed.Select(s => ToSummary(s, date))
+            .Where(m => !MatchStatus.IsFinished(m.Status))
+            .OrderBy(m => m.Kickoff);
 
     public Task<MatchSummary?> GetMatchAsync(int fixtureId, CancellationToken ct)
     {
@@ -74,8 +80,29 @@ public sealed class MockOddsProvider : IOddsProvider
         Math.Round((decimal)(1 / Math.Clamp(p * 1.06, 0.03, 0.97)), 2);
 
     private static MatchSummary ToSummary(
-        (int Id, string League, string Country, string Home, string Away, int Hour, double HomeStrength) s, DateOnly date) =>
-        new(s.Id,
-            new DateTimeOffset(date.ToDateTime(new TimeOnly(s.Hour, 0)), TimeSpan.FromHours(3)),
-            s.League, s.Country, s.Home, s.Away, "NS");
+        (int Id, string League, string Country, string Home, string Away, int Hour, double HomeStrength) s, DateOnly date)
+    {
+        var kickoff = new DateTimeOffset(date.ToDateTime(new TimeOnly(s.Hour, 0)), TimeSpan.FromHours(3));
+        var (status, elapsed, extra) = SimulateStatus(kickoff, DateTimeOffset.Now);
+        return new(s.Id, kickoff, s.League, s.Country, s.Home, s.Away, status, elapsed, extra);
+    }
+
+    /// <summary>
+    /// Başlama saatine göre maç durumunu taklit eder: 45 dk 1. yarı + 2 dk uzatma, 15 dk devre arası,
+    /// 45 dk 2. yarı + 4 dk uzatma. Toplam ~111 dk sonra maç biter (FT).
+    /// </summary>
+    private static (string Status, int? Elapsed, int? Extra) SimulateStatus(DateTimeOffset kickoff, DateTimeOffset now)
+    {
+        var m = (int)Math.Floor((now - kickoff).TotalMinutes);
+        return m switch
+        {
+            < 0 => ("NS", null, null),
+            < 45 => ("1H", m + 1, null),
+            < 47 => ("1H", 45, m - 44),
+            < 62 => ("HT", 45, null),
+            < 107 => ("2H", m - 16, null),
+            < 111 => ("2H", 90, m - 106),
+            _ => ("FT", 90, null)
+        };
+    }
 }

@@ -1,8 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getForecast, getMatches } from './api'
-import type { ForecastResult, MatchSummary } from './types'
+import type { ForecastResult, MatchSummary } from './components/Types'
+import { isLive } from './components/MatchStatus'
 import MatchList from './components/MatchList'
 import ForecastPanel from './components/ForecastPanel'
+
+// Canlı maç varken listenin arka planda yenilenme aralığı. API kotasını korumak için
+// kısa tutulmadı; aradaki dakikalar matchStatus.minuteLabel içinde yerelde ilerletilir.
+const LIVE_REFRESH_MS = 5 * 60_000
+// Ekrandaki dakika etiketinin güncellenme aralığı (ağ isteği yapmaz)
+const CLOCK_TICK_MS = 30_000
 
 const toIsoDate = (d: Date) => {
   const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
@@ -15,31 +22,70 @@ const shiftDate = (iso: string, days: number) => {
   return toIsoDate(d)
 }
 
+const leagueKey = (m: MatchSummary) => `${m.country} / ${m.league}`
+
 export default function App() {
   const [date, setDate] = useState(() => toIsoDate(new Date()))
   const [query, setQuery] = useState('')
+  const [league, setLeague] = useState('')
   const [matches, setMatches] = useState<MatchSummary[]>([])
+  const [fetchedAt, setFetchedAt] = useState(() => Date.now())
+  const [now, setNow] = useState(() => Date.now())
   const [matchesState, setMatchesState] = useState<{ loading: boolean; error?: string }>({ loading: true })
 
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [forecast, setForecast] = useState<ForecastResult | null>(null)
   const [forecastState, setForecastState] = useState<{ loading: boolean; error?: string }>({ loading: false })
 
+  // silent=true: arka plan yenilemesi; listeyi "yükleniyor" durumuna sokmaz, hata olursa eski listeyi korur.
+  const loadMatches = useCallback((silent: boolean, isCancelled: () => boolean = () => false) => {
+    if (!silent) setMatchesState({ loading: true })
+    getMatches(date)
+      .then(data => {
+        if (isCancelled()) return
+        setMatches(data)
+        setFetchedAt(Date.now())
+        setNow(Date.now())
+        setMatchesState({ loading: false })
+      })
+      .catch((e: Error) => {
+        if (isCancelled() || silent) return
+        setMatchesState({ loading: false, error: e.message })
+      })
+  }, [date])
+
+  // Tarih değişince listeyi yükle ve lig filtresini sıfırla (yeni tarihte o lig olmayabilir)
   useEffect(() => {
     let cancelled = false
-    setMatchesState({ loading: true })
-    getMatches(date)
-      .then(data => { if (!cancelled) { setMatches(data); setMatchesState({ loading: false }) } })
-      .catch((e: Error) => { if (!cancelled) setMatchesState({ loading: false, error: e.message }) })
+    setLeague('')
+    loadMatches(false, () => cancelled)
     return () => { cancelled = true }
-  }, [date])
+  }, [loadMatches])
+
+  const hasLive = useMemo(() => matches.some(isLive), [matches])
+
+  // Canlı maç varsa: listeyi periyodik yenile ve dakika etiketini ilerlet
+  useEffect(() => {
+    if (!hasLive) return
+    let cancelled = false
+    const refresh = setInterval(() => loadMatches(true, () => cancelled), LIVE_REFRESH_MS)
+    const tick = setInterval(() => setNow(Date.now()), CLOCK_TICK_MS)
+    return () => { cancelled = true; clearInterval(refresh); clearInterval(tick) }
+  }, [hasLive, loadMatches])
+
+  // Lig seçenekleri: yüklenen maçlardan, maç sayısıyla birlikte, alfabetik
+  const leagueOptions = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const m of matches) counts.set(leagueKey(m), (counts.get(leagueKey(m)) ?? 0) + 1)
+    return [...counts].sort(([a], [b]) => a.localeCompare(b, 'tr'))
+  }, [matches])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr')
-    if (!q) return matches
     return matches.filter(m =>
-      [m.homeTeam, m.awayTeam, m.league, m.country].some(s => s.toLocaleLowerCase('tr').includes(q)))
-  }, [matches, query])
+      (!league || leagueKey(m) === league) &&
+      (!q || [m.homeTeam, m.awayTeam, m.league, m.country].some(s => s.toLocaleLowerCase('tr').includes(q))))
+  }, [matches, query, league])
 
   // Hızlı art arda tıklamalarda eski cevabın yenisini ezmemesi için
   const requestSeq = useRef(0)
@@ -82,12 +128,26 @@ export default function App() {
             value={query}
             onChange={e => setQuery(e.target.value)}
           />
+          <select
+            className="league-filter"
+            value={league}
+            onChange={e => setLeague(e.target.value)}
+            aria-label="Lig / turnuva filtresi"
+            disabled={leagueOptions.length === 0}
+          >
+            <option value="">Tüm ligler ({matches.length})</option>
+            {leagueOptions.map(([key, count]) => (
+              <option key={key} value={key}>{key} ({count})</option>
+            ))}
+          </select>
           <MatchList
             matches={filtered}
             loading={matchesState.loading}
             error={matchesState.error}
             selectedId={selectedId}
             onSelect={id => analyze(id)}
+            fetchedAt={fetchedAt}
+            now={now}
           />
         </section>
 

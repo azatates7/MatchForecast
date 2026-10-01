@@ -20,6 +20,7 @@ public sealed class ApiFootballOddsProvider(
 {
     private readonly OddsProviderOptions _opt = options.Value;
     private TimeSpan CacheTtl => TimeSpan.FromMinutes(_opt.CacheMinutes);
+    private static readonly TimeSpan LiveCacheTtl = TimeSpan.FromMinutes(1);
 
     private static readonly HashSet<string> PopularLeagues = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -39,14 +40,20 @@ public sealed class ApiFootballOddsProvider(
         var key = $"fixtures:{date:yyyy-MM-dd}";
         return await cache.GetOrCreateAsync(key, async entry =>
         {
-            entry.AbsoluteExpirationRelativeToNow = CacheTtl;
             var tz = Uri.EscapeDataString(_opt.Timezone);
             using var doc = await GetAsync($"fixtures?date={date:yyyy-MM-dd}&timezone={tz}", ct);
-            return (IReadOnlyList<MatchSummary>)doc.RootElement.GetProperty("response")
+            var list = (IReadOnlyList<MatchSummary>)doc.RootElement.GetProperty("response")
                 .EnumerateArray()
                 .Select(ParseFixture)
+                .Where(m => !MatchStatus.IsFinished(m.Status))
                 .OrderBy(m => m.Kickoff)
                 .ToList();
+
+            // Canlı maç varsa dakika bilgisi eskimesin diye kısa önbellek; yoksa normal süre.
+            entry.AbsoluteExpirationRelativeToNow = list.Any(m => MatchStatus.IsLive(m.Status))
+                ? LiveCacheTtl
+                : CacheTtl;
+            return list;
         }) ?? [];
     }
 
@@ -140,6 +147,7 @@ public sealed class ApiFootballOddsProvider(
         var fixture = item.GetProperty("fixture");
         var league = item.GetProperty("league");
         var teams = item.GetProperty("teams");
+        var status = fixture.GetProperty("status");
         return new MatchSummary(
             fixture.GetProperty("id").GetInt32(),
             DateTimeOffset.Parse(fixture.GetProperty("date").GetString()!, CultureInfo.InvariantCulture),
@@ -147,8 +155,13 @@ public sealed class ApiFootballOddsProvider(
             league.GetProperty("country").GetString() ?? "",
             teams.GetProperty("home").GetProperty("name").GetString() ?? "",
             teams.GetProperty("away").GetProperty("name").GetString() ?? "",
-            fixture.GetProperty("status").GetProperty("short").GetString() ?? "");
+            status.GetProperty("short").GetString() ?? "",
+            OptionalInt(status, "elapsed"),
+            OptionalInt(status, "extra"));
     }
+
+    private static int? OptionalInt(JsonElement parent, string name) =>
+        parent.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetInt32() : null;
 
     private static string AsText(JsonElement e) =>
         e.ValueKind == JsonValueKind.String ? e.GetString() ?? "" : e.GetRawText();
