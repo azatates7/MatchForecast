@@ -46,6 +46,7 @@ public sealed class ApiFootballOddsProvider(
                 .EnumerateArray()
                 .Select(ParseFixture)
                 .Where(m => !MatchStatus.IsFinished(m.Status))
+                .Where(m => !MatchStatus.IsStaleNotStarted(m.Status, m.Kickoff, DateTimeOffset.Now))
                 .OrderBy(m => m.Kickoff)
                 .ToList();
 
