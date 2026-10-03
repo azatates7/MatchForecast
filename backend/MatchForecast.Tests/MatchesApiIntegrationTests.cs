@@ -35,7 +35,7 @@ public class MatchesApiIntegrationTests : IClassFixture<WebApplicationFactory<Pr
             {
                 services.AddSingleton(mockOdds.Object);
             });
-        }).CreateClient();
+        }).CreateAuthorizedClient();
 
         // Act
         var response = await client.GetAsync("/api/matches?date=2026-09-25");
@@ -64,7 +64,7 @@ public class MatchesApiIntegrationTests : IClassFixture<WebApplicationFactory<Pr
             {
                 services.AddSingleton(mockOdds.Object);
             });
-        }).CreateClient();
+        }).CreateAuthorizedClient();
 
         // Act
         var response = await client.GetAsync("/api/matches/popular?count=10");
@@ -97,7 +97,7 @@ public class MatchesApiIntegrationTests : IClassFixture<WebApplicationFactory<Pr
             {
                 services.AddSingleton(mockOdds.Object);
             });
-        }).CreateClient();
+        }).CreateAuthorizedClient();
 
         // Act
         var response = await client.GetAsync("/api/matches/1/odds");
@@ -125,7 +125,7 @@ public class MatchesApiIntegrationTests : IClassFixture<WebApplicationFactory<Pr
             {
                 services.AddSingleton(mockOdds.Object);
             });
-        }).CreateClient();
+        }).CreateAuthorizedClient();
 
         // Act
         var response = await client.GetAsync("/api/matches/999/odds");
@@ -172,7 +172,7 @@ public class MatchesApiIntegrationTests : IClassFixture<WebApplicationFactory<Pr
                 services.AddSingleton(mockOdds.Object);
                 services.AddSingleton(mockAi.Object);
             });
-        }).CreateClient();
+        }).CreateAuthorizedClient();
 
         // Act
         var response = await client.GetAsync("/api/matches/10/forecast");
@@ -201,7 +201,7 @@ public class MatchesApiIntegrationTests : IClassFixture<WebApplicationFactory<Pr
             {
                 services.AddSingleton(mockOdds.Object);
             });
-        }).CreateClient();
+        }).CreateAuthorizedClient();
 
         // Act
         var response = await client.GetAsync("/api/matches/888/forecast");

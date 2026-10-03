@@ -1,9 +1,15 @@
+using System.Text;
 using NLog;
 using NLog.Web;
 using MatchForecast.Api.Options;
 using MatchForecast.Api.Services;
+using MatchForecast.Api.Swagger;
 using MatchForecast.Logger.Extensions;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi;
 
 var logger = LogManager.Setup().LoadConfigurationFromAppSettings().GetCurrentClassLogger();
 logger.Debug("Initializing MatchForecast API host...");
@@ -19,6 +25,38 @@ try
     builder.Services.Configure<OddsProviderOptions>(builder.Configuration.GetSection(OddsProviderOptions.Section));
     builder.Services.Configure<AiOptions>(builder.Configuration.GetSection(AiOptions.Section));
     builder.Services.AddMemoryCache();
+
+    // JWT ayarları: eksik/kısa SecretKey ile uygulama hiç ayağa kalkmasın (ilk istekte değil, startup'ta hata).
+    builder.Services.AddOptions<JwtOptions>()
+        .Bind(builder.Configuration.GetSection(JwtOptions.Section))
+        .Validate(o => Encoding.UTF8.GetByteCount(o.SecretKey) >= 32, "Jwt:SecretKey en az 32 byte olmalı (HS256).")
+        .ValidateOnStart();
+    builder.Services.AddSingleton<JwtTokenService>();
+
+    builder.Services.AddAuthentication("Bearer").AddJwtBearer();
+
+    // JwtBearer ayarları IOptions<JwtOptions> üzerinden lazy kurulur (HttpClient kayıtlarındaki gibi); testlerde override edilebilir.
+    builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+        .Configure<IOptions<JwtOptions>>((bearer, jwt) =>
+        {
+            var o = jwt.Value;
+            bearer.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidIssuer = o.Issuer,
+                ValidateAudience = true,
+                ValidAudience = o.Audience,
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = JwtTokenService.CreateSigningKey(o.SecretKey),
+                ValidateLifetime = true,
+                ClockSkew = TimeSpan.FromSeconds(30) // Varsayılan 5 dk; süresi dolan token'ın 5 dk daha geçerli kalmaması için.
+            };
+        });
+
+    // Fallback policy: [AllowAnonymous] olmayan TÜM endpoint'ler token ister. Yeni controller'lar varsayılan olarak korunur.
+    builder.Services.AddAuthorization(o => o.FallbackPolicy = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build());
     builder.Services.AddProblemDetails();
 
     // Controllers klasöründeki [ApiController] sınıfları otomatik keşfedilir; yeni endpoint için Program.cs'e dokunmaya gerek yok.
@@ -34,6 +72,16 @@ try
             Version = "v1",
             Description = "Futbol maçları ve LLM (Claude) destekli tahmin analizi API'si"
         });
+
+        // Swagger UI'da "Authorize" butonu; token "Bearer " öneki olmadan girilir.
+        c.AddSecurityDefinition(BearerSecurityOperationFilter.SchemeName, new OpenApiSecurityScheme
+        {
+            Type = SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "JWT",
+            Description = "POST /api/auth/token ile aldığınız accessToken değerini girin."
+        });
+        c.OperationFilter<BearerSecurityOperationFilter>();
     });
 
     builder.Services.AddHttpClient<IOddsProvider, ApiFootballOddsProvider>((sp, c) =>
@@ -62,7 +110,7 @@ try
 
     if (app.Environment.IsDevelopment())
     {
-        app.MapOpenApi();
+        app.MapOpenApi().AllowAnonymous(); // Endpoint olduğu için fallback policy'ye takılmasın.
         app.UseSwagger();
         app.UseSwaggerUI(c =>
         {
@@ -75,6 +123,10 @@ try
     // Middlewares from MatchForecast.Logger project
     app.UseMatchForecastExceptionHandling();
     app.UseMatchForecastLogging();
+
+    // Logging'den sonra: 401 dönen istekler de loglanır.
+    app.UseAuthentication();
+    app.UseAuthorization();
 
     app.MapControllers();
 

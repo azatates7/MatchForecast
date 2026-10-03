@@ -96,7 +96,7 @@ public sealed class PublicOddsProvider(HttpClient http, IMemoryCache cache, ILog
 
                 list.Add(new MatchSummary(id, kickoff, league, country, homeTeam, awayTeam, status));
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 // Swallow parsing errors for individual events; continue with others.
                 // Log at debug level.
