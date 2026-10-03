@@ -240,3 +240,113 @@
 2026-10-03 21:30:52.0908 Info Closing old configuration.
 2026-10-03 21:30:52.0908 Info Configuration initialized: TargetNames=dailyFile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
 2026-10-03 21:30:52.0908 Info Configuration initialized: TargetNames=dailyFile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:24.2386 Info Registered target NLog.Targets.FileTarget(Name=dailyFile)
+2026-10-03 21:34:24.2386 Info Registered target NLog.Targets.FileTarget(Name=dailyFile)
+2026-10-03 21:34:24.2386 Info Registered target NLog.Targets.FileTarget(Name=dailyFile)
+2026-10-03 21:34:24.2386 Info Registered target NLog.Targets.FileTarget(Name=dailyFile)
+2026-10-03 21:34:24.2386 Info Registered target NLog.Targets.ConsoleTarget(Name=lifetimeConsole)
+2026-10-03 21:34:24.2386 Info Registered target NLog.Targets.ConsoleTarget(Name=lifetimeConsole)
+2026-10-03 21:34:24.2386 Info Registered target NLog.Targets.ConsoleTarget(Name=lifetimeConsole)
+2026-10-03 21:34:24.2386 Info Registered target NLog.Targets.ConsoleTarget(Name=lifetimeConsole)
+2026-10-03 21:34:24.2585 Info NLog, Version=6.0.0.0, Culture=neutral, PublicKeyToken=5120e14c03d0593c. File version: 6.2.1.5860. Product version: 6.2.1+b058028290f245d12c30cb2910c2a574558ed9c6. GlobalAssemblyCache: False
+2026-10-03 21:34:24.2585 Info NLog, Version=6.0.0.0, Culture=neutral, PublicKeyToken=5120e14c03d0593c. File version: 6.2.1.5860. Product version: 6.2.1+b058028290f245d12c30cb2910c2a574558ed9c6. GlobalAssemblyCache: False
+2026-10-03 21:34:24.2857 Info Configuration initialized: TargetNames=dailyFile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:24.2857 Info Configuration initialized: TargetNames=dailyFile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:24.2857 Info Closing old configuration.
+2026-10-03 21:34:24.2857 Info Closing old configuration.
+2026-10-03 21:34:24.2857 Info Configuration initialized: TargetNames=dailyFile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:24.2857 Info Configuration initialized: TargetNames=dailyFile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:24.7852 Info Loading NLog config from XML file: C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:24.7852 Info Loading NLog config from XML file: C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:24.7852 Info Registered target NLog.Targets.FileTarget(Name=dailyFile)
+2026-10-03 21:34:24.7852 Info Registered target NLog.Targets.FileTarget(Name=dailyFile)
+2026-10-03 21:34:24.7852 Info Registered target NLog.Targets.ConsoleTarget(Name=lifetimeConsole)
+2026-10-03 21:34:24.7852 Info Registered target NLog.Targets.ConsoleTarget(Name=lifetimeConsole)
+2026-10-03 21:34:24.7852 Info Closing old configuration.
+2026-10-03 21:34:24.7852 Info Closing old configuration.
+2026-10-03 21:34:24.7996 Info Configuration initialized: TargetNames=dailyFile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:24.7996 Info Configuration initialized: TargetNames=dailyFile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:24.7996 Info Loading NLog config from XML file: C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:24.7996 Info Loading NLog config from XML file: C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:24.7996 Info Registered target NLog.Targets.FileTarget(Name=dailyFile)
+2026-10-03 21:34:24.7996 Info Registered target NLog.Targets.FileTarget(Name=dailyFile)
+2026-10-03 21:34:24.7996 Info Registered target NLog.Targets.ConsoleTarget(Name=lifetimeConsole)
+2026-10-03 21:34:24.7996 Info Registered target NLog.Targets.ConsoleTarget(Name=lifetimeConsole)
+2026-10-03 21:34:24.7996 Info Closing old configuration.
+2026-10-03 21:34:24.7996 Info Closing old configuration.
+2026-10-03 21:34:24.7996 Info Configuration initialized: TargetNames=dailyFile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:24.7996 Info Configuration initialized: TargetNames=dailyFile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:24.8626 Info Loading NLog config from XML file: C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:24.8626 Info Loading NLog config from XML file: C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:24.8626 Info Registered target NLog.Targets.FileTarget(Name=dailyFile)
+2026-10-03 21:34:24.8626 Info Registered target NLog.Targets.FileTarget(Name=dailyFile)
+2026-10-03 21:34:24.8626 Info Registered target NLog.Targets.ConsoleTarget(Name=lifetimeConsole)
+2026-10-03 21:34:24.8626 Info Registered target NLog.Targets.ConsoleTarget(Name=lifetimeConsole)
+2026-10-03 21:34:24.8626 Info Closing old configuration.
+2026-10-03 21:34:24.8626 Info Closing old configuration.
+2026-10-03 21:34:24.8626 Info Configuration initialized: TargetNames=dailyFile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:24.8626 Info Configuration initialized: TargetNames=dailyFile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:24.8787 Info Loading NLog config from XML file: C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:24.8787 Info Loading NLog config from XML file: C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:24.8787 Info Registered target NLog.Targets.FileTarget(Name=dailyFile)
+2026-10-03 21:34:24.8787 Info Registered target NLog.Targets.FileTarget(Name=dailyFile)
+2026-10-03 21:34:24.8942 Info Registered target NLog.Targets.ConsoleTarget(Name=lifetimeConsole)
+2026-10-03 21:34:24.8942 Info Registered target NLog.Targets.ConsoleTarget(Name=lifetimeConsole)
+2026-10-03 21:34:24.8942 Info Closing old configuration.
+2026-10-03 21:34:24.8942 Info Closing old configuration.
+2026-10-03 21:34:24.8942 Info Configuration initialized: TargetNames=dailyFile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:24.8942 Info Configuration initialized: TargetNames=dailyFile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:24.9282 Info Loading NLog config from XML file: C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:24.9282 Info Loading NLog config from XML file: C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:24.9282 Info Registered target NLog.Targets.FileTarget(Name=dailyFile)
+2026-10-03 21:34:24.9282 Info Registered target NLog.Targets.FileTarget(Name=dailyFile)
+2026-10-03 21:34:24.9282 Info Registered target NLog.Targets.ConsoleTarget(Name=lifetimeConsole)
+2026-10-03 21:34:24.9282 Info Registered target NLog.Targets.ConsoleTarget(Name=lifetimeConsole)
+2026-10-03 21:34:24.9282 Info Closing old configuration.
+2026-10-03 21:34:24.9282 Info Closing old configuration.
+2026-10-03 21:34:24.9282 Info Configuration initialized: TargetNames=dailyFile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:24.9282 Info Configuration initialized: TargetNames=dailyFile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:24.9588 Info Loading NLog config from XML file: C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:24.9588 Info Loading NLog config from XML file: C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:24.9588 Info Registered target NLog.Targets.FileTarget(Name=dailyFile)
+2026-10-03 21:34:24.9588 Info Registered target NLog.Targets.FileTarget(Name=dailyFile)
+2026-10-03 21:34:24.9588 Info Registered target NLog.Targets.ConsoleTarget(Name=lifetimeConsole)
+2026-10-03 21:34:24.9588 Info Registered target NLog.Targets.ConsoleTarget(Name=lifetimeConsole)
+2026-10-03 21:34:24.9588 Info Closing old configuration.
+2026-10-03 21:34:24.9588 Info Closing old configuration.
+2026-10-03 21:34:24.9723 Info Configuration initialized: TargetNames=dailyFile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:24.9723 Info Configuration initialized: TargetNames=dailyFile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:24.9964 Info LogFactory shutting down ...
+2026-10-03 21:34:24.9964 Info LogFactory shutting down ...
+2026-10-03 21:34:24.9964 Info Closing old configuration.
+2026-10-03 21:34:24.9964 Info Closing old configuration.
+2026-10-03 21:34:24.9964 Info LogFactory shutdown completed.
+2026-10-03 21:34:24.9964 Info LogFactory shutdown completed.
+2026-10-03 21:34:24.9964 Info LogFactory shutting down ...
+2026-10-03 21:34:24.9964 Info LogFactory shutting down ...
+2026-10-03 21:34:24.9964 Info LogFactory shutting down ...
+2026-10-03 21:34:24.9964 Info LogFactory shutting down ...
+2026-10-03 21:34:25.0031 Info LogFactory shutdown completed.
+2026-10-03 21:34:25.0031 Info LogFactory shutdown completed.
+2026-10-03 21:34:25.0031 Info LogFactory shutdown completed.
+2026-10-03 21:34:25.0031 Info LogFactory shutdown completed.
+2026-10-03 21:34:25.0409 Info Loading NLog config from XML file: C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:25.0409 Info Loading NLog config from XML file: C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:25.0409 Info Registered target NLog.Targets.FileTarget(Name=dailyFile)
+2026-10-03 21:34:25.0409 Info Registered target NLog.Targets.FileTarget(Name=dailyFile)
+2026-10-03 21:34:25.0409 Info Registered target NLog.Targets.ConsoleTarget(Name=lifetimeConsole)
+2026-10-03 21:34:25.0409 Info Registered target NLog.Targets.ConsoleTarget(Name=lifetimeConsole)
+2026-10-03 21:34:25.0409 Info NLog, Version=6.0.0.0, Culture=neutral, PublicKeyToken=5120e14c03d0593c. File version: 6.2.1.5860. Product version: 6.2.1+b058028290f245d12c30cb2910c2a574558ed9c6. GlobalAssemblyCache: False
+2026-10-03 21:34:25.0409 Info NLog, Version=6.0.0.0, Culture=neutral, PublicKeyToken=5120e14c03d0593c. File version: 6.2.1.5860. Product version: 6.2.1+b058028290f245d12c30cb2910c2a574558ed9c6. GlobalAssemblyCache: False
+2026-10-03 21:34:25.0409 Info Configuration initialized: TargetNames=dailyFile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:25.0409 Info Configuration initialized: TargetNames=dailyFile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:25.1191 Info Loading NLog config from XML file: C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:25.1191 Info Loading NLog config from XML file: C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:25.1191 Info Registered target NLog.Targets.FileTarget(Name=dailyFile)
+2026-10-03 21:34:25.1191 Info Registered target NLog.Targets.FileTarget(Name=dailyFile)
+2026-10-03 21:34:25.1191 Info Registered target NLog.Targets.ConsoleTarget(Name=lifetimeConsole)
+2026-10-03 21:34:25.1191 Info Registered target NLog.Targets.ConsoleTarget(Name=lifetimeConsole)
+2026-10-03 21:34:25.1191 Info Closing old configuration.
+2026-10-03 21:34:25.1191 Info Closing old configuration.
+2026-10-03 21:34:25.1191 Info Configuration initialized: TargetNames=dailyFile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
+2026-10-03 21:34:25.1286 Info Configuration initialized: TargetNames=dailyFile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Tests\bin\Debug\net10.0\nlog.config
