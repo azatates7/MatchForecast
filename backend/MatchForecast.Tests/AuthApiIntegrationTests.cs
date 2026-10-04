@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using MatchForecast.Api.Services;
-using MatchForecast.Models.Request;
 using MatchForecast.Models.Response;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -22,11 +21,11 @@ public class AuthApiIntegrationTests : IClassFixture<WebApplicationFactory<Progr
     }
 
     [Fact]
-    public async Task GetToken_ReturnsToken_WhenCredentialsAreValid()
+    public async Task GetToken_ReturnsToken_WithoutCredentials()
     {
         var client = _factory.WithTestJwt().CreateClient();
 
-        var response = await client.PostAsJsonAsync("/api/auth/token", new GetTokenRequest(TestAuth.Username, TestAuth.Password));
+        var response = await client.GetAsync("/api/auth/token");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var token = await response.Content.ReadFromJsonAsync<TokenResponse>();
@@ -37,19 +36,20 @@ public class AuthApiIntegrationTests : IClassFixture<WebApplicationFactory<Progr
     }
 
     [Fact]
-    public async Task GetToken_ReturnsUnauthorized_WhenCredentialsAreInvalid()
+    public async Task ProtectedEndpoint_ReturnsUnauthorized_WithoutToken()
     {
         var client = _factory.WithTestJwt().CreateClient();
 
-        var response = await client.PostAsJsonAsync("/api/auth/token", new GetTokenRequest(TestAuth.Username, "wrong-password"));
+        var response = await client.GetAsync("/api/matches?date=2026-09-25");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]
-    public async Task ProtectedEndpoint_ReturnsUnauthorized_WithoutToken()
+    public async Task ProtectedEndpoint_ReturnsUnauthorized_WithInvalidToken()
     {
         var client = _factory.WithTestJwt().CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "not-a-valid-token");
 
         var response = await client.GetAsync("/api/matches?date=2026-09-25");
 
@@ -67,8 +67,7 @@ public class AuthApiIntegrationTests : IClassFixture<WebApplicationFactory<Progr
         var client = _factory.WithTestJwt().WithWebHostBuilder(builder =>
             builder.ConfigureTestServices(services => services.AddSingleton(mockOdds.Object))).CreateClient();
 
-        var tokenResponse = await client.PostAsJsonAsync("/api/auth/token", new GetTokenRequest(TestAuth.Username, TestAuth.Password));
-        var token = await tokenResponse.Content.ReadFromJsonAsync<TokenResponse>();
+        var token = await client.GetFromJsonAsync<TokenResponse>("/api/auth/token");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token!.AccessToken);
 
         var response = await client.GetAsync("/api/matches?date=2026-09-25");

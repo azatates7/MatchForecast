@@ -9,8 +9,4 @@ public sealed class JwtOptions
     public string Issuer { get; set; } = "MatchForecast.Api";
     public string Audience { get; set; } = "MatchForecast.Client";
     public int ExpiryMinutes { get; set; } = 60;
-
-    // GetToken için statik kimlik bilgisi. Kullanıcı tablosu (roadmap adım 2: register/login) gelene kadar geçici çözüm.
-    public string Username { get; set; } = "";
-    public string Password { get; set; } = "";
 }

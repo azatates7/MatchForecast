@@ -33,7 +33,7 @@ try
         .ValidateOnStart();
     builder.Services.AddSingleton<JwtTokenService>();
 
-    builder.Services.AddAuthentication("Bearer").AddJwtBearer();
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 
     // JwtBearer ayarları IOptions<JwtOptions> üzerinden lazy kurulur (HttpClient kayıtlarındaki gibi); testlerde override edilebilir.
     builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
@@ -73,13 +73,14 @@ try
             Description = "Futbol maçları ve LLM (Claude) destekli tahmin analizi API'si"
         });
 
-        // Swagger UI'da "Authorize" butonu; token "Bearer " öneki olmadan girilir.
+        // Swagger UI'da "Authorize" butonu. ApiKey tipi girilen değeri Authorization header'ına olduğu gibi yazar,
+        // bu yüzden değer "Bearer {token}" formatında girilir (Http/bearer tipi öneki kendisi eklerdi).
         c.AddSecurityDefinition(BearerSecurityOperationFilter.SchemeName, new OpenApiSecurityScheme
         {
-            Type = SecuritySchemeType.Http,
-            Scheme = "bearer",
-            BearerFormat = "JWT",
-            Description = "POST /api/auth/token ile aldığınız accessToken değerini girin."
+            Type = SecuritySchemeType.ApiKey,
+            In = ParameterLocation.Header,
+            Name = "Authorization",
+            Description = "GET /api/auth/token ile aldığınız token'ı \"Bearer {accessToken}\" formatında girin."
         });
         c.OperationFilter<BearerSecurityOperationFilter>();
     });

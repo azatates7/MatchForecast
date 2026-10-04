@@ -26,3 +26,9 @@ export interface ForecastResult {
   predictions: Prediction[]
   generatedAt: string
 }
+
+export interface TokenResponse {
+  accessToken: string
+  tokenType: string
+  expiresAt: string
+}

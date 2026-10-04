@@ -10,26 +10,19 @@ namespace MatchForecast.Tests;
 /// <summary>Integration testleri için JWT ayarlarını sabitler ve token'lı HttpClient üretir.</summary>
 internal static class TestAuth
 {
-    public const string Username = "test-user";
-    public const string Password = "test-password";
     private const string SecretKey = "matchforecast-test-secret-key-32-bytes-min!";
 
     /// <summary>User-secrets'a bağlı kalmadan testlerin geçerli bir JwtOptions ile ayağa kalkmasını sağlar.</summary>
     public static WebApplicationFactory<Program> WithTestJwt(this WebApplicationFactory<Program> factory) =>
         factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
-            services.PostConfigure<JwtOptions>(o =>
-            {
-                o.SecretKey = SecretKey;
-                o.Username = Username;
-                o.Password = Password;
-            })));
+            services.PostConfigure<JwtOptions>(o => o.SecretKey = SecretKey)));
 
     /// <summary>Authorization: Bearer header'ı hazır HttpClient döner.</summary>
     public static HttpClient CreateAuthorizedClient(this WebApplicationFactory<Program> factory)
     {
         var testFactory = factory.WithTestJwt();
         var client = testFactory.CreateClient();
-        var token = testFactory.Services.GetRequiredService<JwtTokenService>().CreateToken(Username);
+        var token = testFactory.Services.GetRequiredService<JwtTokenService>().CreateToken();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token.AccessToken);
         return client;
     }
