@@ -10,6 +10,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using MatchForecast.Models.Common;
+using StackExchange.Redis;
 
 var logger = LogManager.Setup().LoadConfigurationFromAppSettings().GetCurrentClassLogger();
 logger.Debug("Initializing MatchForecast API host...");
@@ -99,6 +101,19 @@ try
         c.Timeout = TimeSpan.FromSeconds(90);
         c.DefaultRequestHeaders.Add("x-goog-api-key", o.ApiKey);
     });
+
+    builder.Services.Configure<RedisOptions>(
+    builder.Configuration.GetSection("Redis"));
+    builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
+    {
+        var configuration = sp
+            .GetRequiredService<IOptions<RedisOptions>>()
+            .Value;
+
+        return ConnectionMultiplexer.Connect(
+            configuration.ConnectionString);
+    });
+    builder.Services.AddSingleton<IRedisCacheService, RedisCacheService>();
 
     builder.Services.AddScoped<ForecastService>();
 
