@@ -2,7 +2,6 @@ using MatchForecast.Models.Common;
 using MatchForecast.Models.Response;
 using MatchForecast.Api.Options;
 using MatchForecast.Api.Services;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -14,7 +13,7 @@ public class ForecastServiceTests
 {
     private readonly Mock<IOddsProvider> _mockOdds = new();
     private readonly Mock<IForecastAiClient> _mockAi = new();
-    private readonly IMemoryCache _cache = new MemoryCache(new MemoryCacheOptions());
+    private readonly IRedisCacheService _cache = new InMemoryRedisCacheService();
     private readonly IOptions<AiOptions> _aiOptions = Options.Create(new AiOptions { CacheMinutes = 30 });
 
     private ForecastService CreateService()
@@ -117,8 +116,9 @@ public class ForecastServiceTests
         // Act 2: Second call should return cached object without invoking AI again
         var second = await service.GetForecastAsync(5, false, CancellationToken.None);
 
-        // Assert
-        Assert.Same(first, second);
+        // Assert (Redis JSON sakladığı için aynı instance değil, aynı içerik döner)
+        Assert.Equal(first.Summary, second.Summary);
+        Assert.Equal(first.GeneratedAt, second.GeneratedAt);
         _mockAi.Verify(a => a.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 }

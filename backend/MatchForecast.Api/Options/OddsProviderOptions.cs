@@ -8,7 +8,7 @@ public sealed class OddsProviderOptions
     public string ApiKey { get; set; } = string.Empty;
     public string Timezone { get; set; } = "Europe/Istanbul";
 
-    /// <summary>Boşsa, en çok market sunan bahisçi seçilir.</summary>
+    // Boşsa, en çok market sunan bahisçi seçilir.
     public int? BookmakerId { get; set; }
-    public int CacheMinutes { get; set; } = 10;
+    public int CacheMinutes { get; set; } = 30;
 }

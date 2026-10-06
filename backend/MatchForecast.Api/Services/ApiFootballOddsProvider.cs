@@ -3,18 +3,14 @@ using System.Text.Json;
 using MatchForecast.Models.Common;
 using MatchForecast.Models.Response;
 using MatchForecast.Api.Options;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 
 namespace MatchForecast.Api.Services;
 
-/// <summary>
-/// API-Football (api-sports.io v3) üzerinden fikstür ve tüm bahis marketlerini çeker.
-/// DB yok; kota tüketimini azaltmak için sonuçlar bellekte önbelleğe alınır.
-/// </summary>
+// API-Football (api-sports.io v3) üzerinden fikstür ve bahis marketlerini çeker; kota için sonuçlar Redis'te önbelleğe alınır.
 public sealed class ApiFootballOddsProvider(
     HttpClient http,
-    IMemoryCache cache,
+    IRedisCacheService cache,
     IOptions<OddsProviderOptions> options,
     ILogger<ApiFootballOddsProvider> logger) : IOddsProvider
 {
@@ -38,24 +34,23 @@ public sealed class ApiFootballOddsProvider(
     public async Task<IReadOnlyList<MatchSummary>> GetMatchesAsync(DateOnly date, CancellationToken ct)
     {
         var key = $"fixtures:{date:yyyy-MM-dd}";
-        return await cache.GetOrCreateAsync(key, async entry =>
-        {
-            var tz = Uri.EscapeDataString(_opt.Timezone);
-            using var doc = await GetAsync($"fixtures?date={date:yyyy-MM-dd}&timezone={tz}", ct);
-            var list = (IReadOnlyList<MatchSummary>)doc.RootElement.GetProperty("response")
-                .EnumerateArray()
-                .Select(ParseFixture)
-                .Where(m => !MatchStatus.IsFinished(m.Status))
-                .Where(m => !MatchStatus.IsStaleNotStarted(m.Status, m.Kickoff, DateTimeOffset.Now))
-                .OrderBy(m => m.Kickoff)
-                .ToList();
+        var cached = await cache.GetAsync<List<MatchSummary>>(key);
+        if (cached is not null)
+            return cached;
 
-            // Canlı maç varsa dakika bilgisi eskimesin diye kısa önbellek; yoksa normal süre.
-            entry.AbsoluteExpirationRelativeToNow = list.Any(m => MatchStatus.IsLive(m.Status))
-                ? LiveCacheTtl
-                : CacheTtl;
-            return list;
-        }) ?? [];
+        var tz = Uri.EscapeDataString(_opt.Timezone);
+        using var doc = await GetAsync($"fixtures?date={date:yyyy-MM-dd}&timezone={tz}", ct);
+        var list = doc.RootElement.GetProperty("response")
+            .EnumerateArray()
+            .Select(ParseFixture)
+            .Where(m => !MatchStatus.IsFinished(m.Status))
+            .Where(m => !MatchStatus.IsStaleNotStarted(m.Status, m.Kickoff, DateTimeOffset.Now))
+            .OrderBy(m => m.Kickoff)
+            .ToList();
+
+        // Canlı maç varsa dakika bilgisi eskimesin diye kısa önbellek; yoksa normal süre.
+        await cache.SetAsync(key, list, list.Any(m => MatchStatus.IsLive(m.Status)) ? LiveCacheTtl : CacheTtl);
+        return list;
     }
 
     public async Task<IReadOnlyList<MatchSummary>> GetPopularMatchesAsync(DateOnly date, int count, CancellationToken ct)
@@ -70,48 +65,64 @@ public sealed class ApiFootballOddsProvider(
 
     public async Task<MatchSummary?> GetMatchAsync(int fixtureId, CancellationToken ct)
     {
-        return await cache.GetOrCreateAsync($"fixture:{fixtureId}", async entry =>
-        {
-            entry.AbsoluteExpirationRelativeToNow = CacheTtl;
-            var tz = Uri.EscapeDataString(_opt.Timezone);
-            using var doc = await GetAsync($"fixtures?id={fixtureId}&timezone={tz}", ct);
-            var items = doc.RootElement.GetProperty("response");
-            return items.GetArrayLength() == 0 ? null : ParseFixture(items[0]);
-        });
+        var key = $"fixture:{fixtureId}";
+        var cached = await cache.GetAsync<MatchSummary>(key);
+        if (cached is not null)
+            return cached;
+
+        var tz = Uri.EscapeDataString(_opt.Timezone);
+        using var doc = await GetAsync($"fixtures?id={fixtureId}&timezone={tz}", ct);
+        var items = doc.RootElement.GetProperty("response");
+        if (items.GetArrayLength() == 0)
+            return null;
+
+        var match = ParseFixture(items[0]);
+        await cache.SetAsync(key, match, CacheTtl);
+        return match;
     }
 
     public async Task<MatchOdds?> GetOddsAsync(int fixtureId, CancellationToken ct)
     {
-        return await cache.GetOrCreateAsync($"odds:{fixtureId}", async entry =>
-        {
-            entry.AbsoluteExpirationRelativeToNow = CacheTtl;
-            using var doc = await GetAsync($"odds?fixture={fixtureId}", ct);
-            var response = doc.RootElement.GetProperty("response");
-            if (response.GetArrayLength() == 0) return null;
+        var key = $"odds:{fixtureId}";
+        var cached = await cache.GetAsync<MatchOdds>(key);
+        if (cached is not null)
+            return cached;
 
-            var bookmakers = response[0].GetProperty("bookmakers").EnumerateArray().ToList();
-            if (bookmakers.Count == 0) return null;
+        var odds = await FetchOddsAsync(fixtureId, ct);
+        // null (henüz oran yok) cache'lenmez; oranlar yayınlanınca bir sonraki istekte hemen görünür.
+        if (odds is not null)
+            await cache.SetAsync(key, odds, CacheTtl);
+        return odds;
+    }
 
-            // Yapılandırılmış bahisçi varsa onu, yoksa en çok market sunanı al.
-            var chosen = _opt.BookmakerId is int id
-                ? bookmakers.FirstOrDefault(b => b.GetProperty("id").GetInt32() == id)
-                : default;
-            if (chosen.ValueKind == JsonValueKind.Undefined)
-                chosen = bookmakers.MaxBy(b => b.GetProperty("bets").GetArrayLength());
+    private async Task<MatchOdds?> FetchOddsAsync(int fixtureId, CancellationToken ct)
+    {
+        using var doc = await GetAsync($"odds?fixture={fixtureId}", ct);
+        var response = doc.RootElement.GetProperty("response");
+        if (response.GetArrayLength() == 0) return null;
 
-            var markets = chosen.GetProperty("bets").EnumerateArray()
-                .Select(bet => new Market(
-                    bet.GetProperty("id").GetInt32(),
-                    bet.GetProperty("name").GetString() ?? "",
-                    bet.GetProperty("values").EnumerateArray()
-                        .Select(v => new OddOption(AsText(v.GetProperty("value")), ParseOdd(v.GetProperty("odd"))))
-                        .Where(o => o.Odd > 1m)
-                        .ToList()))
-                .Where(m => m.Options.Count > 0)
-                .ToList();
+        var bookmakers = response[0].GetProperty("bookmakers").EnumerateArray().ToList();
+        if (bookmakers.Count == 0) return null;
 
-            return new MatchOdds(fixtureId, chosen.GetProperty("name").GetString() ?? "", markets);
-        });
+        // Yapılandırılmış bahisçi varsa onu, yoksa en çok market sunanı al.
+        var chosen = _opt.BookmakerId is int id
+            ? bookmakers.FirstOrDefault(b => b.GetProperty("id").GetInt32() == id)
+            : default;
+        if (chosen.ValueKind == JsonValueKind.Undefined)
+            chosen = bookmakers.MaxBy(b => b.GetProperty("bets").GetArrayLength());
+
+        var markets = chosen.GetProperty("bets").EnumerateArray()
+            .Select(bet => new Market(
+                bet.GetProperty("id").GetInt32(),
+                bet.GetProperty("name").GetString() ?? "",
+                bet.GetProperty("values").EnumerateArray()
+                    .Select(v => new OddOption(AsText(v.GetProperty("value")), ParseOdd(v.GetProperty("odd"))))
+                    .Where(o => o.Odd > 1m)
+                    .ToList()))
+            .Where(m => m.Options.Count > 0)
+            .ToList();
+
+        return new MatchOdds(fixtureId, chosen.GetProperty("name").GetString() ?? "", markets);
     }
 
     private async Task<JsonDocument> GetAsync(string path, CancellationToken ct)

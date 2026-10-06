@@ -7,17 +7,20 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace MatchForecast.Tests;
 
-/// <summary>Integration testleri için JWT ayarlarını sabitler ve token'lı HttpClient üretir.</summary>
+// Integration testleri için JWT ayarlarını sabitler, Redis'i bellek içi sahte servisle değiştirir ve token'lı HttpClient üretir.
 internal static class TestAuth
 {
     private const string SecretKey = "matchforecast-test-secret-key-32-bytes-min!";
 
-    /// <summary>User-secrets'a bağlı kalmadan testlerin geçerli bir JwtOptions ile ayağa kalkmasını sağlar.</summary>
+    // Testler user-secrets'a ve çalışan bir Redis'e bağlı kalmadan ayağa kalkar; IConnectionMultiplexer hiç resolve edilmez.
     public static WebApplicationFactory<Program> WithTestJwt(this WebApplicationFactory<Program> factory) =>
         factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
-            services.PostConfigure<JwtOptions>(o => o.SecretKey = SecretKey)));
+        {
+            services.PostConfigure<JwtOptions>(o => o.SecretKey = SecretKey);
+            services.AddSingleton<IRedisCacheService, InMemoryRedisCacheService>();
+        }));
 
-    /// <summary>Authorization: Bearer header'ı hazır HttpClient döner.</summary>
+    // Authorization: Bearer header'ı hazır HttpClient döner.
     public static HttpClient CreateAuthorizedClient(this WebApplicationFactory<Program> factory)
     {
         var testFactory = factory.WithTestJwt();

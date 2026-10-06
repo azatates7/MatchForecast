@@ -80,6 +80,23 @@ button, input { font: inherit; color: inherit; }
 
 .date-nav button { cursor: pointer; font-size: 1.1rem; line-height: 1; }
 
+/* Cache temizleme */
+.cache-actions { display: flex; align-items: center; gap: 0.75rem; }
+
+.cache-btn {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.35rem 0.8rem;
+  cursor: pointer;
+}
+
+.cache-btn:hover:not(:disabled) { border-color: var(--pitch); color: var(--pitch); }
+.cache-btn:disabled { opacity: 0.6; cursor: progress; }
+
+.cache-msg { font-size: 0.9rem; color: var(--muted); }
+.cache-msg-error { color: var(--danger); }
+
 /* Düzen */
 .layout {
   display: grid;

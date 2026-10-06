@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { getForecast, getMatches } from './api'
+import { clearCache, getForecast, getMatches } from './api'
 import type { ForecastResult, MatchSummary } from './components/Types'
 import { isLive } from './components/MatchStatus'
 import MatchList from './components/MatchList'
@@ -10,6 +10,8 @@ import ForecastPanel from './components/ForecastPanel'
 const LIVE_REFRESH_MS = 5 * 60_000
 // Ekrandaki dakika etiketinin güncellenme aralığı (ağ isteği yapmaz)
 const CLOCK_TICK_MS = 30_000
+// Cache temizleme sonucunun ekranda kalma süresi
+const CACHE_MSG_MS = 4_000
 
 const toIsoDate = (d: Date) => {
   const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
@@ -36,6 +38,7 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [forecast, setForecast] = useState<ForecastResult | null>(null)
   const [forecastState, setForecastState] = useState<{ loading: boolean; error?: string }>({ loading: false })
+  const [cacheState, setCacheState] = useState<{ clearing: boolean; message?: string; error?: boolean }>({ clearing: false })
 
   // silent=true: arka plan yenilemesi; listeyi "yükleniyor" durumuna sokmaz, hata olursa eski listeyi korur.
   const loadMatches = useCallback((silent: boolean, isCancelled: () => boolean = () => false) => {
@@ -106,6 +109,25 @@ export default function App() {
     }
   }
 
+  // Cache silindikten sonra maç listesi API'den taze çekilir; ekrandaki tahmin korunur, sonraki analiz AI'dan yeniden üretilir.
+  const handleClearCache = async () => {
+    setCacheState({ clearing: true })
+    try {
+      const { deletedKeys } = await clearCache()
+      setCacheState({ clearing: false, message: `Önbellek temizlendi (${deletedKeys} kayıt).` })
+      loadMatches(false)
+    } catch (e) {
+      setCacheState({ clearing: false, message: (e as Error).message, error: true })
+    }
+  }
+
+  // Bilgi mesajı birkaç saniye sonra kaybolur
+  useEffect(() => {
+    if (!cacheState.message) return
+    const timer = setTimeout(() => setCacheState(s => ({ clearing: s.clearing })), CACHE_MSG_MS)
+    return () => clearTimeout(timer)
+  }, [cacheState.message])
+
   const selected = matches.find(m => m.id === selectedId) ?? null
 
   return (
@@ -116,6 +138,14 @@ export default function App() {
           <button type="button" onClick={() => setDate(d => shiftDate(d, -1))} aria-label="Önceki gün">‹</button>
           <input type="date" value={date} onChange={e => e.target.value && setDate(e.target.value)} aria-label="Tarih" />
           <button type="button" onClick={() => setDate(d => shiftDate(d, 1))} aria-label="Sonraki gün">›</button>
+        </div>
+        <div className="cache-actions">
+          {cacheState.message && (
+            <span className={cacheState.error ? 'cache-msg cache-msg-error' : 'cache-msg'} role="status">{cacheState.message}</span>
+          )}
+          <button type="button" className="cache-btn" onClick={handleClearCache} disabled={cacheState.clearing}>
+            {cacheState.clearing ? 'Temizleniyor…' : 'Cache Temizle'}
+          </button>
         </div>
       </header>
 

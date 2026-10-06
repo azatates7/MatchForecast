@@ -1,4 +1,4 @@
-import type { ForecastResult, MatchSummary, TokenResponse } from './types'
+import type { CacheClearResponse, ForecastResult, MatchSummary, TokenResponse } from './types'
 
 // Token yalnızca bellekte tutulur: sayfa yenilenince yeniden alınır (ucuz), localStorage'a yazılmadığı için XSS ile okunamaz.
 // Promise saklanır ki aynı anda başlayan istekler tek bir /api/auth/token çağrısını paylaşsın.
@@ -25,25 +25,28 @@ function currentToken(): Promise<string> {
   return tokenRequest
 }
 
-const send = (url: string, token: string) =>
-  fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+const send = (url: string, token: string, method: string) =>
+  fetch(url, { method, headers: { Authorization: `Bearer ${token}` } })
 
-async function get<T>(url: string): Promise<T> {
+async function request<T>(url: string, method = 'GET'): Promise<T> {
   const token = currentToken()
-  let res = await send(url, await token)
+  let res = await send(url, await token, method)
 
   if (res.status === 401) {
     // Token süresi dolmuş veya API yeniden başlayıp SecretKey değişmiş olabilir: bir kez yenileyip tekrar dene.
     // Sadece hâlâ aynı token kullanılıyorsa sıfırla; paralel istekler token'ı birden fazla kez yenilemesin.
     if (tokenRequest === token) tokenRequest = null
-    res = await send(url, await currentToken())
+    res = await send(url, await currentToken(), method)
   }
 
   return readJson<T>(res)
 }
 
 export const getMatches = (date: string) =>
-  get<MatchSummary[]>(`/api/matches?date=${date}`)
+  request<MatchSummary[]>(`/api/matches?date=${date}`)
 
 export const getForecast = (id: number, refresh = false) =>
-  get<ForecastResult>(`/api/matches/${id}/forecast${refresh ? '?refresh=true' : ''}`)
+  request<ForecastResult>(`/api/matches/${id}/forecast${refresh ? '?refresh=true' : ''}`)
+
+export const clearCache = () =>
+  request<CacheClearResponse>('/api/cache', 'DELETE')

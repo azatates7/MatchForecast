@@ -10,7 +10,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
-using MatchForecast.Models.Common;
 using StackExchange.Redis;
 
 var logger = LogManager.Setup().LoadConfigurationFromAppSettings().GetCurrentClassLogger();
@@ -26,7 +25,6 @@ try
 
     builder.Services.Configure<OddsProviderOptions>(builder.Configuration.GetSection(OddsProviderOptions.Section));
     builder.Services.Configure<AiOptions>(builder.Configuration.GetSection(AiOptions.Section));
-    builder.Services.AddMemoryCache();
 
     // JWT ayarları: eksik/kısa SecretKey ile uygulama hiç ayağa kalkmasın (ilk istekte değil, startup'ta hata).
     builder.Services.AddOptions<JwtOptions>()
@@ -75,8 +73,7 @@ try
             Description = "Futbol maçları ve LLM (Claude) destekli tahmin analizi API'si"
         });
 
-        // Swagger UI'da "Authorize" butonu. ApiKey tipi girilen değeri Authorization header'ına olduğu gibi yazar,
-        // bu yüzden değer "Bearer {token}" formatında girilir (Http/bearer tipi öneki kendisi eklerdi).
+        // Swagger UI "Authorize" butonu: ApiKey tipi değeri header'a olduğu gibi yazdığından değer "Bearer {token}" formatında girilir.
         c.AddSecurityDefinition(BearerSecurityOperationFilter.SchemeName, new OpenApiSecurityScheme
         {
             Type = SecuritySchemeType.ApiKey,
@@ -102,16 +99,22 @@ try
         c.DefaultRequestHeaders.Add("x-goog-api-key", o.ApiKey);
     });
 
-    builder.Services.Configure<RedisOptions>(
-    builder.Configuration.GetSection("Redis"));
+    // InstanceName boş olursa Cache Temizle "*" desenine düşüp Redis'teki her şeyi silerdi; bu yüzden startup'ta doğrulanır.
+    builder.Services.AddOptions<RedisOptions>()
+        .Bind(builder.Configuration.GetSection(RedisOptions.Section))
+        .Validate(o => !string.IsNullOrWhiteSpace(o.ConnectionString), "Redis:ConnectionString boş olamaz.")
+        .Validate(o => !string.IsNullOrWhiteSpace(o.InstanceName), "Redis:InstanceName boş olamaz.")
+        .ValidateOnStart();
+
     builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
     {
-        var configuration = sp
-            .GetRequiredService<IOptions<RedisOptions>>()
-            .Value;
-
-        return ConnectionMultiplexer.Connect(
-            configuration.ConnectionString);
+        var o = sp.GetRequiredService<IOptions<RedisOptions>>().Value;
+        var config = ConfigurationOptions.Parse(o.ConnectionString);
+        // Redis kapalıyken uygulama çökmesin, arka planda yeniden bağlansın.
+        config.AbortOnConnectFail = false;
+        // Bağlantı yokken komutlar kuyrukta beklemesin, hemen hata versin (servis bunu cache miss sayar).
+        config.BacklogPolicy = BacklogPolicy.FailFast;
+        return ConnectionMultiplexer.Connect(config);
     });
     builder.Services.AddSingleton<IRedisCacheService, RedisCacheService>();
 

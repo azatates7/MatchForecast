@@ -32,3 +32,7 @@ export interface TokenResponse {
   tokenType: string
   expiresAt: string
 }
+
+export interface CacheClearResponse {
+  deletedKeys: number
+}

@@ -2,7 +2,6 @@ using System.Text.Json;
 using MatchForecast.Models.Common;
 using MatchForecast.Models.Response;
 using MatchForecast.Api.Options;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 
 namespace MatchForecast.Api.Services;
@@ -10,7 +9,7 @@ namespace MatchForecast.Api.Services;
 public sealed class ForecastService(
     IOddsProvider odds,
     IForecastAiClient ai,
-    IMemoryCache cache,
+    IRedisCacheService cache,
     IOptions<AiOptions> aiOptions,
     ILogger<ForecastService> logger)
 {
@@ -44,8 +43,12 @@ public sealed class ForecastService(
     public async Task<ForecastResult> GetForecastAsync(int fixtureId, bool refresh, CancellationToken ct)
     {
         var key = $"forecast:{fixtureId}";
-        if (!refresh && cache.TryGetValue(key, out ForecastResult? cached) && cached is not null)
-            return cached;
+        if (!refresh)
+        {
+            var cached = await cache.GetAsync<ForecastResult>(key);
+            if (cached is not null)
+                return cached;
+        }
 
         var match = await odds.GetMatchAsync(fixtureId, ct);
         if (match is null)
@@ -92,7 +95,7 @@ public sealed class ForecastService(
         }
 
         var result = new ForecastResult(match, matchOdds.Bookmaker, parsed.Summary ?? "", predictions, DateTimeOffset.Now);
-        cache.Set(key, result, TimeSpan.FromMinutes(aiOptions.Value.CacheMinutes));
+        await cache.SetAsync(key, result, TimeSpan.FromMinutes(aiOptions.Value.CacheMinutes));
         return result;
     }
 
