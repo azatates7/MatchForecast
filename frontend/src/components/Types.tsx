@@ -17,15 +17,15 @@ export interface Prediction {
   label: string
   market: string
   selection: string
-  odd: number
-  impliedProbability: number
+  odd: number | null
+  impliedProbability: number | null
   confidence: number
   reasoning: string
 }
 
 export interface ForecastResult {
   match: MatchSummary
-  bookmaker: string
+  bookmaker: string | null
   summary: string
   predictions: Prediction[]
   generatedAt: string

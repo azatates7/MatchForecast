@@ -27,18 +27,26 @@ public class ForecastServiceTests
     }
 
     [Fact]
-    public async Task GetForecastAsync_ThrowsForecastException_WhenOddsNullOrEmpty()
+    public async Task GetForecastAsync_ReturnsForecastWithoutOdds_WhenOddsNull()
     {
         // Arrange
         var service = CreateService();
         var match = new MatchSummary(1, DateTimeOffset.Now, "Serie A", "Italy", "Inter", "Milan", "NS");
         _mockOdds.Setup(o => o.GetMatchAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(match);
         _mockOdds.Setup(o => o.GetOddsAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync((MatchOdds?)null);
+        _mockAi.Setup(a => a.CompleteAsync(It.IsAny<string>(), It.Is<string>(u => u.Contains("oranı yayınlanmadı")), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("""{"summary": "No odds analysis", "predictions": [{"optionId": "1.1", "label": "MS 1", "confidence": 60.0}]}""");
 
-        // Act & Assert
-        var ex = await Assert.ThrowsAsync<ForecastException>(() => service.GetForecastAsync(1, false, CancellationToken.None));
-        Assert.Equal(404, ex.StatusCode);
-        Assert.Contains("oran yayınlanmamış", ex.Message);
+        // Act
+        var result = await service.GetForecastAsync(1, false, CancellationToken.None);
+
+        // Assert
+        Assert.Null(result.Bookmaker);
+        Assert.Single(result.Predictions);
+        Assert.Equal("Match Winner", result.Predictions[0].Market);
+        Assert.Equal("Home", result.Predictions[0].Selection);
+        Assert.Null(result.Predictions[0].Odd);
+        Assert.Null(result.Predictions[0].ImpliedProbability);
     }
 
     [Fact]

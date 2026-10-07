@@ -5,7 +5,7 @@ public sealed record Prediction(
     string Label,
     string Market,
     string Selection,
-    decimal Odd,
-    decimal ImpliedProbability,
+    decimal? Odd,
+    decimal? ImpliedProbability,
     int Confidence,
     string Reasoning);

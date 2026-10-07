@@ -6,17 +6,17 @@ using Microsoft.Extensions.Options;
 
 namespace MatchForecast.Api.Services;
 
-/// <summary>Google Gemini API (generateContent) istemcisi.</summary>
+// Google Gemini API (generateContent) istemcisi.
 public sealed class GeminiForecastClient(
-    HttpClient http,
+    HttpClient httpClient,
     IOptions<AiOptions> options,
     ILogger<GeminiForecastClient> logger) : IForecastAiClient
 {
-    private readonly AiOptions _opt = options.Value;
+    private readonly AiOptions _options = options.Value;
 
     public async Task<string> CompleteAsync(string systemPrompt, string userPrompt, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(_opt.ApiKey))
+        if (string.IsNullOrWhiteSpace(_options.ApiKey))
         {
             logger.LogError("Ai:ApiKey configuration is missing or empty.");
             throw new ForecastException("Ai:ApiKey tanımlı değil. appsettings veya user-secrets ile ekleyin.",
@@ -27,13 +27,11 @@ public sealed class GeminiForecastClient(
         {
             systemInstruction = new { parts = new[] { new { text = systemPrompt } } },
             contents = new[] { new { role = "user", parts = new[] { new { text = userPrompt } } } },
-            generationConfig = new { maxOutputTokens = _opt.MaxTokens }
+            generationConfig = new { maxOutputTokens = _options.MaxTokens }
         };
 
         // BaseUrl ".../v1beta/" olmalı; istek ".../v1beta/models/{model}:generateContent" adresine gider.
-        using var res = await http.PostAsJsonAsync($"models/{_opt.Model}:generateContent", body, ct);
-        var (status, raw) = await PostWithRetryAsync($"models/{_opt.Model}:generateContent", body, ct);
-        // // var raw = await res.Content.ReadAsStringAsync(ct);
+        var (status, raw) = await PostWithRetryAsync($"models/{_options.Model}:generateContent", body, ct);
 
         if (status is < 200 or >= 300)
         {
@@ -41,12 +39,6 @@ public sealed class GeminiForecastClient(
             throw status == StatusCodes.Status503ServiceUnavailable
                 ? new ForecastException("AI servisi şu an yoğun. Birkaç dakika sonra tekrar deneyin.", StatusCodes.Status503ServiceUnavailable)
                 : new ForecastException($"AI servisi HTTP {status}: {Truncate(raw, 300)}");
-        }
-        
-        if (!res.IsSuccessStatusCode)
-        {
-            logger.LogError("Gemini API call failed with status code {StatusCode}. Raw response: {Raw}", (int)res.StatusCode, raw);
-            throw new ForecastException($"AI servisi HTTP {(int)res.StatusCode}: {Truncate(raw, 300)}");
         }
 
         using var doc = JsonDocument.Parse(raw);
@@ -84,7 +76,7 @@ public sealed class GeminiForecastClient(
     {
         for (var attempt = 0; ; attempt++)
         {
-            using var res = await http.PostAsJsonAsync(url, body, ct);
+            using var res = await httpClient.PostAsJsonAsync(url, body, ct);
             var raw = await res.Content.ReadAsStringAsync(ct);
             var status = (int)res.StatusCode;
 

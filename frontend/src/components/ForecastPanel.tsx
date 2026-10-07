@@ -49,21 +49,25 @@ export default function ForecastPanel({ match, forecast, loading, error, onRetry
                 <div className="pick-body">
                   <div className="pick-line">
                     <h3 className="pick-label">{p.label}</h3>
-                    <span className="pick-odd" title="Oran">{p.odd.toFixed(2)}</span>
+                    {p.odd != null && <span className="pick-odd" title="Oran">{p.odd.toFixed(2)}</span>}
                   </div>
                   <p className="pick-market">{p.market}: {p.selection}</p>
 
                   <div
                     className="meter"
                     role="img"
-                    aria-label={`Yapay zeka güveni %${p.confidence}, oranın ima ettiği olasılık %${p.impliedProbability}`}
+                    aria-label={p.impliedProbability != null
+                      ? `Yapay zeka güveni %${p.confidence}, oranın ima ettiği olasılık %${p.impliedProbability}`
+                      : `Yapay zeka güveni %${p.confidence}`}
                   >
                     <span className="meter-fill" style={{ width: `${p.confidence}%` }} />
-                    <span className="meter-market" style={{ left: `${Math.min(p.impliedProbability, 100)}%` }} />
+                    {p.impliedProbability != null && (
+                      <span className="meter-market" style={{ left: `${Math.min(p.impliedProbability, 100)}%` }} />
+                    )}
                   </div>
                   <p className="meter-legend">
                     <span>Yapay zeka %{p.confidence}</span>
-                    <span>Oran ima ediyor %{p.impliedProbability}</span>
+                    {p.impliedProbability != null && <span>Oran ima ediyor %{p.impliedProbability}</span>}
                   </p>
 
                   {p.reasoning && <p className="pick-reason">{p.reasoning}</p>}
@@ -73,7 +77,7 @@ export default function ForecastPanel({ match, forecast, loading, error, onRetry
           </ol>
 
           <footer className="forecast-foot">
-            <span>Oranlar: {forecast.bookmaker}</span>
+            <span>{forecast.bookmaker ? `Oranlar: ${forecast.bookmaker}` : 'Oran yayınlanmamış; tahmin yalnızca maç bilgisine dayanır.'}</span>
             <button type="button" className="link-btn" onClick={onRetry}>Yeniden analiz et</button>
           </footer>
           <p className="disclaimer">Tahminler olasılık tahminidir, sonuç garantisi vermez.</p>

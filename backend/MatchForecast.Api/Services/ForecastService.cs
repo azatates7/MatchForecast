@@ -58,13 +58,15 @@ public sealed class ForecastService(
         }
 
         var matchOdds = await odds.GetOddsAsync(fixtureId, ct);
-        if (matchOdds is null || matchOdds.Markets.Count == 0)
-        {
-            logger.LogWarning("No odds available for fixture {FixtureId}.", fixtureId);
-            throw new ForecastException("Bu maç için henüz oran yayınlanmamış.", StatusCodes.Status404NotFound);
-        }
+        var hasOdds = matchOdds is { Markets.Count: > 0 };
+        if (!hasOdds)
+            logger.LogInformation("No odds available for fixture {FixtureId}; forecasting from standard markets without odds.", fixtureId);
 
-        var userPrompt = ForecastPrompt.BuildUser(match, matchOdds, out var index);
+        // Oran yoksa model standart marketlerden seçer; tahmin yalnızca maç bilgisine dayanır, oran alanları null döner.
+        Dictionary<string, (Market Market, OddOption Option)> index;
+        var userPrompt = hasOdds
+            ? ForecastPrompt.BuildUser(match, matchOdds!, out index)
+            : ForecastPrompt.BuildUserWithoutOdds(match, out index);
         var raw = await ai.CompleteAsync(ForecastPrompt.System, userPrompt, ct);
 
         var parsed = Parse(raw);
@@ -81,8 +83,8 @@ public sealed class ForecastService(
                     string.IsNullOrWhiteSpace(p.Label) ? $"{market.Name}: {option.Value}" : p.Label,
                     market.Name,
                     option.Value,
-                    option.Odd,
-                    ForecastPrompt.ImpliedProbability(option.Odd),
+                    hasOdds ? option.Odd : null,
+                    hasOdds ? ForecastPrompt.ImpliedProbability(option.Odd) : null,
                     (int)Math.Clamp(Math.Round(p.Confidence), 0, 100),
                     p.Reasoning ?? "");
             })
@@ -94,7 +96,7 @@ public sealed class ForecastService(
             throw new ForecastException("Yapay zeka geçerli bir seçenek döndürmedi, tekrar deneyin.");
         }
 
-        var result = new ForecastResult(match, matchOdds.Bookmaker, parsed.Summary ?? "", predictions, DateTimeOffset.Now);
+        var result = new ForecastResult(match, hasOdds ? matchOdds!.Bookmaker : null, parsed.Summary ?? "", predictions, DateTimeOffset.Now);
         await cache.SetAsync(key, result, TimeSpan.FromMinutes(aiOptions.Value.CacheMinutes));
         return result;
     }
