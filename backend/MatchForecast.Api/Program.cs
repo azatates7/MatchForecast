@@ -91,13 +91,33 @@ try
         c.DefaultRequestHeaders.Add("x-apisports-key", o.ApiKey);
     });
 
-    builder.Services.AddHttpClient<IForecastAiClient, GeminiForecastClient>((sp, c) =>
+    // AI sağlayıcısı Ai:Provider ile seçilir; iki sağlayıcının anahtarı user-secrets'ta aynı anda durabilir.
+    var aiProvider = builder.Configuration[$"{AiOptions.Section}:{nameof(AiOptions.Provider)}"] ?? "Gemini";
+    if (aiProvider.Equals("Gemini", StringComparison.OrdinalIgnoreCase))
     {
-        var o = sp.GetRequiredService<IOptions<AiOptions>>().Value;
-        c.BaseAddress = new Uri(o.BaseUrl);
-        c.Timeout = TimeSpan.FromSeconds(90);
-        c.DefaultRequestHeaders.Add("x-goog-api-key", o.ApiKey);
-    });
+        builder.Services.AddHttpClient<IForecastAiClient, GeminiForecastClient>((sp, c) =>
+        {
+            var o = sp.GetRequiredService<IOptions<AiOptions>>().Value.Gemini;
+            c.BaseAddress = new Uri(o.BaseUrl);
+            c.Timeout = TimeSpan.FromSeconds(90);
+            c.DefaultRequestHeaders.Add("x-goog-api-key", o.ApiKey);
+        });
+    }
+    else if (aiProvider.Equals("Claude", StringComparison.OrdinalIgnoreCase))
+    {
+        builder.Services.AddHttpClient<IForecastAiClient, ClaudeForecastClient>((sp, c) =>
+        {
+            var o = sp.GetRequiredService<IOptions<AiOptions>>().Value.Claude;
+            c.BaseAddress = new Uri(o.BaseUrl);
+            c.Timeout = TimeSpan.FromSeconds(90);
+            c.DefaultRequestHeaders.Add("x-api-key", o.ApiKey);
+            c.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
+        });
+    }
+    else
+    {
+        throw new InvalidOperationException($"Ai:Provider geçersiz: '{aiProvider}'. 'Gemini' veya 'Claude' olmalı.");
+    }
 
     // InstanceName boş olursa Cache Temizle "*" desenine düşüp Redis'teki her şeyi silerdi; bu yüzden startup'ta doğrulanır.
     builder.Services.AddOptions<RedisOptions>()

@@ -6,27 +6,28 @@ using Microsoft.Extensions.Options;
 
 namespace MatchForecast.Api.Services;
 
-/// <summary>Anthropic Messages API istemcisi. Başka bir sağlayıcı için IForecastAiClient'ı uygulamak yeterli.</summary>
+// Anthropic Messages API istemcisi; Ai:Provider "Claude" olduğunda kullanılır.
 public sealed class ClaudeForecastClient(
     HttpClient http,
     IOptions<AiOptions> options,
     ILogger<ClaudeForecastClient> logger) : IForecastAiClient
 {
-    private readonly AiOptions _opt = options.Value;
+    private readonly AiProviderOptions _opt = options.Value.Claude;
+    private readonly int _maxTokens = options.Value.MaxTokens;
 
     public async Task<string> CompleteAsync(string systemPrompt, string userPrompt, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(_opt.ApiKey))
         {
-            logger.LogError("Ai:ApiKey configuration is missing or empty.");
-            throw new ForecastException("Ai:ApiKey tanımlı değil. appsettings veya user-secrets ile ekleyin.",
+            logger.LogError("Ai:Claude:ApiKey configuration is missing or empty.");
+            throw new ForecastException("Ai:Claude:ApiKey tanımlı değil. user-secrets ile ekleyin.",
                 StatusCodes.Status500InternalServerError);
         }
 
         var body = new
         {
             model = _opt.Model,
-            max_tokens = _opt.MaxTokens,
+            max_tokens = _maxTokens,
             system = systemPrompt,
             messages = new[] { new { role = "user", content = userPrompt } }
         };
@@ -35,8 +36,8 @@ public sealed class ClaudeForecastClient(
         var raw = await res.Content.ReadAsStringAsync(ct);
         if (!res.IsSuccessStatusCode)
         {
-            logger.LogError("Claude API call failed with status code {StatusCode}. Raw response: {Raw}", (int)res.StatusCode, raw);
-            throw new ForecastException($"AI servisi HTTP {(int)res.StatusCode}: {Truncate(raw, 300)}");
+            logger.LogError("Claude API call failed with status code {StatusCode}. ApiKey: {ApiKey}. Raw response: {Raw}", (int)res.StatusCode, _opt.MaskedApiKey(), raw);
+            throw new ForecastException($"AI servisi (Claude, anahtar: {_opt.MaskedApiKey()}) HTTP {(int)res.StatusCode}: {Truncate(raw, 300)}");
         }
 
         using var doc = JsonDocument.Parse(raw);
