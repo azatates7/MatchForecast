@@ -4,7 +4,7 @@ using MatchForecast.Models.Common;
 using MatchForecast.Api.Options;
 using Microsoft.Extensions.Options;
 
-namespace MatchForecast.Api.Services;
+namespace MatchForecast.Api.Services.AI.Claude;
 
 // Anthropic Messages API istemcisi; Ai:Provider "Claude" olduğunda kullanılır.
 public sealed class ClaudeForecastClient(

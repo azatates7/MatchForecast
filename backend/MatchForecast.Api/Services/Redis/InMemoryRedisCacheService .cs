@@ -1,8 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
-using MatchForecast.Api.Services;
 
-namespace MatchForecast.Tests;
+namespace MatchForecast.Api.Services.Redis;
 
 // Testlerde gerçek Redis yerine kullanılır; değerleri JSON olarak sakladığı için serileştirme davranışı Redis ile aynıdır (TTL uygulanmaz).
 public sealed class InMemoryRedisCacheService : IRedisCacheService

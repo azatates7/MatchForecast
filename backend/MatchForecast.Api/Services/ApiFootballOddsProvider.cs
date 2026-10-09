@@ -4,6 +4,7 @@ using MatchForecast.Models.Common;
 using MatchForecast.Models.Response;
 using MatchForecast.Api.Options;
 using Microsoft.Extensions.Options;
+using MatchForecast.Api.Services.Redis;
 
 namespace MatchForecast.Api.Services;
 

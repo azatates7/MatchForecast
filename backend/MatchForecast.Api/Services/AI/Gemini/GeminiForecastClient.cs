@@ -4,7 +4,7 @@ using MatchForecast.Models.Common;
 using MatchForecast.Api.Options;
 using Microsoft.Extensions.Options;
 
-namespace MatchForecast.Api.Services;
+namespace MatchForecast.Api.Services.AI.Gemini;
 
 // Google Gemini API (generateContent) istemcisi.
 public sealed class GeminiForecastClient(

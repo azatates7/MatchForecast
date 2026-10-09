@@ -1,4 +1,4 @@
-using MatchForecast.Api.Services;
+using MatchForecast.Api.Services.Redis;
 using MatchForecast.Models.Response;
 using Microsoft.AspNetCore.Mvc;
 

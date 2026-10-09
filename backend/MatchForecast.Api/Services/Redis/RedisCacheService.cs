@@ -4,7 +4,7 @@ using MatchForecast.Models.Common;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
-namespace MatchForecast.Api.Services;
+namespace MatchForecast.Api.Services.Redis;
 
 public interface IRedisCacheService
 {

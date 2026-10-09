@@ -3,14 +3,20 @@ using NLog;
 using NLog.Web;
 using MatchForecast.Api.Options;
 using MatchForecast.Api.Services;
+using MatchForecast.Api.Services.Email;
 using MatchForecast.Api.Swagger;
 using MatchForecast.Logger.Extensions;
+using MatchForecast.Logger.Notifications;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using StackExchange.Redis;
+using MatchForecast.Api.Services.AI.Claude;
+using MatchForecast.Api.Services.AI.Gemini;
+using MatchForecast.Api.Services.AI.Ollama;
+using MatchForecast.Api.Services.Redis;
 
 var logger = LogManager.Setup().LoadConfigurationFromAppSettings().GetCurrentClassLogger();
 logger.Debug("Initializing MatchForecast API host...");
@@ -114,10 +120,42 @@ try
             c.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
         });
     }
+    else if (aiProvider.Equals("Ollama", StringComparison.OrdinalIgnoreCase))
+    {
+        builder.Services.AddHttpClient<IForecastAiClient, OllamaForecastClient>((sp, c) =>
+        {
+            var o = sp.GetRequiredService<IOptions<AiOptions>>().Value.Ollama;
+            c.BaseAddress = new Uri(o.BaseUrl);
+            // Yerel model yavaş olabilir (ilk istekte model belleğe de yüklenir); süre ayardan gelir.
+            c.Timeout = TimeSpan.FromSeconds(o.TimeoutSeconds);
+            if (!string.IsNullOrWhiteSpace(o.ApiKey))
+                c.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", o.ApiKey);
+        });
+    }
     else
     {
-        throw new InvalidOperationException($"Ai:Provider geçersiz: '{aiProvider}'. 'Gemini' veya 'Claude' olmalı.");
+        throw new InvalidOperationException($"Ai:Provider geçersiz: '{aiProvider}'. 'Gemini', 'Claude' veya 'Ollama' olmalı.");
     }
+
+    /*
+     * SMTP ile hata bildirimi. Enabled=false iken notifier yine kayıtlıdır ama Notify hiçbir şey yapmaz; böylece
+     * testler ve yerel geliştirme mail ayarı olmadan çalışır. Enabled=true iken eksik ayarla uygulama başlamaz
+     * (ilk hatada sessizce mail gitmemesi yerine startup'ta görünür hata).
+     */
+    builder.Services.AddOptions<SmtpOptions>()
+        .Bind(builder.Configuration.GetSection(SmtpOptions.Section))
+        .Validate(o => !o.Enabled || !string.IsNullOrWhiteSpace(o.Host), "Smtp:Host boş olamaz.")
+        .Validate(o => !o.Enabled || !string.IsNullOrWhiteSpace(o.Username), "Smtp:Username (Gmail adresi) boş olamaz.")
+        .Validate(o => !o.Enabled || !string.IsNullOrWhiteSpace(o.Password), "Smtp:Password (Gmail Uygulama Şifresi) boş olamaz.")
+        .Validate(o => !o.Enabled || o.AdminEmails.Any(a => !string.IsNullOrWhiteSpace(a)), "Smtp:AdminEmails en az bir adres içermeli.")
+        .ValidateOnStart();
+    builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
+    // Aynı instance hem IErrorNotifier (middleware kuyruğa yazar) hem hosted service (kuyruktan okuyup gönderir) olur.
+    builder.Services.AddSingleton<EmailErrorNotifier>();
+    builder.Services.AddSingleton<IErrorNotifier>(sp => sp.GetRequiredService<EmailErrorNotifier>());
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<EmailErrorNotifier>());
+    // Uygulama istek kabul etmeye hazır olduğunda bir kez "başlatıldı" maili (Smtp:SendStartupNotification).
+    builder.Services.AddHostedService<StartupNotificationService>();
 
     // InstanceName boş olursa Cache Temizle "*" desenine düşüp Redis'teki her şeyi silerdi; bu yüzden startup'ta doğrulanır.
     builder.Services.AddOptions<RedisOptions>()
