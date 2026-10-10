@@ -5,7 +5,7 @@ public sealed class AiOptions
     public const string Section = "Ai";
 
     // Kullanılacak sağlayıcı: "Gemini", "Claude" veya "Ollama"; değiştirince API yeniden başlatılmalı.
-    public string Provider { get; set; } = "Gemini";
+    public string Provider { get; set; } = string.Empty;
     public int MaxTokens { get; set; } = 8000;
     public int CacheMinutes { get; set; } = 30;
 
@@ -34,7 +34,7 @@ public sealed class AiProviderOptions
 
     // Hata mesajlarında hangi anahtarın kullanıldığını göstermek için ilk 4 ve son 4 karakter (ör. "AIza…x9Kf").
     public string MaskedApiKey() =>
-        string.IsNullOrWhiteSpace(ApiKey) ? "(boş)"
+        string.IsNullOrWhiteSpace(ApiKey) ? "(Boş)"
         : ApiKey.Length <= 12 ? "****"
         : $"{ApiKey[..4]}…{ApiKey[^4..]}";
 }

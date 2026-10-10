@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Text;
+using System.Threading.RateLimiting;
 using NLog;
 using NLog.Web;
 using MatchForecast.Api.Options;
@@ -9,12 +11,13 @@ using MatchForecast.Logger.Extensions;
 using MatchForecast.Logger.Notifications;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using StackExchange.Redis;
-using MatchForecast.Api.Services.AI.Claude;
 using MatchForecast.Api.Services.AI.Gemini;
+using MatchForecast.Api.Services.AI.Claude;
 using MatchForecast.Api.Services.AI.Ollama;
 using MatchForecast.Api.Services.Redis;
 
@@ -178,6 +181,61 @@ try
 
     builder.Services.AddScoped<ForecastService>();
 
+    /*
+     * Rate limiting (ASP.NET Core'un yerleşik middleware'i, ek paket gerekmez). Policy'ler endpoint'lere
+     * [EnableRateLimiting] ile bağlanır; attribute'u olmayan endpoint'ler etkilenmez. Ayrıntılar RateLimitOptions'ta.
+     */
+    var rateLimit = builder.Configuration.GetSection(RateLimitOptions.Section).Get<RateLimitOptions>() ?? new RateLimitOptions();
+    builder.Services.AddRateLimiter(o =>
+    {
+        o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+        // Caddy/Nginx arkasında gerçek IP için ASPNETCORE_FORWARDEDHEADERS_ENABLED=true gerekir; yoksa herkes proxy'nin IP'sini paylaşır.
+        o.AddPolicy(RateLimitOptions.TokenPolicy, http => RateLimitPartition.GetFixedWindowLimiter(
+            http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = rateLimit.TokenPermitLimit,
+                Window = TimeSpan.FromSeconds(rateLimit.TokenWindowSeconds),
+                QueueLimit = 0 // Limit aşılınca beklemeden 429.
+            }));
+
+        // Tek (global) sayaç; pencere dakikalık dilimlere bölünür, her dilimdeki hak tam 60 dk sonra geri gelir.
+        o.AddSlidingWindowLimiter(RateLimitOptions.CacheClearPolicy, l =>
+        {
+            l.PermitLimit = rateLimit.CacheClearPermitLimit;
+            l.Window = TimeSpan.FromMinutes(rateLimit.CacheClearWindowMinutes);
+            l.SegmentsPerWindow = Math.Max(1, rateLimit.CacheClearWindowMinutes);
+            l.QueueLimit = 0;
+        });
+
+        // Frontend (api.ts) hata mesajını ProblemDetails "detail" alanından okuduğu için 429 da aynı formatta döner.
+        o.OnRejected = (ctx, ct) =>
+        {
+            var http = ctx.HttpContext;
+            var policy = http.GetEndpoint()?.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName;
+
+            string detail;
+            if (policy == RateLimitOptions.CacheClearPolicy)
+            {
+                // Kayan pencerede limiter'ın verdiği RetryAfter yalnızca bir dilim (1 dk) uzunluğundadır, gerçek bekleme süresi değildir; yanlış yönlendirmemek için Retry-After header'ı gönderilmez.
+                detail = $"Cache temizleme {rateLimit.CacheClearWindowMinutes} dakika içinde en fazla {rateLimit.CacheClearPermitLimit} kez yapılabilir. Daha sonra tekrar deneyin.";
+            }
+            else if (ctx.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+            {
+                var seconds = (int)Math.Ceiling(retryAfter.TotalSeconds);
+                http.Response.Headers.RetryAfter = seconds.ToString(CultureInfo.InvariantCulture);
+                detail = $"Çok fazla istek gönderildi. {seconds} saniye sonra tekrar deneyin.";
+            }
+            else
+            {
+                detail = "Çok fazla istek gönderildi. Biraz sonra tekrar deneyin.";
+            }
+
+            return new ValueTask(Results.Problem(detail: detail, statusCode: StatusCodes.Status429TooManyRequests).ExecuteAsync(http));
+        };
+    });
+
     builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
         .WithOrigins(builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [])
         .AllowAnyHeader()
@@ -204,6 +262,12 @@ try
     // Logging'den sonra: 401 dönen istekler de loglanır.
     app.UseAuthentication();
     app.UseAuthorization();
+
+    /*
+     * Authorization'dan sonra: token'sız DELETE /api/cache istekleri önce 401 alır ve saatlik 2 hakkı tüketemez.
+     * Token endpoint'i anonim olduğu için bu sıra onu etkilemez.
+     */
+    app.UseRateLimiter();
 
     app.MapControllers();
 

@@ -1,7 +1,9 @@
 using MatchForecast.Api.Services;
 using MatchForecast.Models.Response;
 using Microsoft.AspNetCore.Authorization;
+using MatchForecast.Api.Options;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace MatchForecast.Api.Controllers;
 
@@ -12,6 +14,7 @@ public sealed class AuthController(JwtTokenService tokenService) : ControllerBas
 {
     /// <summary>JWT access token üretir. Diğer tüm endpoint'ler bu token'ı "Bearer" olarak ister.</summary>
     [HttpGet("token")]
+    [EnableRateLimiting(RateLimitOptions.TokenPolicy)] // IP başına TokenWindowSeconds içinde en fazla TokenPermitLimit istek (varsayılan dakikada 10); aşılırsa 429.
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)] // GET yanıtı tarayıcı/proxy cache'ine düşmesin.
     public ActionResult<TokenResponse> GetToken() => Ok(tokenService.CreateToken());
 }

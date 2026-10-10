@@ -32,7 +32,7 @@ public class AuthApiIntegrationTests : IClassFixture<WebApplicationFactory<Progr
         Assert.NotNull(token);
         Assert.False(string.IsNullOrWhiteSpace(token.AccessToken));
         Assert.Equal("Bearer", token.TokenType);
-        Assert.True(token.ExpiresAt > DateTimeOffset.UtcNow);
+        Assert.True(token.ExpiresAt > DateTimeOffset.Now);
     }
 
     [Fact]

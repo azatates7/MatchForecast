@@ -23,14 +23,11 @@ npm install
 npm run dev                                         # http://localhost:5173
 ```
 
-`OddsProvider:UseMock = true` iken 5 örnek maç ve API-Football formatında marketler döner.
-
 ## Gerçek veriye geçiş
 
 ```bash
 cd backend/MatchForecast.Api
 dotnet user-secrets set "OddsProvider:ApiKey" "<api-sports anahtarı>"
-dotnet user-secrets set "OddsProvider:UseMock" "false"
 ```
 
 İsteğe bağlı: `OddsProvider:BookmakerId` (boşsa en çok market sunan bahisçi seçilir).

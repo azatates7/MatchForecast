@@ -476,3 +476,14 @@
 2026-10-09 18:38:36.4272 Info LogFactory shutting down ...
 2026-10-09 18:38:36.4272 Info Closing old configuration.
 2026-10-09 18:38:36.4272 Info LogFactory shutdown completed.
+2026-10-10 13:15:48.9355 Info Registered target NLog.Targets.FileTarget(Name=dailyFile)
+2026-10-10 13:15:48.9548 Info Registered target NLog.Targets.ConsoleTarget(Name=lifetimeConsole)
+2026-10-10 13:15:48.9548 Info NLog, Version=6.0.0.0, Culture=neutral, PublicKeyToken=5120e14c03d0593c. File version: 6.2.1.5860. Product version: 6.2.1+b058028290f245d12c30cb2910c2a574558ed9c6. GlobalAssemblyCache: False
+2026-10-10 13:15:49.0415 Info Configuration initialized: TargetNames=dailyFile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Api\bin\Debug\net10.0\nlog.config
+2026-10-10 13:35:00.3350 Info LogFactory shutting down ...
+2026-10-10 13:35:00.3350 Info Closing old configuration.
+2026-10-10 13:35:00.3414 Info LogFactory shutdown completed.
+2026-10-10 13:35:15.6861 Info Registered target NLog.Targets.FileTarget(Name=dailyFile)
+2026-10-10 13:35:15.7012 Info Registered target NLog.Targets.ConsoleTarget(Name=lifetimeConsole)
+2026-10-10 13:35:15.7012 Info NLog, Version=6.0.0.0, Culture=neutral, PublicKeyToken=5120e14c03d0593c. File version: 6.2.1.5860. Product version: 6.2.1+b058028290f245d12c30cb2910c2a574558ed9c6. GlobalAssemblyCache: False
+2026-10-10 13:35:15.7541 Info Configuration initialized: TargetNames=dailyFile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=C:\Users\azata\source\repos\MatchForecast\backend\MatchForecast.Api\bin\Debug\net10.0\nlog.config

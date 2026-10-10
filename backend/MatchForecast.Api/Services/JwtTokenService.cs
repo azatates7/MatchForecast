@@ -17,7 +17,7 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options)
     public TokenResponse CreateToken()
     {
         var o = options.Value;
-        var expiresAt = DateTime.UtcNow.AddMinutes(o.ExpiryMinutes);
+        var expiresAt = DateTime.Now.AddMinutes(o.ExpiryMinutes);
 
         var token = Handler.CreateToken(new SecurityTokenDescriptor
         {

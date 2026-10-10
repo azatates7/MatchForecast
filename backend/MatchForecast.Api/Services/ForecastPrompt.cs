@@ -17,6 +17,7 @@ public static class ForecastPrompt
         StandardMarket(1, "Match Winner", "Home", "Draw", "Away"),
         StandardMarket(12, "Double Chance", "Home/Draw", "Home/Away", "Draw/Away"),
         StandardMarket(5, "Goals Over/Under", "Over 1.5", "Under 1.5", "Over 2.5", "Under 2.5", "Over 3.5", "Under 3.5"),
+        StandardMarket(14, "Corners Over/Under", "Over 1.5", "Under 1.5", "Over 2.5", "Under 2.5", "Over 3.5", "Under 3.5"),
         StandardMarket(8, "Both Teams Score", "Yes", "No"),
         StandardMarket(13, "First Half Winner", "Home", "Draw", "Away"),
         StandardMarket(6, "Goals Over/Under First Half", "Over 0.5", "Under 0.5", "Over 1.5", "Under 1.5"),

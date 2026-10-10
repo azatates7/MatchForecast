@@ -135,7 +135,6 @@ dotnet test backend/MatchForecast.Tests/MatchForecast.Tests.csproj
 # User secrets configuration for local development
 dotnet user-secrets set "Ai:ApiKey" "sk-ant-your-claude-key"
 dotnet user-secrets set "OddsProvider:ApiKey" "your-api-sports-key"
-dotnet user-secrets set "OddsProvider:UseMock" "false"
 dotnet user-secrets set "Jwt:SecretKey" "<at-least-32-character-random-value>"
 ```
 
