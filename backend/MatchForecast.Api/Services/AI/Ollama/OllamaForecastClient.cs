@@ -35,6 +35,7 @@ public sealed class OllamaForecastClient(
                 new { role = "user", content = userPrompt }
             },
             stream = false,
+            think = false, // qwen3/deepseek-r1 gibi modellerde akıl yürütmeyi kapatır; JSON doğrudan üretilir.
             format = "json",
             options = new { num_predict = _maxTokens, num_ctx = _opt.ContextLength }
         };
