@@ -4,7 +4,7 @@ using System.Threading.RateLimiting;
 using NLog;
 using NLog.Web;
 using MatchForecast.Api.Options;
-using MatchForecast.Api.Swagger;
+using MatchForecast.Api.Filter;
 using MatchForecast.Logger.Extensions;
 using MatchForecast.Logger.Notifications;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
