@@ -4,8 +4,6 @@ using System.Threading.RateLimiting;
 using NLog;
 using NLog.Web;
 using MatchForecast.Api.Options;
-using MatchForecast.Api.Services;
-using MatchForecast.Api.Services.Email;
 using MatchForecast.Api.Swagger;
 using MatchForecast.Logger.Extensions;
 using MatchForecast.Logger.Notifications;
@@ -16,9 +14,13 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using StackExchange.Redis;
+using MatchForecast.Api.Services.Security;
+using MatchForecast.Api.Services.ApiFootball;
+using MatchForecast.Api.Services.Forecast;
 using MatchForecast.Api.Services.AI.Gemini;
 using MatchForecast.Api.Services.AI.Claude;
 using MatchForecast.Api.Services.AI.Ollama;
+using MatchForecast.Api.Services.Email;
 using MatchForecast.Api.Services.Redis;
 
 var logger = LogManager.Setup().LoadConfigurationFromAppSettings().GetCurrentClassLogger();
@@ -179,6 +181,14 @@ try
     });
     builder.Services.AddSingleton<IRedisCacheService, RedisCacheService>();
 
+    // Tahmin seçimi ayarları; bant ters girilirse (Min > Max) hiçbir seçenek banda girmez, bu yüzden startup'ta doğrulanır.
+    builder.Services.AddOptions<ForecastOptions>()
+        .Bind(builder.Configuration.GetSection(ForecastOptions.Section))
+        .Validate(o => o.PredictionCount >= 1, "Forecast:PredictionCount en az 1 olmalı.")
+        .Validate(o => o.MinPickProbability is >= 0 and <= 100 && o.MaxPickProbability is >= 0 and <= 100
+                       && o.MinPickProbability <= o.MaxPickProbability,
+            "Forecast:MinPickProbability/MaxPickProbability 0-100 arasında olmalı ve Min <= Max olmalı.")
+        .ValidateOnStart();
     builder.Services.AddScoped<ForecastService>();
 
     /*

@@ -3,6 +3,7 @@ using System.Text.Json;
 using MatchForecast.Models.Common;
 using MatchForecast.Api.Options;
 using Microsoft.Extensions.Options;
+using MatchForecast.Api.Services.Forecast;
 
 namespace MatchForecast.Api.Services.AI.Ollama;
 

@@ -6,7 +6,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 
-namespace MatchForecast.Api.Services;
+namespace MatchForecast.Api.Services.Security;
 
 /// <summary>HS256 imzalı JWT access token üretir.</summary>
 public sealed class JwtTokenService(IOptions<JwtOptions> options)

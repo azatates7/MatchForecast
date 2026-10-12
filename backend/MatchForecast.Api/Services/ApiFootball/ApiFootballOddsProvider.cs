@@ -6,9 +6,9 @@ using MatchForecast.Api.Options;
 using Microsoft.Extensions.Options;
 using MatchForecast.Api.Services.Redis;
 
-namespace MatchForecast.Api.Services;
+namespace MatchForecast.Api.Services.ApiFootball;
 
-// API-Football (api-sports.io v3) üzerinden fikstür ve bahis marketlerini çeker; kota için sonuçlar Redis'te önbelleğe alınır.
+// API-Football (api-sports.io v3) üzerinden fikstürleri çeker; kota için sonuçlar Redis'te önbelleğe alınır. Oranlar artık kullanılmaz.
 public sealed class ApiFootballOddsProvider(
     HttpClient http,
     IRedisCacheService cache,
@@ -82,50 +82,6 @@ public sealed class ApiFootballOddsProvider(
         return match;
     }
 
-    public async Task<MatchOdds?> GetOddsAsync(int fixtureId, CancellationToken ct)
-    {
-        var key = $"odds:{fixtureId}";
-        var cached = await cache.GetAsync<MatchOdds>(key);
-        if (cached is not null)
-            return cached;
-
-        var odds = await FetchOddsAsync(fixtureId, ct);
-        // null (henüz oran yok) cache'lenmez; oranlar yayınlanınca bir sonraki istekte hemen görünür.
-        if (odds is not null)
-            await cache.SetAsync(key, odds, CacheTtl);
-        return odds;
-    }
-
-    private async Task<MatchOdds?> FetchOddsAsync(int fixtureId, CancellationToken ct)
-    {
-        using var doc = await GetAsync($"odds?fixture={fixtureId}", ct);
-        var response = doc.RootElement.GetProperty("response");
-        if (response.GetArrayLength() == 0) return null;
-
-        var bookmakers = response[0].GetProperty("bookmakers").EnumerateArray().ToList();
-        if (bookmakers.Count == 0) return null;
-
-        // Yapılandırılmış bahisçi varsa onu, yoksa en çok market sunanı al.
-        var chosen = _opt.BookmakerId is int id
-            ? bookmakers.FirstOrDefault(b => b.GetProperty("id").GetInt32() == id)
-            : default;
-        if (chosen.ValueKind == JsonValueKind.Undefined)
-            chosen = bookmakers.MaxBy(b => b.GetProperty("bets").GetArrayLength());
-
-        var markets = chosen.GetProperty("bets").EnumerateArray()
-            .Select(bet => new Market(
-                bet.GetProperty("id").GetInt32(),
-                bet.GetProperty("name").GetString() ?? "",
-                bet.GetProperty("values").EnumerateArray()
-                    .Select(v => new OddOption(AsText(v.GetProperty("value")), ParseOdd(v.GetProperty("odd"))))
-                    .Where(o => o.Odd > 1m)
-                    .ToList()))
-            .Where(m => m.Options.Count > 0)
-            .ToList();
-
-        return new MatchOdds(fixtureId, chosen.GetProperty("name").GetString() ?? "", markets);
-    }
-
     private async Task<JsonDocument> GetAsync(string path, CancellationToken ct)
     {
         using var res = await http.GetAsync(path, ct);
@@ -175,10 +131,4 @@ public sealed class ApiFootballOddsProvider(
 
     private static int? OptionalInt(JsonElement parent, string name) =>
         parent.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetInt32() : null;
-
-    private static string AsText(JsonElement e) =>
-        e.ValueKind == JsonValueKind.String ? e.GetString() ?? "" : e.GetRawText();
-
-    private static decimal ParseOdd(JsonElement e) =>
-        decimal.TryParse(AsText(e), NumberStyles.Number, CultureInfo.InvariantCulture, out var d) ? d : 0m;
 }

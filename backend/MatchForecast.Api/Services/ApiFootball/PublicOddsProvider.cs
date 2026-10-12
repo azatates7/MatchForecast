@@ -5,19 +5,17 @@ using MatchForecast.Models.Response;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
-namespace MatchForecast.Api.Services;
+namespace MatchForecast.Api.Services.ApiFootball;
 
-/// <summary>
-/// Simple public odds/provider that fetches today's football matches from ESPN's public scoreboard API.
-/// No API key is required. The data is limited and may not contain odds, but it provides match information
-/// sufficient for the existing Forecast pipeline (which will still call the Claude AI for forecasts).
-/// </summary>
+/*
+ * ESPN'in herkese açık scoreboard API'sinden günün maçlarını çeken basit fikstür sağlayıcısı; API anahtarı gerektirmez.
+ * Veri sınırlıdır ama tahmin akışı için gereken maç bilgisini sağlar.
+ */
 public sealed class PublicOddsProvider(HttpClient http, IMemoryCache cache, ILogger<PublicOddsProvider> logger) : IOddsProvider
 {
     private readonly TimeSpan _cacheTtl = TimeSpan.FromMinutes(10);
 
-    // ESPN public scoreboard endpoint (no auth required)
-    // Example: https://site.api.espn.com/apis/v2/sports/football/scoreboard?dates=2024-09-26
+    // ESPN public scoreboard (anahtar gerekmez), ör. https://site.api.espn.com/apis/v2/sports/football/scoreboard?dates=2024-09-26
     private string BuildUrl(DateOnly date) => $"apis/v2/sports/football/scoreboard?dates={date:yyyy-MM-dd}";
 
     public async Task<IReadOnlyList<MatchSummary>> GetMatchesAsync(DateOnly date, CancellationToken ct)
@@ -50,12 +48,6 @@ public sealed class PublicOddsProvider(HttpClient http, IMemoryCache cache, ILog
         // For simplicity, we fetch today’s matches again.
         var today = DateOnly.FromDateTime(DateTime.Today);
         return GetMatchesAsync(today, ct).ContinueWith(t => t.Result.FirstOrDefault(m => m.Id == fixtureId), ct);
-    }
-
-    public Task<MatchOdds?> GetOddsAsync(int fixtureId, CancellationToken ct)
-    {
-        // Public ESPN endpoint does not provide odds. Return null to indicate unavailable.
-        return Task.FromResult<MatchOdds?>(null);
     }
 
     private async Task<JsonDocument> GetAsync(string path, CancellationToken ct)
@@ -98,9 +90,7 @@ public sealed class PublicOddsProvider(HttpClient http, IMemoryCache cache, ILog
             }
             catch (Exception)
             {
-                // Swallow parsing errors for individual events; continue with others.
-                // Log at debug level.
-                // (logger instance not available here; ignore to keep parsing lightweight.)
+                // Tek bir maçın ayrıştırma hatası listeyi bozmasın; o maç atlanır (statik metotta logger yok).
             }
         }
         return list;

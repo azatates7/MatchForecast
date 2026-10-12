@@ -7,8 +7,5 @@ public sealed class OddsProviderOptions
     public string BaseUrl { get; set; } = "https://v3.football.api-sports.io/";
     public string ApiKey { get; set; } = string.Empty;
     public string Timezone { get; set; } = "Europe/Istanbul";
-
-    // Boşsa, en çok market sunan bahisçi seçilir.
-    public int? BookmakerId { get; set; }
     public int CacheMinutes { get; set; } = 30;
 }

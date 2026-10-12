@@ -4,14 +4,24 @@ using MatchForecast.Models.Response;
 using MatchForecast.Api.Options;
 using Microsoft.Extensions.Options;
 using MatchForecast.Api.Services.Redis;
+using MatchForecast.Api.Services.ApiFootball;
 
-namespace MatchForecast.Api.Services;
+namespace MatchForecast.Api.Services.Forecast;
 
+/*
+ * Tahmin akışı:
+ * 1. Maç bilgisi (API-Football, cache'li).
+ * 2. Model, metriklerin beklenen değerlerini JSON olarak verir.
+ * 3. ProjectionBuilder değerleri doğrular, Poisson ile aralık ve olasılıkları hesaplar.
+ * 4. PredictionSelector katalogdan tahmin listesini seçer.
+ * Oran artık kullanılmaz; tahmin başına API-Football oran isteği yapılmaz.
+ */
 public sealed class ForecastService(
     IOddsProvider odds,
     IForecastAiClient ai,
     IRedisCacheService cache,
     IOptions<AiOptions> aiOptions,
+    IOptions<ForecastOptions> forecastOptions,
     ILogger<ForecastService> logger)
 {
     private static readonly JsonSerializerOptions JsonOpts = new()
@@ -43,7 +53,8 @@ public sealed class ForecastService(
 
     public async Task<ForecastResult> GetForecastAsync(int fixtureId, bool refresh, CancellationToken ct)
     {
-        var key = $"forecast:{fixtureId}";
+        // v2: eski (oranlı) formatta cache'lenmiş tahminler yeni modele uymaz; farklı anahtar onları yok sayar, 30 dk'da kendiliğinden silinirler.
+        var key = $"forecast:v2:{fixtureId}";
         if (!refresh)
         {
             var cached = await cache.GetAsync<ForecastResult>(key);
@@ -58,51 +69,25 @@ public sealed class ForecastService(
             throw new ForecastException("Maç bulunamadı.", StatusCodes.Status404NotFound);
         }
 
-        var matchOdds = await odds.GetOddsAsync(fixtureId, ct);
-        var hasOdds = matchOdds is { Markets.Count: > 0 };
-        if (!hasOdds)
-            logger.LogInformation("No odds available for fixture {FixtureId}; forecasting from standard markets without odds.", fixtureId);
+        var raw = await ai.CompleteAsync(ForecastPrompt.System, ForecastPrompt.BuildUser(match), ct);
+        var response = Parse(raw);
 
-        // Oran yoksa model standart marketlerden seçer; tahmin yalnızca maç bilgisine dayanır, oran alanları null döner.
-        Dictionary<string, (Market Market, OddOption Option)> index;
-        var userPrompt = hasOdds
-            ? ForecastPrompt.BuildUser(match, matchOdds!, out index)
-            : ForecastPrompt.BuildUserWithoutOdds(match, out index);
-        var raw = await ai.CompleteAsync(ForecastPrompt.System, userPrompt, ct);
-
-        var parsed = Parse(raw);
-        var predictions = (parsed.Predictions ?? [])
-            .Where(p => p.OptionId is not null && index.ContainsKey(p.OptionId))
-            .DistinctBy(p => p.OptionId)
-            .OrderByDescending(p => p.Confidence)
-            .Take(ForecastPrompt.PredictionCount)
-            .Select((p, i) =>
-            {
-                var (market, option) = index[p.OptionId!];
-                return new Prediction(
-                    i + 1,
-                    string.IsNullOrWhiteSpace(p.Label) ? $"{market.Name}: {option.Value}" : p.Label,
-                    market.Name,
-                    option.Value,
-                    hasOdds ? option.Odd : null,
-                    hasOdds ? ForecastPrompt.ImpliedProbability(option.Odd) : null,
-                    (int)Math.Clamp(Math.Round(p.Confidence), 0, 100),
-                    p.Reasoning ?? "");
-            })
-            .ToList();
+        var opt = forecastOptions.Value;
+        var projection = ProjectionBuilder.Build(response, opt, logger);
+        var predictions = PredictionSelector.Select(projection, opt);
 
         if (predictions.Count == 0)
         {
-            logger.LogWarning("AI returned no valid options for fixture {Id}. Raw: {Raw}", fixtureId, raw);
-            throw new ForecastException("Yapay zeka geçerli bir seçenek döndürmedi, tekrar deneyin.");
+            logger.LogWarning("No predictions could be selected for fixture {Id}. Raw: {Raw}", fixtureId, raw);
+            throw new ForecastException("Yapay zeka geçerli bir tahmin üretmedi, tekrar deneyin.");
         }
 
-        var result = new ForecastResult(match, hasOdds ? matchOdds!.Bookmaker : null, parsed.Summary ?? "", predictions, DateTimeOffset.Now);
+        var result = new ForecastResult(match, response.Summary ?? "", projection.Outcomes, projection.Stats, predictions, DateTimeOffset.Now);
         await cache.SetAsync(key, result, TimeSpan.FromMinutes(aiOptions.Value.CacheMinutes));
         return result;
     }
 
-    private AiResponse Parse(string raw)
+    private AiStatsResponse Parse(string raw)
     {
         // Model kurala uymayıp ```json bloğu veya ön metin eklerse ilk { ... son } aralığını al.
         var start = raw.IndexOf('{');
@@ -115,7 +100,7 @@ public sealed class ForecastService(
 
         try
         {
-            return JsonSerializer.Deserialize<AiResponse>(raw[start..(end + 1)], JsonOpts)
+            return JsonSerializer.Deserialize<AiStatsResponse>(raw[start..(end + 1)], JsonOpts)
                    ?? throw new JsonException("empty");
         }
         catch (JsonException ex)
@@ -124,7 +109,4 @@ public sealed class ForecastService(
             throw new ForecastException("Yapay zeka cevabı okunamadı, tekrar deneyin.");
         }
     }
-
-    private sealed record AiResponse(string? Summary, List<AiPrediction>? Predictions);
-    private sealed record AiPrediction(string? OptionId, string? Label, double Confidence, string? Reasoning);
 }

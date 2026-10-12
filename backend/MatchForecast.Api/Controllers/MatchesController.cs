@@ -1,4 +1,5 @@
-using MatchForecast.Api.Services;
+using MatchForecast.Api.Services.ApiFootball;
+using MatchForecast.Api.Services.Forecast;
 using MatchForecast.Models.Response;
 using Microsoft.AspNetCore.Mvc;
 
@@ -33,15 +34,7 @@ public sealed class MatchesController(IOddsProvider odds, ForecastService foreca
         return Ok(result);
     }
 
-    /// <summary>Maçın bahis marketlerini ve oranlarını döner.</summary>
-    [HttpGet("{id:int}/odds")]
-    public async Task<ActionResult<MatchOdds>> GetOdds(int id, CancellationToken ct)
-    {
-        var result = await odds.GetOddsAsync(id, ct);
-        return result is null ? NotFound() : Ok(result);
-    }
-
-    /// <summary>Maç için AI tahmini üretir; refresh=true ise önbelleği atlar.</summary>
+    /// <summary>Maç için AI tahmini üretir (gol/korner/kart beklentileri ve 10 tahmin); refresh=true ise önbelleği atlar.</summary>
     [HttpGet("{id:int}/forecast")]
     public async Task<ActionResult<ForecastResult>> GetForecast(int id, [FromQuery] bool? refresh, CancellationToken ct)
     {

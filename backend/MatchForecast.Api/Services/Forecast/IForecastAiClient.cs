@@ -1,4 +1,4 @@
-namespace MatchForecast.Api.Services;
+namespace MatchForecast.Api.Services.Forecast;
 
 public interface IForecastAiClient
 {

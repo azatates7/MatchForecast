@@ -6,127 +6,116 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
+using MatchForecast.Api.Services.Redis;
+using MatchForecast.Api.Services.ApiFootball;
+using MatchForecast.Api.Services.Forecast;
 
 namespace MatchForecast.Tests;
 
 public class ForecastServiceTests
 {
+    private const string ValidAiJson = """
+        {
+          "summary": "Ev sahibi önde.",
+          "homeGoals": { "expected": 1.6, "reasoning": "Ev sahibi içeride etkili." },
+          "awayGoals": { "expected": 1.0, "reasoning": "Deplasman hücumu zayıf." },
+          "firstHalfGoals": { "expected": 1.1, "reasoning": "İlk yarı temkinli." },
+          "corners": { "expected": 10.2, "reasoning": "Kanat oyunu." },
+          "yellowCards": { "expected": 4.6, "reasoning": "Sert maç." },
+          "redCards": { "expected": 0.2, "reasoning": "Lig ortalaması." }
+        }
+        """;
+
     private readonly Mock<IOddsProvider> _mockOdds = new();
     private readonly Mock<IForecastAiClient> _mockAi = new();
     private readonly IRedisCacheService _cache = new InMemoryRedisCacheService();
-    private readonly IOptions<AiOptions> _aiOptions = Options.Create(new AiOptions { CacheMinutes = 30 });
 
-    private ForecastService CreateService()
+    private ForecastService CreateService() => new(
+        _mockOdds.Object,
+        _mockAi.Object,
+        _cache,
+        Options.Create(new AiOptions { CacheMinutes = 30 }),
+        Options.Create(new ForecastOptions()),
+        NullLogger<ForecastService>.Instance);
+
+    private void SetupMatch(int id = 1) =>
+        _mockOdds.Setup(o => o.GetMatchAsync(id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MatchSummary(id, DateTimeOffset.Now, "Serie A", "Italy", "Inter", "Milan", "NS"));
+
+    private void SetupAi(string response) =>
+        _mockAi.Setup(a => a.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(response);
+
+    [Fact]
+    public async Task GetForecastAsync_ReturnsStatsOutcomesAndPredictions()
     {
-        return new ForecastService(
-            _mockOdds.Object,
-            _mockAi.Object,
-            _cache,
-            _aiOptions,
-            NullLogger<ForecastService>.Instance);
+        SetupMatch();
+        SetupAi(ValidAiJson);
+
+        var result = await CreateService().GetForecastAsync(1, false, CancellationToken.None);
+
+        Assert.Equal("Ev sahibi önde.", result.Summary);
+        Assert.Equal(7, result.Stats.Count); // 6 model metriği + hesaplanan toplam gol
+        Assert.Equal(100, result.Outcomes.Home + result.Outcomes.Draw + result.Outcomes.Away);
+        Assert.Equal(5, result.Predictions.Count);
+        Assert.Equal("Ev 0.5 Üst", result.Predictions[0].Label);
     }
 
     [Fact]
-    public async Task GetForecastAsync_ReturnsForecastWithoutOdds_WhenOddsNull()
+    public async Task GetForecastAsync_SendsMatchInfoWithoutOptionList()
     {
-        // Arrange
-        var service = CreateService();
-        var match = new MatchSummary(1, DateTimeOffset.Now, "Serie A", "Italy", "Inter", "Milan", "NS");
-        _mockOdds.Setup(o => o.GetMatchAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(match);
-        _mockOdds.Setup(o => o.GetOddsAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync((MatchOdds?)null);
-        _mockAi.Setup(a => a.CompleteAsync(It.IsAny<string>(), It.Is<string>(u => u.Contains("oranı yayınlanmadı")), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("""{"summary": "No odds analysis", "predictions": [{"optionId": "1.1", "label": "MS 1", "confidence": 60.0}]}""");
+        SetupMatch();
+        SetupAi(ValidAiJson);
 
-        // Act
-        var result = await service.GetForecastAsync(1, false, CancellationToken.None);
+        await CreateService().GetForecastAsync(1, false, CancellationToken.None);
 
-        // Assert
-        Assert.Null(result.Bookmaker);
-        Assert.Single(result.Predictions);
-        Assert.Equal("Match Winner", result.Predictions[0].Market);
-        Assert.Equal("Home", result.Predictions[0].Selection);
-        Assert.Null(result.Predictions[0].Odd);
-        Assert.Null(result.Predictions[0].ImpliedProbability);
+        _mockAi.Verify(a => a.CompleteAsync(
+            It.IsAny<string>(),
+            It.Is<string>(u => u.Contains("Inter (ev)") && !u.Contains("optionId")),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
     public async Task GetForecastAsync_ThrowsForecastException_WhenAiReturnsInvalidJson()
     {
-        // Arrange
-        var service = CreateService();
-        var match = new MatchSummary(1, DateTimeOffset.Now, "Serie A", "Italy", "Inter", "Milan", "NS");
-        var odds = new MatchOdds(1, "Bookie", [new Market(1, "1X2", [new OddOption("1", 2.0m)])]);
+        SetupMatch();
+        SetupAi("Sorry, I cannot produce JSON right now.");
 
-        _mockOdds.Setup(o => o.GetMatchAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(match);
-        _mockOdds.Setup(o => o.GetOddsAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(odds);
-        _mockAi.Setup(a => a.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("Sorry, I cannot produce JSON right now.");
-
-        // Act & Assert
-        var ex = await Assert.ThrowsAsync<ForecastException>(() => service.GetForecastAsync(1, false, CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<ForecastException>(() => CreateService().GetForecastAsync(1, false, CancellationToken.None));
         Assert.Contains("JSON içermiyor", ex.Message);
     }
 
     [Fact]
-    public async Task GetForecastAsync_FiltersInvalidOptionIds_AndClampsConfidence()
+    public async Task GetForecastAsync_ThrowsForecastException_WhenGoalExpectationMissing()
     {
-        // Arrange
-        var service = CreateService();
-        var match = new MatchSummary(1, DateTimeOffset.Now, "Bundesliga", "Germany", "Bayern", "Dortmund", "NS");
-        var odds = new MatchOdds(1, "Bookie", [
-            new Market(1, "Match Winner", [new OddOption("Home", 1.50m), new OddOption("Away", 5.00m)])
-        ]);
+        SetupMatch();
+        SetupAi("""{ "summary": "x", "awayGoals": { "expected": 1.0 } }""");
 
-        _mockOdds.Setup(o => o.GetMatchAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(match);
-        _mockOdds.Setup(o => o.GetOddsAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(odds);
+        await Assert.ThrowsAsync<ForecastException>(() => CreateService().GetForecastAsync(1, false, CancellationToken.None));
+    }
 
-        // OptionId "99.9" does not exist in the prompt index. "1.1" exists. Confidence 150.0 should be clamped to 100.
-        var jsonResponse = """
-        {
-            "summary": "High scoring match expected.",
-            "predictions": [
-                { "optionId": "99.9", "label": "Invalid Bet", "confidence": 90.0, "reasoning": "Fake bet" },
-                { "optionId": "1.1", "label": "Bayern Win", "confidence": 150.0, "reasoning": "Dominant home form" }
-            ]
-        }
-        """;
+    [Fact]
+    public async Task GetForecastAsync_Throws404_WhenMatchNotFound()
+    {
+        _mockOdds.Setup(o => o.GetMatchAsync(99, It.IsAny<CancellationToken>())).ReturnsAsync((MatchSummary?)null);
 
-        _mockAi.Setup(a => a.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(jsonResponse);
-
-        // Act
-        var result = await service.GetForecastAsync(1, false, CancellationToken.None);
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.Single(result.Predictions);
-        Assert.Equal("Bayern Win", result.Predictions[0].Label);
-        Assert.Equal(100, result.Predictions[0].Confidence); // Clamped from 150 to 100
-        Assert.Equal(1.50m, result.Predictions[0].Odd);
+        var ex = await Assert.ThrowsAsync<ForecastException>(() => CreateService().GetForecastAsync(99, false, CancellationToken.None));
+        Assert.Equal(404, ex.StatusCode);
     }
 
     [Fact]
     public async Task GetForecastAsync_UsesCachedResult_WhenRefreshIsFalse()
     {
-        // Arrange
+        SetupMatch(5);
+        SetupAi(ValidAiJson);
         var service = CreateService();
-        var match = new MatchSummary(5, DateTimeOffset.Now, "Ligue 1", "France", "PSG", "Marseille", "NS");
-        var odds = new MatchOdds(5, "Bookie", [new Market(1, "1X2", [new OddOption("Home", 1.40m)])]);
 
-        _mockOdds.Setup(o => o.GetMatchAsync(5, It.IsAny<CancellationToken>())).ReturnsAsync(match);
-        _mockOdds.Setup(o => o.GetOddsAsync(5, It.IsAny<CancellationToken>())).ReturnsAsync(odds);
-        _mockAi.Setup(a => a.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("""{"summary": "Cached analysis", "predictions": [{"optionId": "1.1", "confidence": 80.0}]}""");
-
-        // Act 1: Initial call populates cache
         var first = await service.GetForecastAsync(5, false, CancellationToken.None);
-
-        // Act 2: Second call should return cached object without invoking AI again
         var second = await service.GetForecastAsync(5, false, CancellationToken.None);
 
-        // Assert (Redis JSON sakladığı için aynı instance değil, aynı içerik döner)
-        Assert.Equal(first.Summary, second.Summary);
+        // Redis JSON sakladığı için aynı instance değil, aynı içerik döner.
         Assert.Equal(first.GeneratedAt, second.GeneratedAt);
+        Assert.Equal(first.Stats.Count, second.Stats.Count);
         _mockAi.Verify(a => a.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 }

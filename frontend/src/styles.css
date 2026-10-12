@@ -113,7 +113,8 @@ button, input { font: inherit; color: inherit; }
   top: 0;
 }
 
-.analysis { padding: clamp(1rem, 3vw, 2.5rem); }
+/* min-width: 0 -> grid hücresi içerik (istatistik tablosu) kadar genişlemesin; tablo kendi kutusunda kaydırılsın. */
+.analysis { padding: clamp(1rem, 3vw, 2.5rem); min-width: 0; }
 
 .search {
   width: 100%;
@@ -258,19 +259,6 @@ button, input { font: inherit; color: inherit; }
   line-height: 1.15;
 }
 
-/* Oran rozeti: sarı kart */
-.pick-odd {
-  flex: none;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 1.15rem;
-  background: var(--card);
-  color: #1b1500;
-  padding: 0.15rem 0.55rem;
-  border-radius: 3px;
-  transform: rotate(-3deg);
-}
-
 .pick-market { margin: 0.15rem 0 0.7rem; color: var(--muted); font-size: 0.9rem; }
 
 /* Güven çubuğu: dolgu = yapay zeka, dikey çizgi = oranın ima ettiği olasılık */
@@ -289,15 +277,6 @@ button, input { font: inherit; color: inherit; }
   transition: width 0.6s ease-out;
 }
 
-.meter-market {
-  position: absolute;
-  top: -4px;
-  bottom: -4px;
-  width: 2px;
-  margin-left: -1px;
-  background: var(--ink);
-}
-
 .meter-legend {
   display: flex;
   justify-content: space-between;
@@ -310,6 +289,75 @@ button, input { font: inherit; color: inherit; }
 .meter-legend span:first-child { color: var(--pitch); font-weight: 600; }
 
 .pick-reason { margin: 0.6rem 0 0; max-width: 62ch; }
+
+.section-title {
+  margin: 2rem 0 0.6rem;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.2rem;
+  letter-spacing: 0.02em;
+}
+
+/* Maç sonucu ve ilk yarı: 1 / X / 2 tek çubukta, parça genişliği olasılık kadar */
+.outcomes { display: grid; gap: 0.9rem; max-width: 46rem; }
+
+.result-title { margin: 0 0 0.3rem; color: var(--muted); font-size: 0.85rem; }
+
+.result-bar {
+  display: flex;
+  height: 1.9rem;
+  border-radius: 4px;
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.result-seg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.seg-home { background: var(--pitch); color: var(--surface); }
+.seg-draw { background: var(--line); color: var(--ink); }
+.seg-away { background: var(--card); color: #1b1500; }
+
+.btts { margin: 0; font-size: 0.95rem; }
+
+/* İstatistik tablosu: dar ekranda yatay kaydırılır, sayfa taşmaz */
+.stats-scroll { overflow-x: auto; }
+
+.stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.stats-table th,
+.stats-table td {
+  padding: 0.55rem 0.6rem 0.55rem 0;
+  border-top: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.stats-table thead th { color: var(--muted); font-weight: 500; font-size: 0.8rem; border-top: 0; }
+.stats-table tbody th { font-weight: 600; }
+.stats-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.stats-reason { display: block; margin-top: 0.15rem; color: var(--muted); font-weight: 400; font-size: 0.82rem; max-width: 34ch; }
+
+.stats-lines { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.stats-lines span { display: block; }
+.stats-lines span + span { margin-top: 0.15rem; }
+
+.stats-note { margin: 0.5rem 0 0; color: var(--muted); font-size: 0.8rem; }
+
+.muted { color: var(--muted); }
 
 .forecast-foot {
   display: flex;

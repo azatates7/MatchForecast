@@ -1,9 +1,9 @@
-using MatchForecast.Api.Services;
 using MatchForecast.Models.Response;
 using Microsoft.AspNetCore.Authorization;
 using MatchForecast.Api.Options;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using MatchForecast.Api.Services.Security;
 
 namespace MatchForecast.Api.Controllers;
 

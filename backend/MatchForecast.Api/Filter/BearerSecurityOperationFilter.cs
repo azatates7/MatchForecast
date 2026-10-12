@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.OpenApi;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
-namespace MatchForecast.Api.Swagger;
+namespace MatchForecast.Api.Filter;
 
 /// <summary>
 /// [AllowAnonymous] olmayan her operasyona Bearer gereksinimi ekler; Swagger UI'da kilit ikonu sadece korunan endpoint'lerde görünür

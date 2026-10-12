@@ -4,7 +4,8 @@ namespace MatchForecast.Models.Response;
 
 public sealed record ForecastResult(
     MatchSummary Match,
-    string? Bookmaker,
     string Summary,
+    OutcomeProbabilities Outcomes,
+    IReadOnlyList<StatProjection> Stats,
     IReadOnlyList<Prediction> Predictions,
     DateTimeOffset GeneratedAt);

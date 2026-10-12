@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using Xunit;
+using MatchForecast.Api.Services.ApiFootball;
+using MatchForecast.Api.Services.Forecast;
 
 namespace MatchForecast.Tests;
 
@@ -79,86 +81,25 @@ public class MatchesApiIntegrationTests : IClassFixture<WebApplicationFactory<Pr
     }
 
     [Fact]
-    public async Task GetOdds_ReturnsOk_WhenOddsExist()
-    {
-        // Arrange
-        var mockOdds = new Mock<IOddsProvider>();
-        var sampleOdds = new MatchOdds(
-            1,
-            "MockBookmaker",
-            [new Market(1, "Match Winner", [new OddOption("Home", 1.85m), new OddOption("Away", 3.40m)])]
-        );
-        mockOdds.Setup(o => o.GetOddsAsync(1, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(sampleOdds);
-
-        var client = _factory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureTestServices(services =>
-            {
-                services.AddSingleton(mockOdds.Object);
-            });
-        }).CreateAuthorizedClient();
-
-        // Act
-        var response = await client.GetAsync("/api/matches/1/odds");
-
-        // Assert
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var odds = await response.Content.ReadFromJsonAsync<MatchOdds>();
-        Assert.NotNull(odds);
-        Assert.Equal(1, odds.FixtureId);
-        Assert.Equal("MockBookmaker", odds.Bookmaker);
-        Assert.Single(odds.Markets);
-    }
-
-    [Fact]
-    public async Task GetOdds_ReturnsNotFound_WhenOddsDoNotExist()
-    {
-        // Arrange
-        var mockOdds = new Mock<IOddsProvider>();
-        mockOdds.Setup(o => o.GetOddsAsync(999, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((MatchOdds?)null);
-
-        var client = _factory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureTestServices(services =>
-            {
-                services.AddSingleton(mockOdds.Object);
-            });
-        }).CreateAuthorizedClient();
-
-        // Act
-        var response = await client.GetAsync("/api/matches/999/odds");
-
-        // Assert
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task GetForecast_ReturnsOk_WhenMatchAndOddsAndAiResponseAreValid()
+    public async Task GetForecast_ReturnsOk_WithStatsAndPredictions()
     {
         // Arrange
         var mockOdds = new Mock<IOddsProvider>();
         var mockAi = new Mock<IForecastAiClient>();
 
         var sampleMatch = new MatchSummary(10, DateTimeOffset.Now, "La Liga", "Spain", "Real Madrid", "Barcelona", "NS");
-        var sampleOdds = new MatchOdds(
-            10,
-            "BetProvider",
-            [new Market(1, "Full Time Result", [new OddOption("Home", 2.10m), new OddOption("Draw", 3.20m), new OddOption("Away", 2.80m)])]
-        );
-
         mockOdds.Setup(o => o.GetMatchAsync(10, It.IsAny<CancellationToken>()))
             .ReturnsAsync(sampleMatch);
-        mockOdds.Setup(o => o.GetOddsAsync(10, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(sampleOdds);
 
         var jsonAiResponse = """
         {
             "summary": "Real Madrid home advantage gives them an edge.",
-            "predictions": [
-                { "optionId": "1.1", "label": "Full Time Result: Home", "confidence": 75.0, "reasoning": "Strong home form." }
-            ]
+            "homeGoals": { "expected": 1.7, "reasoning": "Strong home form." },
+            "awayGoals": { "expected": 1.2, "reasoning": "Dangerous on the break." },
+            "firstHalfGoals": { "expected": 1.2, "reasoning": "Open game." },
+            "corners": { "expected": 9.8, "reasoning": "Both teams attack wide." },
+            "yellowCards": { "expected": 5.1, "reasoning": "El Clasico intensity." },
+            "redCards": { "expected": 0.3, "reasoning": "Heated derby." }
         }
         """;
 
@@ -183,8 +124,9 @@ public class MatchesApiIntegrationTests : IClassFixture<WebApplicationFactory<Pr
         Assert.NotNull(result);
         Assert.Equal("Real Madrid", result.Match.HomeTeam);
         Assert.Equal("Real Madrid home advantage gives them an edge.", result.Summary);
-        Assert.Single(result.Predictions);
-        Assert.Equal(75, result.Predictions[0].Confidence);
+        Assert.Equal(5, result.Predictions.Count);
+        Assert.Contains(result.Stats, s => s.Metric == StatMetric.Corners && s.Lines.Count == 0);
+        Assert.Equal(100, result.Outcomes.Home + result.Outcomes.Draw + result.Outcomes.Away);
     }
 
     [Fact]
