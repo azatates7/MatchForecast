@@ -1,0 +1,17 @@
+services:
+  redis:
+    image: redis:7-alpine
+  api:
+    build: ./backend
+    env_file: .env            # Smtp__Password, Jwt__SecretKey, OddsProvider__ApiKey, Ai__Gemini__ApiKey...
+    environment:
+      Redis__ConnectionString: redis:6379
+      Ai__Ollama__BaseUrl: http://host.docker.internal:11434/
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    volumes: ["./logs:/app/logs"]
+    depends_on: [redis]
+  web:
+    build: ./frontend
+    ports: ["8080:80"]
+    depends_on: [api]
