@@ -1,0 +1,39 @@
+@if (stats().length > 0) {
+  <section class="stats" aria-labelledby="stats-title">
+    <h3 id="stats-title" class="section-title">Maç istatistikleri tahmini</h3>
+    <div class="stats-scroll">
+      <table class="stats-table">
+        <thead>
+          <tr>
+            <th scope="col">İstatistik</th>
+            <th scope="col" class="num">Beklenen</th>
+            <th scope="col" class="num">Aralık</th>
+            <th scope="col">Alt / Üst</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (s of stats(); track s.metric) {
+            <tr>
+              <th scope="row">
+                {{ s.label }}
+                @if (s.reasoning) {
+                  <span class="stats-reason">{{ s.reasoning }}</span>
+                }
+              </th>
+              <td class="num">{{ s.expected.toFixed(1) }}</td>
+              <td class="num">{{ s.rangeMin }}–{{ s.rangeMax }}</td>
+              <td class="stats-lines">
+                @for (l of s.lines; track l.line) {
+                  <span>{{ formatLine(s.metric, l) }}</span>
+                } @empty {
+                  <span class="muted">—</span>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <p class="stats-note">Aralık, olası değerlerin %80'ini kapsar.</p>
+  </section>
+}

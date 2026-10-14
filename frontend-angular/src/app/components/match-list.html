@@ -1,0 +1,38 @@
+@if (loading()) {
+  <p class="note">Maçlar yükleniyor…</p>
+} @else if (error()) {
+  <p class="note note-error">{{ error() }}</p>
+} @else if (matches().length === 0) {
+  <p class="note">Gösterilecek maç yok. Başka bir gün veya lig seçin.</p>
+} @else {
+  <div class="match-groups">
+    @for (g of groups(); track g.league) {
+      <div class="league">
+        <h2 class="league-name">{{ g.league }}</h2>
+        <ul>
+          @for (m of g.items; track m.id) {
+            <li>
+              <button
+                type="button"
+                class="match"
+                [class.is-selected]="m.id === selectedId()"
+                [attr.aria-pressed]="m.id === selectedId()"
+                (click)="select.emit(m.id)"
+              >
+                @if (isLive(m)) {
+                  <span class="match-time match-live" [attr.aria-label]="'Canlı, ' + minute(m)">{{ minute(m) }}</span>
+                } @else {
+                  <span class="match-time">{{ time(m.kickoff) }}</span>
+                }
+                <span class="match-teams">
+                  <span>{{ m.homeTeam }}</span>
+                  <span>{{ m.awayTeam }}</span>
+                </span>
+              </button>
+            </li>
+          }
+        </ul>
+      </div>
+    }
+  </div>
+}

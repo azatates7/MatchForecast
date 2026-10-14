@@ -1,0 +1,89 @@
+@let m = match();
+@let f = forecast();
+
+@if (!m) {
+  <div class="empty">
+    <p class="empty-title">Bir maç seçin</p>
+    <p>Yapay zeka seçtiğiniz maçın gol, korner ve kart beklentilerini çıkarır; bunlardan hesaplanan, olasılığı en yüksek 10 tahmin listelenir.</p>
+  </div>
+} @else {
+  <article class="forecast">
+    <header class="fixture-head">
+      <p class="fixture-league">{{ m.league }}</p>
+      <h2 class="fixture-title">
+        <span>{{ m.homeTeam }}</span>
+        <span class="vs">–</span>
+        <span>{{ m.awayTeam }}</span>
+      </h2>
+    </header>
+
+    @if (loading()) {
+      <p class="note pulse">Maç analiz ediliyor, bu 10-30 saniye sürebilir…</p>
+    }
+
+    @if (error()) {
+      <div class="note note-error">
+        <p>{{ error() }}</p>
+        <button type="button" class="link-btn" (click)="retry.emit()">Tekrar analiz et</button>
+      </div>
+    }
+
+    @if (f) {
+      @if (f.summary) {
+        <p class="summary">{{ f.summary }}</p>
+      }
+
+      <section class="outcomes">
+        @for (b of resultBars(f); track b.title) {
+          <div class="result">
+            <p class="result-title">{{ b.title }}</p>
+            <div class="result-bar" role="img" [attr.aria-label]="b.label">
+              @for (p of b.parts; track p.key) {
+                <span class="result-seg" [class]="p.className" [style.flex-grow]="p.value">
+                  @if (p.value >= 12) {
+                    {{ p.key }} %{{ p.value }}
+                  }
+                </span>
+              }
+            </div>
+          </div>
+        }
+        <p class="btts">Karşılıklı gol: <strong>Var %{{ f.outcomes.bttsYes }}</strong> · Yok %{{ 100 - f.outcomes.bttsYes }}</p>
+      </section>
+
+      <h3 class="section-title">En olası 10 tahmin</h3>
+      <ol class="picks">
+        @for (p of f.predictions; track p.market + '-' + p.selection) {
+          <li class="pick">
+            <span class="pick-rank">{{ p.rank }}</span>
+            <div class="pick-body">
+              <div class="pick-line">
+                <h3 class="pick-label">{{ p.label }}</h3>
+              </div>
+              <p class="pick-market">{{ p.market }}: {{ p.selection }}</p>
+
+              <div class="meter" role="img" [attr.aria-label]="'Gerçekleşme olasılığı %' + p.confidence">
+                <span class="meter-fill" [style.width.%]="p.confidence"></span>
+              </div>
+              <p class="meter-legend">
+                <span>Olasılık %{{ p.confidence }}</span>
+              </p>
+
+              @if (p.reasoning) {
+                <p class="pick-reason">{{ p.reasoning }}</p>
+              }
+            </div>
+          </li>
+        }
+      </ol>
+
+      <app-stats-table [stats]="f.stats" />
+
+      <footer class="forecast-foot">
+        <span>Değerler yapay zekanın genel bilgisine dayanır; güncel kadro, sakatlık ve hakem bilgisi içermez.</span>
+        <button type="button" class="link-btn" (click)="retry.emit()">Yeniden analiz et</button>
+      </footer>
+      <p class="disclaimer">Tahminler olasılık tahminidir, sonuç garantisi vermez.</p>
+    }
+  </article>
+}

@@ -3,22 +3,24 @@ import { App } from './app';
 
 describe('App', () => {
   beforeEach(async () => {
+    // API'ye gerçek istek atılmasın: token ve boş maç listesi döner.
+    globalThis.fetch = (async (url: string) =>
+      new Response(JSON.stringify(String(url).includes('/auth/token') ? { accessToken: 't' } : []), { status: 200 })) as typeof fetch;
+
     await TestBed.configureTestingModule({
       imports: [App],
-    })
-      .compileComponents();
+    }).compileComponents();
   });
 
   it('should create the app', () => {
     const fixture = TestBed.createComponent(App);
-    const app = fixture.componentInstance;
-    expect(app).toBeTruthy();
+    expect(fixture.componentInstance).toBeTruthy();
   });
 
-  it('should render title', async () => {
+  it('should render brand', async () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h1')?.textContent).toContain('Hello, frontend-angular');
+    expect(compiled.querySelector('h1')?.textContent).toContain('MatchForecast');
   });
 });
