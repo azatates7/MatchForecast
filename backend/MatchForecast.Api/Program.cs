@@ -22,6 +22,8 @@ using MatchForecast.Api.Services.AI.Claude;
 using MatchForecast.Api.Services.AI.Ollama;
 using MatchForecast.Api.Services.Email;
 using MatchForecast.Api.Services.Redis;
+using MatchForecast.Data.Configuration;
+using Microsoft.EntityFrameworkCore;
 
 var logger = LogManager.Setup().LoadConfigurationFromAppSettings().GetCurrentClassLogger();
 logger.Debug("Initializing MatchForecast API host...");
@@ -33,6 +35,11 @@ try
     // Setup NLog as logging provider
     builder.Logging.ClearProviders();
     builder.Host.UseNLog();
+
+    // Supabase (PostgreSQL). Connection string repoda değil, user-secrets / env'de: ConnectionStrings:Supabase
+    builder.Services.AddDbContext<AppDbContext>(o => o.UseNpgsql(
+    builder.Configuration.GetConnectionString("Supabase"),
+    npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", AppDbContext.Schema)));
 
     builder.Services.Configure<OddsProviderOptions>(builder.Configuration.GetSection(OddsProviderOptions.Section));
     builder.Services.Configure<AiOptions>(builder.Configuration.GetSection(AiOptions.Section));
@@ -282,6 +289,11 @@ try
     app.MapControllers();
 
     app.Run();
+}
+catch (Exception ex) when (ex is not HostAbortedException)
+{
+    logger.Fatal(ex, "Stopped program because of exception");
+    throw;
 }
 catch (Exception ex)
 {
