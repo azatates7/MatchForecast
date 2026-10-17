@@ -1,4 +1,5 @@
 using MatchForecast.Data.Entity;
+using MatchForecast.Data.Seed;
 using Microsoft.EntityFrameworkCore;
 
 namespace MatchForecast.Data.Configuration;
@@ -13,6 +14,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     public DbSet<SampleItem> SampleItems => Set<SampleItem>();
 
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        // Migrate()/MigrateAsync() sonunda çalışır. Seed bağlantısı Data projesinde kalsın, Program.cs bilmesin.
+        optionsBuilder
+            .UseSeeding(SampleItemSeed.Seed)
+            .UseAsyncSeeding(SampleItemSeed.SeedAsync);
+    }
+    
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);

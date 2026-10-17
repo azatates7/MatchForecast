@@ -260,6 +260,16 @@ try
 
     var app = builder.Build();
 
+    // Bekleyen migration'ları uygular; ardından seed (AppDbContext.OnConfiguring → UseAsyncSeeding) çalışır.
+    // Connection string yoksa (ör. CI'daki testler) atlanır. DB'ye ulaşılamazsa uygulama açılmaz (fail-fast).
+    if (!string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("Supabase")))
+    {
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.MigrateAsync();
+        app.Logger.LogInformation("Veritabanı migration ve seed tamamlandı.");
+    }
+    
     if (app.Environment.IsDevelopment())
     {
         app.MapOpenApi().AllowAnonymous(); // Endpoint olduğu için fallback policy'ye takılmasın.
