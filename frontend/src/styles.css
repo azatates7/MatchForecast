@@ -97,6 +97,16 @@ button, input { font: inherit; color: inherit; }
 .cache-msg { font-size: 0.9rem; color: var(--muted); }
 .cache-msg-error { color: var(--danger); }
 
+.password-box { display: flex; align-items: center; gap: 0.4rem; }
+.password-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.3rem 0.6rem;
+  user-select: all;
+}
+
 /* Düzen */
 .layout {
   display: grid;

@@ -75,3 +75,8 @@ export interface TokenResponse {
 export interface CacheClearResponse {
   deletedKeys: number
 }
+
+export interface PasswordResponse {
+  password: string
+  length: number
+}

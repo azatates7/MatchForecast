@@ -1,4 +1,4 @@
-import type { CacheClearResponse, ForecastResult, MatchSummary, TokenResponse } from './types'
+import type { CacheClearResponse, ForecastResult, MatchSummary, PasswordResponse, TokenResponse } from './types'
 
 // Token yalnızca bellekte tutulur: sayfa yenilenince yeniden alınır (ucuz), localStorage'a yazılmadığı için XSS ile okunamaz.
 // Promise saklanır ki aynı anda başlayan istekler tek bir /api/auth/token çağrısını paylaşsın.
@@ -50,3 +50,6 @@ export const getForecast = (id: number, refresh = false) =>
 
 export const clearCache = () =>
   request<CacheClearResponse>('/api/cache', 'DELETE')
+
+export const generatePassword = (length = 16) =>
+  request<PasswordResponse>(`/api/password?length=${length}`)
