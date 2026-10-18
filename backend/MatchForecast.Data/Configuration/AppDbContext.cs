@@ -6,6 +6,7 @@ namespace MatchForecast.Data.Configuration;
 
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
+    private static readonly TimeZoneInfo Istanbul = TimeZoneInfo.FindSystemTimeZoneById("Europe/Istanbul");
     /*
      * Supabase "public" şemasını Data API (REST) ile dışarı açar; RLS kapalı bir tabloya anon key ile erişilebilir.
      * Tablolar ayrı şemada tutulur, böylece yalnızca bu API (connection string) üzerinden erişilir.
@@ -32,7 +33,11 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             e.Property(x => x.Id).HasColumnName("id");
             e.Property(x => x.Name).HasColumnName("name").HasMaxLength(100).IsRequired();
             e.Property(x => x.Description).HasColumnName("description").HasMaxLength(500);
-            e.Property(x => x.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
-        });
+            e.Property(x => x.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()")
+            // DB'de UTC (timestamptz) kalır; entity'de İstanbul saati. Yazarken UTC'ye, okurken İstanbul'a çevrilir.
+            .HasConversion(
+                v => TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(v, DateTimeKind.Unspecified), Istanbul),
+                v => TimeZoneInfo.ConvertTimeFromUtc(v, Istanbul));
+    });
     }
 }
