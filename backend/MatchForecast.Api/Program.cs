@@ -23,6 +23,8 @@ using MatchForecast.Api.Services.AI.Ollama;
 using MatchForecast.Api.Services.Email;
 using MatchForecast.Api.Services.Redis;
 using MatchForecast.Data.Configuration;
+using MatchForecast.Data.Entity;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 var logger = LogManager.Setup().LoadConfigurationFromAppSettings().GetCurrentClassLogger();
@@ -48,8 +50,13 @@ try
     builder.Services.AddOptions<JwtOptions>()
         .Bind(builder.Configuration.GetSection(JwtOptions.Section))
         .Validate(o => Encoding.UTF8.GetByteCount(o.SecretKey) >= 32, "Jwt:SecretKey en az 32 byte olmalı (HS256).")
+        .Validate(o => o.ExpiryMinutes > 0 && o.RefreshTokenExpiryDays > 0, "Jwt:ExpiryMinutes ve Jwt:RefreshTokenExpiryDays 0'dan büyük olmalı.")
         .ValidateOnStart();
     builder.Services.AddSingleton<JwtTokenService>();
+
+    // Şifreler PBKDF2 (HMAC-SHA512, 100.000 iterasyon, tuzlu) ile hash'lenir. ASP.NET Core'un içinde; ek paket gerekmez.
+    builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
+    builder.Services.AddScoped<AuthService>();
 
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 
@@ -58,8 +65,12 @@ try
         .Configure<IOptions<JwtOptions>>((bearer, jwt) =>
         {
             var o = jwt.Value;
+            // Claim adları token'daki gibi kalsın ("role" -> uzun Microsoft URI'sine çevrilmesin); Name/Role bu adlardan okunur.
+            bearer.MapInboundClaims = false;
             bearer.TokenValidationParameters = new TokenValidationParameters
             {
+                NameClaimType = JwtTokenService.NameClaimType,
+                RoleClaimType = JwtTokenService.RoleClaimType,
                 ValidateIssuer = true,
                 ValidIssuer = o.Issuer,
                 ValidateAudience = true,
@@ -266,8 +277,17 @@ try
     {
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await db.Database.MigrateAsync();
-        app.Logger.LogInformation("Veritabanı migration ve seed tamamlandı.");
+
+        // Testler DbContext'i bellek içi sağlayıcıyla değiştirir; migration yalnızca gerçek (ilişkisel) veritabanında çalışır.
+        if (db.Database.IsRelational())
+        {
+            await db.Database.MigrateAsync();
+            app.Logger.LogInformation("Veritabanı migration ve seed tamamlandı.");
+
+            // Admin rolünde kullanıcı yoksa Admin:* ayarlarından ilk admini oluşturur.
+            await AdminUserBootstrapper.EnsureAdminAsync(
+                db, scope.ServiceProvider.GetRequiredService<IPasswordHasher<User>>(), app.Configuration, app.Logger);
+        }
     }
     
     if (app.Environment.IsDevelopment())

@@ -14,7 +14,6 @@ public sealed class PasswordController : ControllerBase
     /// <remarks>
     /// Örnek: `GET /api/password?length=20`<br/>
     /// </remarks>
-    /// </summary>
     [HttpGet]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)] // Şifre tarayıcı/proxy cache'ine düşmesin.
     public ActionResult<PasswordResponse> Generate([FromQuery] int length = PasswordGenerator.DefaultLength)

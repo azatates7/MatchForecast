@@ -8,5 +8,10 @@ public sealed class JwtOptions
     public string SecretKey { get; set; } = "";
     public string Issuer { get; set; } = "MatchForecast.Api";
     public string Audience { get; set; } = "MatchForecast.Client";
+
+    // Access token ömrü. Refresh token olduğu için kısa tutulabilir.
     public int ExpiryMinutes { get; set; } = 60;
+
+    // Refresh token ömrü; bu süre boyunca kullanıcı tekrar şifre girmeden oturumunu yenileyebilir.
+    public int RefreshTokenExpiryDays { get; set; } = 7;
 }
