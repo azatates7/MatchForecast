@@ -66,6 +66,8 @@ export interface TokenResponse {
   accessToken: string
   tokenType: string
   expiresAt: string
+  refreshToken: string
+  refreshTokenExpiresAt: string
 }
 
 export interface CacheClearResponse {

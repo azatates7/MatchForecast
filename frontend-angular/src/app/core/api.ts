@@ -1,8 +1,39 @@
 import type { CacheClearResponse, ForecastResult, MatchSummary, PasswordResponse, TokenResponse } from './types'
 
-// Token yalnızca bellekte tutulur: sayfa yenilenince yeniden alınır (ucuz), localStorage'a yazılmadığı için XSS ile okunamaz.
-// Promise saklanır ki aynı anda başlayan istekler tek bir /api/auth/token çağrısını paylaşsın.
-let tokenRequest: Promise<string> | null = null
+/*
+ * Oturum:
+ * - Access token yalnızca bellekte tutulur (kısa ömürlü; XSS ile kalıcı olarak ele geçirilemez).
+ * - Refresh token localStorage'da tutulur ki sayfa yenilenince tekrar giriş gerekmesin. Bedeli: XSS olursa okunabilir.
+ *   Daha güvenli seçenek httpOnly cookie'dir (backend değişikliği gerekir).
+ * - Access token yoksa veya 401 alınırsa refresh token ile yenisi alınır; o da başarısız olursa oturum kapanır
+ *   ve onSessionExpired ile uygulamaya haber verilir (login ekranı gösterilir).
+ */
+const REFRESH_KEY = 'matchforecast.refreshToken'
+
+let accessToken: string | null = null
+// Aynı anda 401 alan istekler TEK bir refresh çağrısını paylaşır. Refresh token tek kullanımlık olduğu için iki kez
+// gönderilirse backend bunu "çalınmış token" sayar ve kullanıcının tüm oturumlarını kapatır.
+let refreshing: Promise<string | null> | null = null
+let sessionExpiredHandler: (() => void) | null = null
+
+export const onSessionExpired = (handler: () => void) => { sessionExpiredHandler = handler }
+
+// localStorage gizli pencerede/engellendiğinde hata fırlatabilir; bu durumda oturum yalnızca sayfa açıkken sürer.
+const readRefreshToken = (): string | null => {
+  try { return localStorage.getItem(REFRESH_KEY) } catch { return null }
+}
+
+const saveSession = (t: TokenResponse) => {
+  accessToken = t.accessToken
+  try { localStorage.setItem(REFRESH_KEY, t.refreshToken) } catch { /* yalnızca bellekte kalır */ }
+}
+
+const clearSession = () => {
+  accessToken = null
+  try { localStorage.removeItem(REFRESH_KEY) } catch { /* yok say */ }
+}
+
+export const hasSession = () => accessToken !== null || readRefreshToken() !== null
 
 async function readJson<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -13,30 +44,61 @@ async function readJson<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>
 }
 
-function currentToken(): Promise<string> {
-  if (!tokenRequest) {
-    const request = fetch('/api/auth/token')
-      .then(res => readJson<TokenResponse>(res))
-      .then(t => t.accessToken)
-    // Token alınamazsa hatalı promise önbellekte kalmasın; sonraki istek yeniden denesin.
-    request.catch(() => { if (tokenRequest === request) tokenRequest = null })
-    tokenRequest = request
+const postJson = (url: string, body: unknown) =>
+  fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+
+export async function login(username: string, password: string): Promise<void> {
+  saveSession(await readJson<TokenResponse>(await postJson('/api/auth/token', { username, password })))
+}
+
+// Sunucudaki refresh token iptal edilir; istek başarısız olsa bile yerel oturum kapanır.
+export async function logout(): Promise<void> {
+  const refreshToken = readRefreshToken()
+  clearSession()
+  if (refreshToken) await postJson('/api/auth/revoke', { refreshToken }).catch(() => undefined)
+}
+
+function refreshAccessToken(): Promise<string | null> {
+  if (!refreshing) {
+    refreshing = (async () => {
+      const refreshToken = readRefreshToken()
+      if (!refreshToken) return null
+      const res = await postJson('/api/auth/refresh', { refreshToken }).catch(() => null)
+      if (!res?.ok) {
+        // 401: refresh token geçersiz/süresi dolmuş -> oturum biter. Ağ hatasında oturum korunur, sonra tekrar denenir.
+        if (res?.status === 401) clearSession()
+        return null
+      }
+      const tokens = await res.json() as TokenResponse
+      saveSession(tokens)
+      return tokens.accessToken
+    })().finally(() => { refreshing = null })
   }
-  return tokenRequest
+  return refreshing
+}
+
+function sessionExpired(): never {
+  clearSession()
+  sessionExpiredHandler?.()
+  throw new Error('Oturumun süresi doldu, lütfen tekrar giriş yapın.')
 }
 
 const send = (url: string, token: string, method: string) =>
   fetch(url, { method, headers: { Authorization: `Bearer ${token}` } })
 
 async function request<T>(url: string, method = 'GET'): Promise<T> {
-  const token = currentToken()
-  let res = await send(url, await token, method)
+  let token = accessToken ?? await refreshAccessToken()
+  if (!token) sessionExpired()
+
+  let res = await send(url, token, method)
 
   if (res.status === 401) {
-    // Token süresi dolmuş veya API yeniden başlayıp SecretKey değişmiş olabilir: bir kez yenileyip tekrar dene.
-    // Sadece hâlâ aynı token kullanılıyorsa sıfırla; paralel istekler token'ı birden fazla kez yenilemesin.
-    if (tokenRequest === token) tokenRequest = null
-    res = await send(url, await currentToken(), method)
+    // Access token süresi dolmuş: bir kez yenileyip tekrar dene. Başka bir istek zaten yenilediyse onu kullan.
+    if (accessToken === token) accessToken = null
+    token = accessToken ?? await refreshAccessToken()
+    if (!token) sessionExpired()
+    res = await send(url, token, method)
+    if (res.status === 401) sessionExpired()
   }
 
   return readJson<T>(res)

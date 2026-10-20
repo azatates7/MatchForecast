@@ -1,5 +1,5 @@
 import { Component, computed, effect, signal } from '@angular/core';
-import { clearCache, generatePassword, getForecast, getMatches } from './core/api';
+import { clearCache, generatePassword, getForecast, getMatches, hasSession, login, logout, onSessionExpired } from './core/api';
 import type { ForecastResult, MatchSummary } from './core/types';
 import { isLive } from './core/match-status';
 import { MatchList } from './components/match-list';
@@ -31,6 +31,7 @@ const leagueKey = (m: MatchSummary) => `${m.country} / ${m.league}`;
 interface LoadState { loading: boolean; error?: string }
 interface CacheState { clearing: boolean; message?: string; error?: boolean }
 interface PasswordState { loading: boolean; password?: string; error?: string; copied?: boolean }
+interface LoginState { loading: boolean; error?: string }
 
 @Component({
   selector: 'app-root',
@@ -39,6 +40,12 @@ interface PasswordState { loading: boolean; password?: string; error?: string; c
   styleUrl: './app.css',
 })
 export class App {
+  // Kayıtlı refresh token varsa giriş yapılmış sayılır; geçersizse ilk istekte login ekranına dönülür.
+  protected readonly loggedIn = signal(hasSession());
+  protected readonly username = signal('');
+  protected readonly password = signal('');
+  protected readonly loginState = signal<LoginState>({ loading: false });
+
   protected readonly date = signal(toIsoDate(new Date()));
   protected readonly query = signal('');
   protected readonly league = signal('');
@@ -76,8 +83,12 @@ export class App {
   private requestSeq = 0;
 
   constructor() {
-    // Tarih değişince listeyi yükle ve lig filtresini sıfırla (yeni tarihte o lig olmayabilir)
+    // Refresh token da geçersizse (süresi doldu, iptal edildi) api.ts haber verir: login ekranına dön.
+    onSessionExpired(() => this.loggedIn.set(false));
+
+    // Tarih değişince (veya giriş yapılınca) listeyi yükle ve lig filtresini sıfırla (yeni tarihte o lig olmayabilir)
     effect(onCleanup => {
+      if (!this.loggedIn()) return;
       const date = this.date();
       let cancelled = false;
       this.league.set('');
@@ -87,7 +98,7 @@ export class App {
 
     // Canlı maç varsa: listeyi periyodik yenile ve dakika etiketini ilerlet
     effect(onCleanup => {
-      if (!this.hasLive()) return;
+      if (!this.loggedIn() || !this.hasLive()) return;
       let cancelled = false;
       const refresh = setInterval(() => this.loadMatches(this.date(), true, () => cancelled), LIVE_REFRESH_MS);
       const tick = setInterval(() => this.now.set(Date.now()), CLOCK_TICK_MS);
@@ -107,6 +118,30 @@ export class App {
       const timer = setTimeout(() => this.passwordState.update(s => ({ ...s, copied: false })), COPIED_MSG_MS);
       onCleanup(() => clearTimeout(timer));
     });
+  }
+
+  // Şifre giriş sonrası signal'de tutulmaz; hata durumunda kullanıcı adı korunur.
+  protected async handleLogin(event: Event) {
+    event.preventDefault(); // Form submit sayfayı yeniden yüklemesin.
+    this.loginState.set({ loading: true });
+    try {
+      await login(this.username().trim(), this.password());
+      this.password.set('');
+      this.loginState.set({ loading: false });
+      this.loggedIn.set(true);
+    } catch (e) {
+      this.loginState.set({ loading: false, error: (e as Error).message });
+    }
+  }
+
+  // Ekrandaki veriler temizlenir; başka bir kullanıcı giriş yaparsa önceki oturumun verisini görmesin.
+  protected async handleLogout() {
+    await logout();
+    this.loggedIn.set(false);
+    this.matches.set([]);
+    this.selectedId.set(null);
+    this.forecast.set(null);
+    this.passwordState.set({ loading: false });
   }
 
   // silent=true: arka plan yenilemesi; listeyi "yükleniyor" durumuna sokmaz, hata olursa eski listeyi korur.
