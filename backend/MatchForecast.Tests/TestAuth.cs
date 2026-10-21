@@ -1,5 +1,7 @@
 using System.Net.Http.Headers;
+using System.Collections.Concurrent;
 using MatchForecast.Api.Options;
+using MatchForecast.Api.Services.Email;
 using MatchForecast.Api.Services.Redis;
 using MatchForecast.Api.Services.Security;
 using MatchForecast.Data.Configuration;
@@ -11,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace MatchForecast.Tests;
 
@@ -31,6 +34,10 @@ internal static class TestAuth
         {
             services.PostConfigure<JwtOptions>(o => o.SecretKey = SecretKey);
             services.AddSingleton<IRedisCacheService, InMemoryRedisCacheService>();
+
+            // Testler gerçek e-posta göndermez ve Google'a gitmez.
+            services.AddSingleton<IEmailSender, FakeEmailSender>();
+            services.AddSingleton<GoogleIdTokenValidator, FakeGoogleIdTokenValidator>();
 
             // Npgsql kaydı kaldırılıp bellek içi sağlayıcı eklenir (EF 9+ ayarları IDbContextOptionsConfiguration olarak biriktirir).
             services.RemoveAll<IDbContextOptionsConfiguration<AppDbContext>>();
@@ -61,4 +68,40 @@ internal static class TestAuth
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token.Token);
         return client;
     }
+}
+
+// Gönderilen e-postaları bellekte toplar (ör. şifre sıfırlama bağlantısını testte okumak için).
+internal sealed class FakeEmailSender : IEmailSender
+{
+    public ConcurrentQueue<(string To, string Subject, string Body)> Sent { get; } = new();
+
+    public Task SendAsync(IEnumerable<string> to, string subject, string body, bool isHtml, CancellationToken ct)
+    {
+        foreach (var address in to)
+            Sent.Enqueue((address, subject, body));
+        return Task.CompletedTask;
+    }
+
+    // Şifre sıfırlama e-postası arka planda gönderildiği için kısa bir süre beklenir.
+    public async Task<string> WaitForBodyAsync(string to)
+    {
+        for (var i = 0; i < 50; i++)
+        {
+            var mail = Sent.FirstOrDefault(m => m.To == to);
+            if (mail.Body is not null)
+                return mail.Body;
+            await Task.Delay(100);
+        }
+        throw new TimeoutException($"{to} adresine e-posta gönderilmedi.");
+    }
+}
+
+// Yalnızca ValidToken için doğrulanmış bir Google kullanıcısı döner.
+internal sealed class FakeGoogleIdTokenValidator() : GoogleIdTokenValidator(Options.Create(new AuthOptions()))
+{
+    public const string ValidToken = "valid-google-token";
+    public static readonly GoogleUser User = new("google-sub-123", "google.user@gmail.com", true, "Google User");
+
+    public override Task<GoogleUser?> ValidateAsync(string idToken, CancellationToken ct) =>
+        Task.FromResult(idToken == ValidToken ? User : null);
 }

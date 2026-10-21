@@ -43,6 +43,13 @@ try
     builder.Configuration.GetConnectionString("Supabase"),
     npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", AppDbContext.Schema)));
 
+    builder.Services.AddOptions<AuthOptions>()
+        .Bind(builder.Configuration.GetSection(AuthOptions.Section))
+        .Validate(o => Uri.TryCreate(o.PasswordResetUrl, UriKind.Absolute, out _), "Auth:PasswordResetUrl mutlak bir adres olmalı.")
+        .Validate(o => o.PasswordResetTokenMinutes > 0, "Auth:PasswordResetTokenMinutes 0'dan büyük olmalı.")
+        .ValidateOnStart();
+    builder.Services.AddSingleton<GoogleIdTokenValidator>();
+
     builder.Services.Configure<OddsProviderOptions>(builder.Configuration.GetSection(OddsProviderOptions.Section));
     builder.Services.Configure<AiOptions>(builder.Configuration.GetSection(AiOptions.Section));
 

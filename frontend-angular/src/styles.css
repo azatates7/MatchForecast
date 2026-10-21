@@ -141,6 +141,25 @@ button, input { font: inherit; color: inherit; }
 
 .login-btn { padding-block: 0.6rem; }
 
+.auth-intro { margin: 0; color: var(--muted); font-size: 0.9rem; }
+
+.auth-info { margin: 0; color: var(--pitch); font-size: 0.9rem; }
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.auth-divider::before,
+.auth-divider::after { content: ''; flex: 1; border-top: 1px solid var(--line); }
+
+.google-button { display: flex; justify-content: center; min-height: 44px; }
+
+.auth-links { display: flex; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; font-size: 0.9rem; }
+
 /* Düzen */
 .layout {
   display: grid;

@@ -34,6 +34,9 @@ public class LoggingMiddleware
         "code",
         "otp",
         "tckn",
+        "vkn",
+        "identificationNumber",
+        "idToken",
         "Hesabınızı doğrulamak için kodunuz"
     };
 

@@ -66,6 +66,10 @@ export interface ForecastResult {
   generatedAt: string
 }
 
+export interface AuthConfigResponse {
+  googleClientId: string | null
+}
+
 export interface TokenResponse {
   accessToken: string
   tokenType: string

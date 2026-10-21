@@ -25,4 +25,5 @@ public sealed class User
     public List<UserGroup> UserGroups { get; set; } = [];
     public List<UserLogin> Logins { get; set; } = [];
     public List<RefreshToken> RefreshTokens { get; set; } = [];
+    public List<PasswordResetToken> PasswordResetTokens { get; set; } = [];
 }

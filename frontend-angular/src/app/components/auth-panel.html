@@ -1,0 +1,101 @@
+<main class="login">
+  <form class="login-card" (submit)="submit($event)">
+    <h1 class="brand">MatchForecast</h1>
+
+    @switch (mode()) {
+      @case ('register') { <p class="auth-intro">Yeni hesap oluştur.</p> }
+      @case ('forgot') { <p class="auth-intro">Kayıtlı e-posta adresine şifre sıfırlama bağlantısı gönderelim.</p> }
+      @case ('reset') { <p class="auth-intro">Yeni şifreni belirle.</p> }
+    }
+
+    @if (mode() === 'login' || mode() === 'register') {
+      <label class="login-field">
+        <span>Kullanıcı adı</span>
+        <input
+          type="text"
+          autocomplete="username"
+          required
+          [value]="userName()"
+          (input)="userName.set($any($event.target).value)"
+        />
+      </label>
+    }
+
+    @if (mode() === 'register' || mode() === 'forgot') {
+      <label class="login-field">
+        <span>E-posta</span>
+        <input
+          type="email"
+          autocomplete="email"
+          required
+          [value]="email()"
+          (input)="email.set($any($event.target).value)"
+        />
+      </label>
+    }
+
+    @if (mode() === 'register') {
+      <label class="login-field">
+        <span>Ad soyad (isteğe bağlı)</span>
+        <input
+          type="text"
+          autocomplete="name"
+          [value]="displayName()"
+          (input)="displayName.set($any($event.target).value)"
+        />
+      </label>
+    }
+
+    @if (mode() !== 'forgot') {
+      <label class="login-field">
+        <span>{{ mode() === 'reset' ? 'Yeni şifre' : 'Şifre' }}</span>
+        <input
+          type="password"
+          required
+          [attr.autocomplete]="mode() === 'login' ? 'current-password' : 'new-password'"
+          [attr.minlength]="mode() === 'login' ? null : 8"
+          [value]="password()"
+          (input)="password.set($any($event.target).value)"
+        />
+      </label>
+    }
+
+    @if (mode() === 'reset') {
+      <label class="login-field">
+        <span>Yeni şifre (tekrar)</span>
+        <input
+          type="password"
+          autocomplete="new-password"
+          required
+          minlength="8"
+          [value]="passwordRepeat()"
+          (input)="passwordRepeat.set($any($event.target).value)"
+        />
+      </label>
+    }
+
+    @if (state().info) {
+      <p class="auth-info" role="status">{{ state().info }}</p>
+    }
+    @if (state().error) {
+      <p class="note-error" role="alert">{{ state().error }}</p>
+    }
+
+    <button type="submit" class="cache-btn login-btn" [disabled]="state().loading">{{ submitLabel() }}</button>
+
+    @if (mode() === 'login') {
+      @if (googleClientId()) {
+        <div class="auth-divider">veya</div>
+        <div #googleButton class="google-button"></div>
+      }
+      <div class="auth-links">
+        <button type="button" class="link-btn" (click)="switchTo('forgot')">Şifremi unuttum</button>
+        <button type="button" class="link-btn" (click)="switchTo('register')">Kayıt ol</button>
+      </div>
+    } @else {
+      <div class="auth-links">
+        <button type="button" class="link-btn" (click)="switchTo('login')">Girişe dön</button>
+      </div>
+    }
+  </form>
+</main>

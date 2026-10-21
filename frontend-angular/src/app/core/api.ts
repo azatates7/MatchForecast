@@ -1,4 +1,4 @@
-import type { CacheClearResponse, ForecastResult, MatchSummary, PasswordResponse, TokenResponse } from './types'
+import type { AuthConfigResponse, CacheClearResponse, ForecastResult, MatchSummary, PasswordResponse, TokenResponse } from './types'
 
 /*
  * Oturum:
@@ -39,7 +39,9 @@ async function readJson<T>(res: Response): Promise<T> {
   if (!res.ok) {
     // API ProblemDetails döner; "detail" alanı kullanıcıya gösterilebilir mesajdır.
     const problem = await res.json().catch(() => null)
-    throw new Error(problem?.detail ?? `İstek başarısız oldu (HTTP ${res.status}).`)
+    // Model doğrulama hataları (400) "detail" yerine "errors" alanında gelir; ilk mesaj gösterilir.
+    const validation = problem?.errors ? Object.values(problem.errors as Record<string, string[]>).flat()[0] : undefined
+    throw new Error(problem?.detail ?? validation ?? `İstek başarısız oldu (HTTP ${res.status}).`)
   }
   return res.json() as Promise<T>
 }
@@ -49,6 +51,31 @@ const postJson = (url: string, body: unknown) =>
 
 export async function login(username: string, password: string): Promise<void> {
   saveSession(await readJson<TokenResponse>(await postJson('/api/auth/token', { username, password })))
+}
+
+// Giriş ekranı ayarları (Google Client ID). Token gerektirmez.
+export const getAuthConfig = async (): Promise<AuthConfigResponse> =>
+  readJson<AuthConfigResponse>(await fetch('/api/auth/config'))
+
+// Kayıt başarılı olursa doğrudan giriş yapılmış olur.
+export async function register(userName: string, email: string, password: string, displayName: string): Promise<void> {
+  const body = { userName, email, password, displayName: displayName || null }
+  saveSession(await readJson<TokenResponse>(await postJson('/api/auth/register', body)))
+}
+
+export async function loginWithGoogle(idToken: string): Promise<void> {
+  saveSession(await readJson<TokenResponse>(await postJson('/api/auth/google', { idToken })))
+}
+
+// E-posta kayıtlı olmasa da başarılı döner (hangi e-postaların kayıtlı olduğu anlaşılmasın).
+export async function forgotPassword(email: string): Promise<void> {
+  const res = await postJson('/api/auth/forgot-password', { email })
+  if (!res.ok) await readJson(res)
+}
+
+export async function resetPassword(token: string, password: string): Promise<void> {
+  const res = await postJson('/api/auth/reset-password', { token, password })
+  if (!res.ok) await readJson(res)
 }
 
 // Sunucudaki refresh token iptal edilir; istek başarısız olsa bile yerel oturum kapanır.

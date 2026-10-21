@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { clearCache, generatePassword, getForecast, getMatches, hasSession, login, logout, onSessionExpired } from './api'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { clearCache, generatePassword, getForecast, getMatches, hasSession, logout, onSessionExpired } from './api'
 import type { ForecastResult, MatchSummary } from './components/Types'
 import { isLive } from './components/MatchStatus'
 import MatchList from './components/MatchList'
 import ForecastPanel from './components/ForecastPanel'
+import AuthPanel from './components/Auth-Panel'
 
 // Canlı maç varken listenin arka planda yenilenme aralığı. API kotasını korumak için
 // kısa tutulmadı; aradaki dakikalar matchStatus.minuteLabel içinde yerelde ilerletilir.
@@ -31,9 +32,6 @@ const leagueKey = (m: MatchSummary) => `${m.country} / ${m.league}`
 export default function App() {
   // Kayıtlı refresh token varsa giriş yapılmış sayılır; geçersizse ilk istekte login ekranına dönülür.
   const [loggedIn, setLoggedIn] = useState(hasSession)
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [loginState, setLoginState] = useState<{ loading: boolean; error?: string }>({ loading: false })
 
   const [date, setDate] = useState(() => toIsoDate(new Date()))
   const [query, setQuery] = useState('')
@@ -171,20 +169,6 @@ export default function App() {
     return () => clearTimeout(timer)
   }, [passwordState.copied])
 
-  // Şifre giriş sonrası state'te tutulmaz; hata durumunda kullanıcı adı korunur.
-  const handleLogin = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault() // Form submit sayfayı yeniden yüklemesin.
-    setLoginState({ loading: true })
-    try {
-      await login(username.trim(), password)
-      setPassword('')
-      setLoginState({ loading: false })
-      setLoggedIn(true)
-    } catch (err) {
-      setLoginState({ loading: false, error: (err as Error).message })
-    }
-  }
-
   // Ekrandaki veriler temizlenir; başka bir kullanıcı giriş yaparsa önceki oturumun verisini görmesin.
   const handleLogout = async () => {
     await logout()
@@ -197,27 +181,8 @@ export default function App() {
 
   const selected = matches.find(m => m.id === selectedId) ?? null
 
-  if (!loggedIn) {
-    return (
-      <main className="login">
-        <form className="login-card" onSubmit={handleLogin}>
-          <h1 className="brand">MatchForecast</h1>
-          <label className="login-field">
-            <span>Kullanıcı adı</span>
-            <input type="text" autoComplete="username" required value={username} onChange={e => setUsername(e.target.value)} />
-          </label>
-          <label className="login-field">
-            <span>Şifre</span>
-            <input type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} />
-          </label>
-          {loginState.error && <p className="note-error" role="alert">{loginState.error}</p>}
-          <button type="submit" className="cache-btn login-btn" disabled={loginState.loading}>
-            {loginState.loading ? 'Giriş yapılıyor…' : 'Giriş yap'}
-          </button>
-        </form>
-      </main>
-    )
-  }
+  // Giriş, kayıt veya Google ile giriş başarılı olunca AuthPanel haber verir.
+  if (!loggedIn) return <AuthPanel onAuthenticated={() => setLoggedIn(true)} />
 
   return (
     <div className="app">

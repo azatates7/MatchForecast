@@ -1,35 +1,5 @@
 @if (!loggedIn()) {
-  <main class="login">
-    <form class="login-card" (submit)="handleLogin($event)">
-      <h1 class="brand">MatchForecast</h1>
-      <label class="login-field">
-        <span>Kullanıcı adı</span>
-        <input
-          type="text"
-          autocomplete="username"
-          required
-          [value]="username()"
-          (input)="username.set($any($event.target).value)"
-        />
-      </label>
-      <label class="login-field">
-        <span>Şifre</span>
-        <input
-          type="password"
-          autocomplete="current-password"
-          required
-          [value]="password()"
-          (input)="password.set($any($event.target).value)"
-        />
-      </label>
-      @if (loginState().error) {
-        <p class="note-error" role="alert">{{ loginState().error }}</p>
-      }
-      <button type="submit" class="cache-btn login-btn" [disabled]="loginState().loading">
-        {{ loginState().loading ? 'Giriş yapılıyor…' : 'Giriş yap' }}
-      </button>
-    </form>
-  </main>
+  <app-auth-panel (authenticated)="onAuthenticated()" />
 } @else {
   <div class="app">
     <header class="topbar">

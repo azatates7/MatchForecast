@@ -126,6 +126,68 @@ namespace MatchForecast.Data.Migrations
                     b.ToTable("group_roles", "matchforecast");
                 });
 
+            modelBuilder.Entity("MatchForecast.Data.Entity.PasswordResetToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_deleted");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer")
+                        .HasColumnName("status");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("token_hash");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text")
+                        .HasColumnName("updated_by");
+
+                    b.Property<DateTime?>("UsedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("used_at");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("password_reset_tokens", "matchforecast");
+                });
+
             modelBuilder.Entity("MatchForecast.Data.Entity.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -525,6 +587,17 @@ namespace MatchForecast.Data.Migrations
                     b.Navigation("Role");
                 });
 
+            modelBuilder.Entity("MatchForecast.Data.Entity.PasswordResetToken", b =>
+                {
+                    b.HasOne("MatchForecast.Data.Entity.User", "User")
+                        .WithMany("PasswordResetTokens")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("MatchForecast.Data.Entity.RefreshToken", b =>
                 {
                     b.HasOne("MatchForecast.Data.Entity.User", "User")
@@ -602,6 +675,8 @@ namespace MatchForecast.Data.Migrations
             modelBuilder.Entity("MatchForecast.Data.Entity.User", b =>
                 {
                     b.Navigation("Logins");
+
+                    b.Navigation("PasswordResetTokens");
 
                     b.Navigation("RefreshTokens");
 
