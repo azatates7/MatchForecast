@@ -66,12 +66,13 @@ public class PasswordApiTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
-    public async Task Endpoint_ReturnsUnauthorized_WithoutToken()
+    public async Task Endpoint_ReturnsPassword_WithoutToken()
     {
+        // Kayıt ekranında, giriş yapmadan kullanılır.
         var client = _factory.WithTestJwt().CreateClient();
 
         var response = await client.GetAsync("/api/password");
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { clearCache, generatePassword, getForecast, getMatches, hasSession, logout, onSessionExpired } from './api'
+import { clearCache, getForecast, getMatches, hasSession, logout, onSessionExpired } from './api'
 import type { ForecastResult, MatchSummary } from './components/Types'
 import { isLive } from './components/MatchStatus'
 import MatchList from './components/MatchList'
@@ -13,8 +13,6 @@ const LIVE_REFRESH_MS = 5 * 60_000
 const CLOCK_TICK_MS = 30_000
 // Cache temizleme sonucunun ekranda kalma süresi
 const CACHE_MSG_MS = 4_000
-// "Kopyalandı" bilgisinin ekranda kalma süresi
-const COPIED_MSG_MS = 2_000
 
 const toIsoDate = (d: Date) => {
   const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
@@ -45,7 +43,6 @@ export default function App() {
   const [forecast, setForecast] = useState<ForecastResult | null>(null)
   const [forecastState, setForecastState] = useState<{ loading: boolean; error?: string }>({ loading: false })
   const [cacheState, setCacheState] = useState<{ clearing: boolean; message?: string; error?: boolean }>({ clearing: false })
-  const [passwordState, setPasswordState] = useState<{ loading: boolean; password?: string; error?: string; copied?: boolean }>({ loading: false })
 
   // silent=true: arka plan yenilemesi; listeyi "yükleniyor" durumuna sokmaz, hata olursa eski listeyi korur.
   const loadMatches = useCallback((silent: boolean, isCancelled: () => boolean = () => false) => {
@@ -141,34 +138,6 @@ export default function App() {
     return () => clearTimeout(timer)
   }, [cacheState.message])
 
-  // Şifre yalnızca state'te tutulur (localStorage'a yazılmaz); yeni şifre istenince eskisinin yerine geçer.
-  const handleGeneratePassword = async () => {
-    setPasswordState({ loading: true })
-    try {
-      const { password } = await generatePassword()
-      setPasswordState({ loading: false, password })
-    } catch (e) {
-      setPasswordState({ loading: false, error: (e as Error).message })
-    }
-  }
-
-  // Clipboard API yalnızca HTTPS/localhost'ta çalışır; başarısız olursa şifre zaten ekranda seçilebilir durumda.
-  const handleCopyPassword = async () => {
-    if (!passwordState.password) return
-    try {
-      await navigator.clipboard.writeText(passwordState.password)
-      setPasswordState(s => ({ ...s, copied: true }))
-    } catch {
-      setPasswordState(s => ({ ...s, error: 'Kopyalanamadı; şifreyi seçip elle kopyalayın.' }))
-    }
-  }
-
-  useEffect(() => {
-    if (!passwordState.copied) return
-    const timer = setTimeout(() => setPasswordState(s => ({ ...s, copied: false })), COPIED_MSG_MS)
-    return () => clearTimeout(timer)
-  }, [passwordState.copied])
-
   // Ekrandaki veriler temizlenir; başka bir kullanıcı giriş yaparsa önceki oturumun verisini görmesin.
   const handleLogout = async () => {
     await logout()
@@ -176,7 +145,6 @@ export default function App() {
     setMatches([])
     setSelectedId(null)
     setForecast(null)
-    setPasswordState({ loading: false })
   }
 
   const selected = matches.find(m => m.id === selectedId) ?? null
@@ -199,18 +167,6 @@ export default function App() {
           )}
           <button type="button" className="cache-btn" onClick={handleClearCache} disabled={cacheState.clearing}>
             {cacheState.clearing ? 'Temizleniyor…' : 'Cache Temizle'}
-          </button>
-          {passwordState.error && <span className="cache-msg cache-msg-error" role="status">{passwordState.error}</span>}
-          {passwordState.password && (
-            <span className="password-box">
-              <code className="password-value" aria-label="Oluşturulan şifre">{passwordState.password}</code>
-              <button type="button" className="cache-btn" onClick={handleCopyPassword}>
-                {passwordState.copied ? 'Kopyalandı' : 'Kopyala'}
-              </button>
-            </span>
-          )}
-          <button type="button" className="cache-btn" onClick={handleGeneratePassword} disabled={passwordState.loading}>
-            {passwordState.loading ? 'Oluşturuluyor…' : 'Şifre Oluştur'}
           </button>
           <button type="button" className="cache-btn" onClick={handleLogout}>Çıkış</button>
         </div>

@@ -50,7 +50,7 @@
       <label class="login-field">
         <span>{{ mode() === 'reset' ? 'Yeni şifre' : 'Şifre' }}</span>
         <input
-          type="password"
+          [type]="showPassword() ? 'text' : 'password'"
           required
           [attr.autocomplete]="mode() === 'login' ? 'current-password' : 'new-password'"
           [attr.minlength]="mode() === 'login' ? null : 8"
@@ -58,6 +58,22 @@
           (input)="password.set($any($event.target).value)"
         />
       </label>
+    }
+
+    @if (mode() === 'register') {
+      <div class="password-tools">
+        <button type="button" class="link-btn" (click)="handleGeneratePassword()" [disabled]="generating()">
+          {{ generating() ? 'Oluşturuluyor…' : 'Güçlü şifre oluştur' }}
+        </button>
+        @if (password()) {
+          <button type="button" class="link-btn" (click)="showPassword.set(!showPassword())">
+            {{ showPassword() ? 'Gizle' : 'Göster' }}
+          </button>
+        }
+        @if (showPassword() && password()) {
+          <button type="button" class="link-btn" (click)="handleCopyPassword()">{{ copied() ? 'Kopyalandı' : 'Kopyala' }}</button>
+        }
+      </div>
     }
 
     @if (mode() === 'reset') {

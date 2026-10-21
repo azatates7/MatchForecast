@@ -1,11 +1,15 @@
 using MatchForecast.Api.Services.Security;
 using MatchForecast.Models.Response;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace MatchForecast.Api.Controllers;
 
+// Kayıt ekranında (henüz token yokken) kullanıldığı için anonim. Hiçbir veriye erişmez, hiçbir şey saklamaz;
+// yalnızca CPU açısından ucuz bir rastgele değer üretir.
 [ApiController]
 [Route("api/password")]
+[AllowAnonymous]
 public sealed class PasswordController : ControllerBase
 {
     /// <summary>Rastgele, güvenli bir şifre üretir (büyük/küçük harf, rakam ve sembol içerir). Hiçbir yerde saklanmaz.</summary>

@@ -97,16 +97,6 @@ button, input { font: inherit; color: inherit; }
 .cache-msg { font-size: 0.9rem; color: var(--muted); }
 .cache-msg-error { color: var(--danger); }
 
-.password-box { display: flex; align-items: center; gap: 0.4rem; }
-.password-value {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 0.3rem 0.6rem;
-  user-select: all;
-}
-
 /* Giriş ekranı */
 .login {
   display: grid;
@@ -157,6 +147,10 @@ button, input { font: inherit; color: inherit; }
 .auth-divider::after { content: ''; flex: 1; border-top: 1px solid var(--line); }
 
 .google-button { display: flex; justify-content: center; min-height: 44px; }
+
+.password-tools { display: flex; gap: 1rem; margin-top: -0.5rem; font-size: 0.85rem; }
+
+.password-tools .link-btn:disabled { opacity: 0.6; cursor: progress; }
 
 .auth-links { display: flex; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; font-size: 0.9rem; }
 

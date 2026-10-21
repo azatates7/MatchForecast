@@ -1,5 +1,5 @@
 import { Component, computed, effect, signal } from '@angular/core';
-import { clearCache, generatePassword, getForecast, getMatches, hasSession, logout, onSessionExpired } from './core/api';
+import { clearCache, getForecast, getMatches, hasSession, logout, onSessionExpired } from './core/api';
 import type { ForecastResult, MatchSummary } from './core/types';
 import { isLive } from './core/match-status';
 import { MatchList } from './components/match-list';
@@ -13,8 +13,6 @@ const LIVE_REFRESH_MS = 5 * 60_000;
 const CLOCK_TICK_MS = 30_000;
 // Cache temizleme sonucunun ekranda kalma süresi
 const CACHE_MSG_MS = 4_000;
-// "Kopyalandı" bilgisinin ekranda kalma süresi
-const COPIED_MSG_MS = 2_000;
 
 const toIsoDate = (d: Date) => {
   const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
@@ -31,7 +29,6 @@ const leagueKey = (m: MatchSummary) => `${m.country} / ${m.league}`;
 
 interface LoadState { loading: boolean; error?: string }
 interface CacheState { clearing: boolean; message?: string; error?: boolean }
-interface PasswordState { loading: boolean; password?: string; error?: string; copied?: boolean }
 
 @Component({
   selector: 'app-root',
@@ -55,7 +52,6 @@ export class App {
   protected readonly forecast = signal<ForecastResult | null>(null);
   protected readonly forecastState = signal<LoadState>({ loading: false });
   protected readonly cacheState = signal<CacheState>({ clearing: false });
-  protected readonly passwordState = signal<PasswordState>({ loading: false });
 
   protected readonly hasLive = computed(() => this.matches().some(isLive));
 
@@ -108,13 +104,6 @@ export class App {
       const timer = setTimeout(() => this.cacheState.update(s => ({ clearing: s.clearing })), CACHE_MSG_MS);
       onCleanup(() => clearTimeout(timer));
     });
-
-    // "Kopyalandı" etiketi kısa süre sonra "Kopyala"ya döner
-    effect(onCleanup => {
-      if (!this.passwordState().copied) return;
-      const timer = setTimeout(() => this.passwordState.update(s => ({ ...s, copied: false })), COPIED_MSG_MS);
-      onCleanup(() => clearTimeout(timer));
-    });
   }
 
   // Giriş, kayıt veya Google ile giriş başarılı olunca AuthPanel haber verir.
@@ -129,7 +118,6 @@ export class App {
     this.matches.set([]);
     this.selectedId.set(null);
     this.forecast.set(null);
-    this.passwordState.set({ loading: false });
   }
 
   // silent=true: arka plan yenilemesi; listeyi "yükleniyor" durumuna sokmaz, hata olursa eski listeyi korur.
@@ -187,29 +175,6 @@ export class App {
       this.loadMatches(this.date(), false);
     } catch (e) {
       this.cacheState.set({ clearing: false, message: (e as Error).message, error: true });
-    }
-  }
-
-  // Şifre yalnızca signal'de tutulur (localStorage'a yazılmaz); yeni şifre istenince eskisinin yerine geçer.
-  protected async handleGeneratePassword() {
-    this.passwordState.set({ loading: true });
-    try {
-      const { password } = await generatePassword();
-      this.passwordState.set({ loading: false, password });
-    } catch (e) {
-      this.passwordState.set({ loading: false, error: (e as Error).message });
-    }
-  }
-
-  // Clipboard API yalnızca HTTPS/localhost'ta çalışır; başarısız olursa şifre zaten ekranda seçilebilir durumda.
-  protected async handleCopyPassword() {
-    const password = this.passwordState().password;
-    if (!password) return;
-    try {
-      await navigator.clipboard.writeText(password);
-      this.passwordState.update(s => ({ ...s, copied: true }));
-    } catch {
-      this.passwordState.update(s => ({ ...s, error: 'Kopyalanamadı; şifreyi seçip elle kopyalayın.' }));
     }
   }
 }

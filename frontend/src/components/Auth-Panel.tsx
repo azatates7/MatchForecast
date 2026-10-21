@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { forgotPassword, getAuthConfig, login, loginWithGoogle, register, resetPassword } from '../api'
+import { forgotPassword, generatePassword, getAuthConfig, login, loginWithGoogle, register, resetPassword } from '../api'
 import { renderGoogleButton } from './Google'
 
 type Mode = 'login' | 'register' | 'forgot' | 'reset'
+
+// "Kopyalandı" bilgisinin ekranda kalma süresi
+const COPIED_MSG_MS = 2_000
 interface FormState { loading: boolean; error?: string; info?: string }
 
 // E-postadaki bağlantı ?resetToken=... ile açılır. Okuma saf tutulur (StrictMode useState başlatıcısını iki kez çağırır);
@@ -27,6 +30,10 @@ export default function AuthPanel({ onAuthenticated }: { onAuthenticated: () => 
   const [passwordRepeat, setPasswordRepeat] = useState('')
   const [state, setState] = useState<FormState>({ loading: false })
   const [googleClientId, setGoogleClientId] = useState<string | null>(null)
+  // Kayıt ekranındaki şifre oluşturucu: oluşturulan şifre alana yazılır ve görünür yapılır ki kullanıcı kaydedebilsin.
+  const [showPassword, setShowPassword] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const [copied, setCopied] = useState(false)
   const googleButton = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -72,7 +79,33 @@ export default function AuthPanel({ onAuthenticated }: { onAuthenticated: () => 
     setMode(next)
     setPassword('')
     setPasswordRepeat('')
+    setShowPassword(false)
     setState({ loading: false, info })
+  }
+
+  const handleGeneratePassword = async () => {
+    setGenerating(true)
+    try {
+      const { password: generated } = await generatePassword()
+      setPassword(generated)
+      setShowPassword(true)
+      setState({ loading: false, info: 'Güçlü bir şifre oluşturuldu; kopyalayıp güvenli bir yere kaydet.' })
+    } catch (e) {
+      setState({ loading: false, error: (e as Error).message })
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  // Clipboard API yalnızca HTTPS/localhost'ta çalışır; başarısız olursa şifre zaten alanda görünür durumda.
+  const handleCopyPassword = async () => {
+    try {
+      await navigator.clipboard.writeText(password)
+      setCopied(true)
+      setTimeout(() => setCopied(false), COPIED_MSG_MS)
+    } catch {
+      setState({ loading: false, error: 'Kopyalanamadı; şifreyi alandan seçip elle kopyalayın.' })
+    }
   }
 
   const submit = (e: FormEvent<HTMLFormElement>) => {
@@ -138,7 +171,7 @@ export default function AuthPanel({ onAuthenticated }: { onAuthenticated: () => 
           <label className="login-field">
             <span>{mode === 'reset' ? 'Yeni şifre' : 'Şifre'}</span>
             <input
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               required
               autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
               minLength={mode === 'login' ? undefined : 8}
@@ -146,6 +179,22 @@ export default function AuthPanel({ onAuthenticated }: { onAuthenticated: () => 
               onChange={e => setPassword(e.target.value)}
             />
           </label>
+        )}
+
+        {mode === 'register' && (
+          <div className="password-tools">
+            <button type="button" className="link-btn" onClick={handleGeneratePassword} disabled={generating}>
+              {generating ? 'Oluşturuluyor…' : 'Güçlü şifre oluştur'}
+            </button>
+            {password && (
+              <button type="button" className="link-btn" onClick={() => setShowPassword(v => !v)}>
+                {showPassword ? 'Gizle' : 'Göster'}
+              </button>
+            )}
+            {showPassword && password && (
+              <button type="button" className="link-btn" onClick={handleCopyPassword}>{copied ? 'Kopyalandı' : 'Kopyala'}</button>
+            )}
+          </div>
         )}
 
         {mode === 'reset' && (

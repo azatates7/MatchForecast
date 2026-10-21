@@ -140,5 +140,6 @@ export const getForecast = (id: number, refresh = false) =>
 export const clearCache = () =>
   request<CacheClearResponse>('/api/cache', 'DELETE')
 
-export const generatePassword = (length = 16) =>
-  request<PasswordResponse>(`/api/password?length=${length}`)
+// Kayıt ekranında, giriş yapılmadan kullanılır; token gerektirmez.
+export const generatePassword = async (length = 16): Promise<PasswordResponse> =>
+  readJson<PasswordResponse>(await fetch(`/api/password?length=${length}`))

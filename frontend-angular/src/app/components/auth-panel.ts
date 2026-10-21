@@ -1,8 +1,11 @@
 import { Component, ElementRef, computed, effect, output, signal, viewChild } from '@angular/core';
-import { forgotPassword, getAuthConfig, login, loginWithGoogle, register, resetPassword } from '../core/api';
+import { forgotPassword, generatePassword, getAuthConfig, login, loginWithGoogle, register, resetPassword } from '../core/api';
 import { renderGoogleButton } from '../core/google';
 
 type Mode = 'login' | 'register' | 'forgot' | 'reset';
+
+// "Kopyalandı" bilgisinin ekranda kalma süresi
+const COPIED_MSG_MS = 2_000;
 interface FormState { loading: boolean; error?: string; info?: string }
 
 // E-postadaki bağlantı ?resetToken=... ile açılır. Token okunur ve adres çubuğundan hemen silinir
@@ -43,6 +46,11 @@ export class AuthPanel {
   protected readonly state = signal<FormState>({ loading: false });
   protected readonly googleClientId = signal<string | null>(null);
 
+  // Kayıt ekranındaki şifre oluşturucu: oluşturulan şifre alana yazılır ve görünür yapılır ki kullanıcı kaydedebilsin.
+  protected readonly showPassword = signal(false);
+  protected readonly generating = signal(false);
+  protected readonly copied = signal(false);
+
   protected readonly submitLabel = computed(() => SUBMIT_LABELS[this.mode()][this.state().loading ? 1 : 0]);
 
   private readonly googleButton = viewChild<ElementRef<HTMLDivElement>>('googleButton');
@@ -65,6 +73,7 @@ export class AuthPanel {
     this.mode.set(mode);
     this.password.set('');
     this.passwordRepeat.set('');
+    this.showPassword.set(false);
     this.state.set({ loading: false, info });
   }
 
@@ -94,6 +103,31 @@ export class AuthPanel {
           this.switchTo('login', 'Şifren güncellendi, yeni şifrenle giriş yapabilirsin.');
         });
         break;
+    }
+  }
+
+  protected async handleGeneratePassword() {
+    this.generating.set(true);
+    try {
+      const { password } = await generatePassword();
+      this.password.set(password);
+      this.showPassword.set(true);
+      this.state.set({ loading: false, info: 'Güçlü bir şifre oluşturuldu; kopyalayıp güvenli bir yere kaydet.' });
+    } catch (e) {
+      this.state.set({ loading: false, error: (e as Error).message });
+    } finally {
+      this.generating.set(false);
+    }
+  }
+
+  // Clipboard API yalnızca HTTPS/localhost'ta çalışır; başarısız olursa şifre zaten alanda görünür durumda.
+  protected async handleCopyPassword() {
+    try {
+      await navigator.clipboard.writeText(this.password());
+      this.copied.set(true);
+      setTimeout(() => this.copied.set(false), COPIED_MSG_MS);
+    } catch {
+      this.state.set({ loading: false, error: 'Kopyalanamadı; şifreyi alandan seçip elle kopyalayın.' });
     }
   }
 

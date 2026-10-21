@@ -16,20 +16,6 @@
         <button type="button" class="cache-btn" (click)="handleClearCache()" [disabled]="cacheState().clearing">
           {{ cacheState().clearing ? 'Temizleniyor…' : 'Cache Temizle' }}
         </button>
-        @if (passwordState().error) {
-          <span class="cache-msg cache-msg-error" role="status">{{ passwordState().error }}</span>
-        }
-        @if (passwordState().password) {
-          <span class="password-box">
-            <code class="password-value" aria-label="Oluşturulan şifre">{{ passwordState().password }}</code>
-            <button type="button" class="cache-btn" (click)="handleCopyPassword()">
-              {{ passwordState().copied ? 'Kopyalandı' : 'Kopyala' }}
-            </button>
-          </span>
-        }
-        <button type="button" class="cache-btn" (click)="handleGeneratePassword()" [disabled]="passwordState().loading">
-          {{ passwordState().loading ? 'Oluşturuluyor…' : 'Şifre Oluştur' }}
-        </button>
         <button type="button" class="cache-btn" (click)="handleLogout()">Çıkış</button>
       </div>
     </header>
