@@ -23,6 +23,8 @@ using MatchForecast.Api.Services.AI.Ollama;
 using MatchForecast.Api.Services.Email;
 using MatchForecast.Api.Services.Redis;
 using MatchForecast.Data.Configuration;
+using MatchForecast.Api.Services.Health;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using MatchForecast.Data.Entity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -94,6 +96,14 @@ try
         .RequireAuthenticatedUser()
         .Build());
     builder.Services.AddProblemDetails();
+
+    /*
+     * Sağlık kontrolleri (ek paket gerekmez). "ready" etiketliler /healthz/ready'de çalışır. Zaman aşımı kısa tutulur:
+     * Supabase duraklatılmışsa bağlantı denemesi uzun sürebilir, sağlık isteği askıda kalmasın.
+     */
+    builder.Services.AddHealthChecks()
+        .AddCheck<DatabaseHealthCheck>("database", tags: ["ready"], timeout: TimeSpan.FromSeconds(5))
+        .AddCheck<RedisHealthCheck>("redis", tags: ["ready"], timeout: TimeSpan.FromSeconds(3));
 
     // Controllers klasöründeki [ApiController] sınıfları otomatik keşfedilir; yeni endpoint için Program.cs'e dokunmaya gerek yok.
     builder.Services.AddControllers();
@@ -324,6 +334,16 @@ try
     app.UseRateLimiter();
 
     app.MapControllers();
+
+    // Liveness: süreç ayakta ve istek alıyor mu? Bağımlılıklara bakmaz (DB düştü diye container yeniden başlatılmasın).
+    app.MapHealthChecks("/healthz", new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous();
+
+    // Readiness: veritabanı ve Redis'e ulaşılıyor mu? DB yoksa 503, Redis yoksa 200 + "Degraded".
+    app.MapHealthChecks("/healthz/ready", new HealthCheckOptions
+    {
+        Predicate = check => check.Tags.Contains("ready"),
+        ResponseWriter = HealthResponseWriter.WriteAsync
+    }).AllowAnonymous();
 
     app.Run();
 }
