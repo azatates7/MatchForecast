@@ -17,10 +17,20 @@ public sealed class RateLimitOptions
     // [EnableRateLimiting] attribute'larında kullanılan policy adları.
     public const string TokenPolicy = "token";
     public const string CacheClearPolicy = "cache-clear";
+    public const string AiPolicy = "ai";
 
     public int TokenPermitLimit { get; set; } = 10;
     public int TokenWindowSeconds { get; set; } = 60;
 
     public int CacheClearPermitLimit { get; set; } = 2;
     public int CacheClearWindowMinutes { get; set; } = 60;
+
+    // AI tahmini üreten endpoint'ler: kullanıcı başına (token'daki "sub"), sabit pencere. Cache'ten dönen istekler de sayılır.
+    // Kayıt herkese açık olduğu için bir hesabın AI faturasını şişirmesini engeller.
+    public int AiPermitLimit { get; set; } = 30;
+    public int AiWindowMinutes { get; set; } = 10;
+
+    // Cloudflare arkasında gerçek istemci IP'si CF-Connecting-IP header'ındadır. YALNIZCA API'ye sadece Cloudflare üzerinden
+    // erişilebiliyorsa (ör. Cloudflare Tunnel) true yapılmalı; aksi halde istemci bu header'ı kendisi gönderip limiti atlatabilir.
+    public bool TrustCloudflareHeader { get; set; }
 }

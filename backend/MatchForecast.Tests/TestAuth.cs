@@ -6,11 +6,13 @@ using MatchForecast.Api.Services.Redis;
 using MatchForecast.Api.Services.Security;
 using MatchForecast.Data.Configuration;
 using MatchForecast.Data.Entity;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -30,7 +32,17 @@ internal static class TestAuth
     {
         var databaseName = Guid.NewGuid().ToString(); // Her host kendi boş veritabanını alır; testler birbirini etkilemez.
 
-        return factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+        return factory.WithWebHostBuilder(builder => builder
+            /*
+             * "Development" yerine "Testing": user-secrets yüklenmez, dolayısıyla Supabase bağlantısı boş kalır ve ayarlar
+             * DB'den yüklenmez (testler gerçek veritabanına bağlanmaz). SMTP de kapatılır (şifre yok, ValidateOnStart).
+             */
+            .UseEnvironment("Testing")
+            .ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Smtp:Enabled"] = "false"
+            }))
+            .ConfigureTestServices(services =>
         {
             services.PostConfigure<JwtOptions>(o => o.SecretKey = SecretKey);
             services.AddSingleton<IRedisCacheService, InMemoryRedisCacheService>();

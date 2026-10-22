@@ -25,6 +25,13 @@ public class ExceptionMiddleware
         {
             await _next(context);
         }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        {
+            // İstemci isteği iptal etti (sayfayı kapattı, tarihi değiştirdi): hata değil. 500 loglanmaz, e-posta gitmez.
+            _logger.LogDebug("Request aborted by client. Path: {Path}", context.Request.Path);
+            if (!context.Response.HasStarted)
+                context.Response.StatusCode = 499; // nginx'in "Client Closed Request" kodu; yanıtı okuyan kimse yok.
+        }
         catch (Exception ex)
         {
             // ForecastException kendi status kodunu (404, 502 vb.) ve kullanıcıya gösterilebilir mesajını taşır; diğer hatalar 500.

@@ -24,6 +24,8 @@ using MatchForecast.Api.Services.Email;
 using MatchForecast.Api.Services.Redis;
 using MatchForecast.Data.Configuration;
 using MatchForecast.Api.Services.Health;
+using MatchForecast.Api.Services.Settings;
+using MatchForecast.Data.Security;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using MatchForecast.Data.Entity;
 using Microsoft.AspNetCore.Identity;
@@ -40,10 +42,20 @@ try
     builder.Logging.ClearProviders();
     builder.Host.UseNLog();
 
+    /*
+     * Ayarlar veritabanından (app_settings) yüklenir; servis kayıtlarından ÖNCE olmalı ki aşağıdaki bütün
+     * builder.Configuration okumaları ve IOptions bağlamaları DB değerlerini görsün. Migration da burada uygulanır.
+     * Ortamdan yalnızca ConnectionStrings:Supabase ve AppSettings:EncryptionKey okunur (bkz. DatabaseSettings).
+     */
+    var settingsCrypto = await DatabaseSettings.LoadAsync(builder, logger);
+
+    // AppSettingsController'daki güncelleme için. Factory: ayarlar DB'den yüklenmediyse yalnızca kullanıldığında hata verir.
+    builder.Services.AddSingleton<IAppSettingsCrypto>(_ => settingsCrypto
+        ?? throw new InvalidOperationException("Ayarlar veritabanından yüklenmedi (bağlantı veya AppSettings:EncryptionKey eksik)."));
+
     // Supabase (PostgreSQL). Connection string repoda değil, user-secrets / env'de: ConnectionStrings:Supabase
-    builder.Services.AddDbContext<AppDbContext>(o => o.UseNpgsql(
-    builder.Configuration.GetConnectionString("Supabase"),
-    npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", AppDbContext.Schema)));
+    builder.Services.AddDbContext<AppDbContext>(o =>
+        AppDbContext.UseDatabase(o, builder.Configuration.GetConnectionString("Supabase")));
 
     builder.Services.AddOptions<AuthOptions>()
         .Bind(builder.Configuration.GetSection(AuthOptions.Section))
@@ -231,18 +243,40 @@ try
      * [EnableRateLimiting] ile bağlanır; attribute'u olmayan endpoint'ler etkilenmez. Ayrıntılar RateLimitOptions'ta.
      */
     var rateLimit = builder.Configuration.GetSection(RateLimitOptions.Section).Get<RateLimitOptions>() ?? new RateLimitOptions();
+
+    /*
+     * İstemci IP'si. Cloudflare -> cloudflared -> nginx -> API zincirinde bağlantı adresi (ve X-Forwarded-For'un son değeri)
+     * cloudflared container'ıdır; herkes aynı IP'yi paylaşır ve limit tüm site için ortak olurdu. Cloudflare gerçek IP'yi
+     * CF-Connecting-IP ile gönderir; nginx bu header'ı olduğu gibi iletir.
+     */
+    string ClientIp(HttpContext http) =>
+        rateLimit.TrustCloudflareHeader
+        && http.Request.Headers.TryGetValue("CF-Connecting-IP", out var cfIp)
+        && !string.IsNullOrWhiteSpace(cfIp)
+            ? cfIp.ToString()
+            : http.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
     builder.Services.AddRateLimiter(o =>
     {
         o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
-        // Caddy/Nginx arkasında gerçek IP için ASPNETCORE_FORWARDEDHEADERS_ENABLED=true gerekir; yoksa herkes proxy'nin IP'sini paylaşır.
         o.AddPolicy(RateLimitOptions.TokenPolicy, http => RateLimitPartition.GetFixedWindowLimiter(
-            http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            ClientIp(http),
             _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = rateLimit.TokenPermitLimit,
                 Window = TimeSpan.FromSeconds(rateLimit.TokenWindowSeconds),
                 QueueLimit = 0 // Limit aşılınca beklemeden 429.
+            }));
+
+        // Giriş yapmış kullanıcı başına; token'sız istek zaten 401 alır (limiter yetkilendirmeden sonra çalışır).
+        o.AddPolicy(RateLimitOptions.AiPolicy, http => RateLimitPartition.GetFixedWindowLimiter(
+            http.User.FindFirst("sub")?.Value is { } userId ? $"user:{userId}" : $"ip:{ClientIp(http)}",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = rateLimit.AiPermitLimit,
+                Window = TimeSpan.FromMinutes(rateLimit.AiWindowMinutes),
+                QueueLimit = 0
             }));
 
         // Tek (global) sayaç; pencere dakikalık dilimlere bölünür, her dilimdeki hak tam 60 dk sonra geri gelir.
@@ -295,12 +329,10 @@ try
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        // Testler DbContext'i bellek içi sağlayıcıyla değiştirir; migration yalnızca gerçek (ilişkisel) veritabanında çalışır.
+        // Migration ve seed açılışta DatabaseSettings.LoadAsync içinde uygulandı.
+        // Testler DbContext'i bellek içi sağlayıcıyla değiştirir; admin oluşturma yalnızca gerçek veritabanında çalışır.
         if (db.Database.IsRelational())
         {
-            await db.Database.MigrateAsync();
-            app.Logger.LogInformation("Veritabanı migration ve seed tamamlandı.");
-
             // Admin rolünde kullanıcı yoksa Admin:* ayarlarından ilk admini oluşturur.
             await AdminUserBootstrapper.EnsureAdminAsync(
                 db, scope.ServiceProvider.GetRequiredService<IPasswordHasher<User>>(), app.Configuration, app.Logger);

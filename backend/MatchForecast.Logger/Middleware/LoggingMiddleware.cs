@@ -37,6 +37,7 @@ public class LoggingMiddleware
         "vkn",
         "identificationNumber",
         "idToken",
+        "value",
         "Hesabınızı doğrulamak için kodunuz"
     };
 
@@ -50,7 +51,7 @@ public class LoggingMiddleware
     {
         var request = context.Request;
 
-        // Health kontrolleri (Docker/Cloudflare her birkaç saniyede bir çağırır) log'u doldurmasın.
+        // Sağlık kontrolleri (Docker/Cloudflare her birkaç saniyede bir çağırır) log'u doldurmasın.
         if (request.Path.StartsWithSegments("/healthz"))
         {
             await _next(context);

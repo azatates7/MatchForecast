@@ -31,6 +31,11 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<UserLogin> UserLogins => Set<UserLogin>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
+    public DbSet<AppSetting> AppSettings => Set<AppSetting>();
+
+    // Program.cs (DI kaydı) ve açılıştaki ayar yükleyici aynı Npgsql ayarlarını kullansın.
+    public static void UseDatabase(DbContextOptionsBuilder options, string? connectionString) =>
+        options.UseNpgsql(connectionString, npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", Schema));
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -148,6 +153,18 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
             e.HasIndex(x => x.TokenHash).IsUnique();
             e.HasOne(x => x.User).WithMany(x => x.PasswordResetTokens).HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AppSetting>(e =>
+        {
+            e.ToTable("app_settings");
+            e.Property(x => x.Key).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Value).IsRequired(); // Şifreli değerler uzun olabilir; uzunluk sınırı yok (text).
+            e.Property(x => x.Description).HasMaxLength(500);
+            e.Property(x => x.TargetProject).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Environment).HasMaxLength(50).IsRequired();
+            e.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
+            e.HasIndex(x => new { x.Environment, x.TargetProject, x.Key }).IsUnique();
         });
 
         /*

@@ -1,0 +1,42 @@
+# Canlı ortam: docker compose -f docker-compose.prod.yml up -d --build
+#
+# Sunucudaki .env dosyasında (repoya girmez) bulunması ZORUNLU olanlar:
+#   CLOUDFLARE_TUNNEL_TOKEN=...
+#   ConnectionStrings__Supabase=Host=...;Port=5432;...;SSL Mode=Require;Maximum Pool Size=10
+#   AppSettings__EncryptionKey=<32 byte base64>   (geliştirmedekinden FARKLI olabilir; kaybedilirse şifreli ayarlar çözülemez)
+#
+# İlk çalıştırmada Production ayarları veritabanında henüz yoktur: o an .env'de/ortamda bulunan değerler (Jwt__SecretKey,
+# Smtp__Password, Ai__Gemini__ApiKey, Auth__PasswordResetUrl...) app_settings tablosuna kopyalanır. Sonrasında bu
+# değerler .env'den silinebilir; değişiklikler /api/app-settings ile yapılır (veritabanı değerleri ortamı ezer).
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      # Aşağıdakiler yalnızca ilk çalıştırmada veritabanına kopyalanır (Production satırları yoksa).
+      Redis__ConnectionString: redis:6379
+      RateLimiting__TrustCloudflareHeader: "true" # API'ye yalnızca tunnel üzerinden ulaşılıyor; CF-Connecting-IP güvenilir.
+      Ai__Provider: Gemini                         # Ollama canlıda yok (bkz. Ai__Ollama__* ile Ollama Cloud seçeneği).
+    volumes: ["./logs:/app/logs"]
+    depends_on: [redis]
+
+  web:
+    build: ./frontend            # Angular için: ./frontend-angular
+    restart: unless-stopped
+    depends_on: [api]
+    # ports yok: dışarıya yalnızca Cloudflare Tunnel üzerinden açılır (sunucuda açık port gerekmez).
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    restart: unless-stopped
+    depends_on: [web]
+    # Cloudflare panelinde public hostname: domain.com -> http://web:80
