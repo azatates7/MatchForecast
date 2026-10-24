@@ -47,6 +47,19 @@ internal static class TestAuth
             services.PostConfigure<JwtOptions>(o => o.SecretKey = SecretKey);
             services.AddSingleton<IRedisCacheService, InMemoryRedisCacheService>();
 
+            /*
+             * Testler geliştirici makinesindeki user-secrets'a bağlı kalmasın (CI agent'ında user-secrets yok):
+             * - appsettings.json'da Ai:Provider=Ollama ve Ollama:BaseUrl boş; typed HttpClient "new Uri("")" ile patlar ve
+             *   ForecastService'e bağlı MatchesController her istekte 500 döner. Testler AI'ı mock'lar, adres yalnızca geçerli olmalı.
+             * - Tahmin sayısı testlerde sabitlenir (varsayılan 10).
+             */
+            services.PostConfigure<AiOptions>(o =>
+            {
+                if (string.IsNullOrWhiteSpace(o.Ollama.BaseUrl))
+                    o.Ollama.BaseUrl = "http://localhost:11434/";
+            });
+            services.PostConfigure<ForecastOptions>(o => o.PredictionCount = 5);
+
             // Testler gerçek e-posta göndermez ve Google'a gitmez.
             services.AddSingleton<IEmailSender, FakeEmailSender>();
             services.AddSingleton<GoogleIdTokenValidator, FakeGoogleIdTokenValidator>();
