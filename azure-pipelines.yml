@@ -1,0 +1,28 @@
+trigger:
+  branches: { include: [ main ] }
+
+pr: none   # Repo public: fork'lardan gelen PR'lar canlı sunucuda kod çalıştıramasın
+
+pool: matchforecast-vps
+
+stages:
+- stage: Test
+  jobs:
+  - job: Test
+    steps:
+    - task: UseDotNet@2
+      inputs: { packageType: sdk, version: 10.x }
+    - script: dotnet test backend/MatchForecast.Tests/MatchForecast.Tests.csproj -c Release
+      displayName: Backend testleri
+
+- stage: Deploy
+  dependsOn: Test
+  jobs:
+  - job: Deploy
+    steps:
+    - checkout: none
+    - script: |
+        cd /opt/matchforecast
+        git pull --ff-only
+        docker compose -f docker-compose.prod.yml up -d --build
+      displayName: Canlıya al
