@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { clearCache, getForecast, getMatches, hasSession, logout, onSessionExpired } from './api'
+import { clearCache, getForecast, getMatches, getMe, hasSession, logout, onSessionExpired } from './api'
+import type { MeResponse } from './types'
 import type { ForecastResult, MatchSummary } from './components/Types'
 import { isLive } from './components/MatchStatus'
 import MatchList from './components/MatchList'
@@ -43,6 +44,10 @@ export default function App() {
   const [forecast, setForecast] = useState<ForecastResult | null>(null)
   const [forecastState, setForecastState] = useState<{ loading: boolean; error?: string }>({ loading: false })
   const [cacheState, setCacheState] = useState<{ clearing: boolean; message?: string; error?: boolean }>({ clearing: false })
+  const [me, setMe] = useState<MeResponse | null>(null)
+
+  // Misafir: yalnızca bugünün Süper Lig maçları, tarih seçimi ve cache temizleme yok (API de aynı kuralları uygular).
+  const isGuest = me?.roles.includes('Guest') ?? false
 
   // silent=true: arka plan yenilemesi; listeyi "yükleniyor" durumuna sokmaz, hata olursa eski listeyi korur.
   const loadMatches = useCallback((silent: boolean, isCancelled: () => boolean = () => false) => {
@@ -65,6 +70,19 @@ export default function App() {
   useEffect(() => {
     onSessionExpired(() => setLoggedIn(false))
   }, [])
+
+  // Giriş yapılınca üst barda gösterilecek ad ve roller alınır
+  useEffect(() => {
+    if (!loggedIn) return
+    let cancelled = false
+    getMe().then(data => { if (!cancelled) setMe(data) }).catch(() => undefined)
+    return () => { cancelled = true }
+  }, [loggedIn])
+
+  // Misafir her zaman bugünü görür (önceki oturumda başka bir tarih seçilmiş olabilir)
+  useEffect(() => {
+    if (isGuest) setDate(toIsoDate(new Date()))
+  }, [isGuest])
 
   // Tarih değişince (veya giriş yapılınca) listeyi yükle ve lig filtresini sıfırla (yeni tarihte o lig olmayabilir)
   useEffect(() => {
@@ -142,6 +160,7 @@ export default function App() {
   const handleLogout = async () => {
     await logout()
     setLoggedIn(false)
+    setMe(null)
     setMatches([])
     setSelectedId(null)
     setForecast(null)
@@ -156,18 +175,27 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <h1 className="brand">MatchForecast</h1>
-        <div className="date-nav">
-          <button type="button" onClick={() => setDate(d => shiftDate(d, -1))} aria-label="Önceki gün">‹</button>
-          <input type="date" value={date} onChange={e => e.target.value && setDate(e.target.value)} aria-label="Tarih" />
-          <button type="button" onClick={() => setDate(d => shiftDate(d, 1))} aria-label="Sonraki gün">›</button>
-        </div>
+        {isGuest ? (
+          <div className="date-nav">
+            <input type="date" value={date} disabled aria-label="Tarih (misafir yalnızca bugünü görür)" />
+          </div>
+        ) : (
+          <div className="date-nav">
+            <button type="button" onClick={() => setDate(d => shiftDate(d, -1))} aria-label="Önceki gün">‹</button>
+            <input type="date" value={date} onChange={e => e.target.value && setDate(e.target.value)} aria-label="Tarih" />
+            <button type="button" onClick={() => setDate(d => shiftDate(d, 1))} aria-label="Sonraki gün">›</button>
+          </div>
+        )}
         <div className="cache-actions">
           {cacheState.message && (
             <span className={cacheState.error ? 'cache-msg cache-msg-error' : 'cache-msg'} role="status">{cacheState.message}</span>
           )}
-          <button type="button" className="cache-btn" onClick={handleClearCache} disabled={cacheState.clearing}>
-            {cacheState.clearing ? 'Temizleniyor…' : 'Cache Temizle'}
-          </button>
+          {me && <span className="user-name">{me.displayName || me.userName}</span>}
+          {!isGuest && (
+            <button type="button" className="cache-btn" onClick={handleClearCache} disabled={cacheState.clearing}>
+              {cacheState.clearing ? 'Temizleniyor…' : 'Cache Temizle'}
+            </button>
+          )}
           <button type="button" className="cache-btn" onClick={handleLogout}>Çıkış</button>
         </div>
       </header>

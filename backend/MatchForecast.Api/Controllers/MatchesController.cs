@@ -1,8 +1,10 @@
 using MatchForecast.Api.Options;
 using MatchForecast.Api.Services.ApiFootball;
 using MatchForecast.Api.Services.Forecast;
+using MatchForecast.Api.Services.Security.Guest;
 using MatchForecast.Data.Seed;
 using MatchForecast.Models.Response;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -15,10 +17,13 @@ public sealed class MatchesController(IOddsProvider odds, ForecastService foreca
     // Toplu uçlar en fazla bu kadar maç işler: popüler tahminlerde her maç ayrı bir AI çağrısı olabilir.
     private const int MaxPopularCount = 10;
 
-    /// <summary>Verilen tarihteki maçları döner. Tarih yoksa veya geçersizse bugün kullanılır.</summary>
+    /// <summary>Verilen tarihteki maçları döner. Tarih yoksa veya geçersizse bugün kullanılır. Misafir: yalnızca bugünün Süper Lig maçları.</summary>
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<MatchSummary>>> GetMatches([FromQuery] string? date, CancellationToken ct)
     {
+        if (GuestAccess.IsGuest(User))
+            return Ok(GuestAccess.Filter(await odds.GetMatchesAsync(GuestAccess.Today, ct)));
+
         var result = await odds.GetMatchesAsync(ParseDate(date), ct);
         return Ok(result);
     }
@@ -27,6 +32,9 @@ public sealed class MatchesController(IOddsProvider odds, ForecastService foreca
     [HttpGet("popular")]
     public async Task<ActionResult<IReadOnlyList<MatchSummary>>> GetPopular([FromQuery] string? date, [FromQuery] int? count, CancellationToken ct)
     {
+        if (GuestAccess.IsGuest(User))
+            return Ok(GuestAccess.Filter(await odds.GetPopularMatchesAsync(GuestAccess.Today, ClampCount(count), ct)));
+
         var result = await odds.GetPopularMatchesAsync(ParseDate(date), ClampCount(count), ct);
         return Ok(result);
     }
@@ -34,6 +42,7 @@ public sealed class MatchesController(IOddsProvider odds, ForecastService foreca
     /// <summary>Günün popüler maçları için toplu tahmin üretir.</summary>
     [HttpGet("popular/forecasts")]
     [EnableRateLimiting(RateLimitOptions.AiPolicy)]
+    [Authorize(Policy = GuestAccess.NotGuestPolicy)] // Toplu AI çağrısı; misafire kapalı.
     public async Task<ActionResult<IReadOnlyList<ForecastResult>>> GetPopularForecasts(
         [FromQuery] string? date, [FromQuery] int? count, [FromQuery] bool? refresh, CancellationToken ct)
     {
@@ -46,6 +55,14 @@ public sealed class MatchesController(IOddsProvider odds, ForecastService foreca
     [EnableRateLimiting(RateLimitOptions.AiPolicy)]
     public async Task<ActionResult<ForecastResult>> GetForecast(int id, [FromQuery] bool? refresh, CancellationToken ct)
     {
+        // Misafir yalnızca bugünün Süper Lig maçlarını analiz edebilir; diğerleri yokmuş gibi 404 döner (AI çağrılmaz).
+        if (GuestAccess.IsGuest(User))
+        {
+            var match = await odds.GetMatchAsync(id, ct);
+            if (match is null || !GuestAccess.IsAllowedToday(match))
+                return Problem(statusCode: StatusCodes.Status404NotFound, detail: "Maç bulunamadı.");
+        }
+
         var result = await forecastService.GetForecastAsync(id, CanRefresh(refresh), ct);
         return Ok(result);
     }

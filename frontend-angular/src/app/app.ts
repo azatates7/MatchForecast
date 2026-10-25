@@ -1,6 +1,6 @@
 import { Component, computed, effect, signal } from '@angular/core';
-import { clearCache, getForecast, getMatches, hasSession, logout, onSessionExpired } from './core/api';
-import type { ForecastResult, MatchSummary } from './core/types';
+import { clearCache, getForecast, getMatches, getMe, hasSession, logout, onSessionExpired } from './core/api';
+import type { ForecastResult, MatchSummary, MeResponse } from './core/types';
 import { isLive } from './core/match-status';
 import { MatchList } from './components/match-list';
 import { ForecastPanel } from './components/forecast-panel';
@@ -52,6 +52,10 @@ export class App {
   protected readonly forecast = signal<ForecastResult | null>(null);
   protected readonly forecastState = signal<LoadState>({ loading: false });
   protected readonly cacheState = signal<CacheState>({ clearing: false });
+  protected readonly me = signal<MeResponse | null>(null);
+
+  // Misafir: yalnızca bugünün Süper Lig maçları, tarih seçimi ve cache temizleme yok (API de aynı kuralları uygular).
+  protected readonly isGuest = computed(() => this.me()?.roles.includes('Guest') ?? false);
 
   protected readonly hasLive = computed(() => this.matches().some(isLive));
 
@@ -78,6 +82,19 @@ export class App {
   constructor() {
     // Refresh token da geçersizse (süresi doldu, iptal edildi) api.ts haber verir: login ekranına dön.
     onSessionExpired(() => this.loggedIn.set(false));
+
+    // Giriş yapılınca üst barda gösterilecek ad ve roller alınır
+    effect(onCleanup => {
+      if (!this.loggedIn()) return;
+      let cancelled = false;
+      getMe().then(data => { if (!cancelled) this.me.set(data); }).catch(() => undefined);
+      onCleanup(() => { cancelled = true; });
+    });
+
+    // Misafir her zaman bugünü görür (önceki oturumda başka bir tarih seçilmiş olabilir)
+    effect(() => {
+      if (this.isGuest()) this.date.set(toIsoDate(new Date()));
+    });
 
     // Tarih değişince (veya giriş yapılınca) listeyi yükle ve lig filtresini sıfırla (yeni tarihte o lig olmayabilir)
     effect(onCleanup => {
@@ -115,6 +132,7 @@ export class App {
   protected async handleLogout() {
     await logout();
     this.loggedIn.set(false);
+    this.me.set(null);
     this.matches.set([]);
     this.selectedId.set(null);
     this.forecast.set(null);

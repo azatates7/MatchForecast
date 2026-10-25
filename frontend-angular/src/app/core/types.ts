@@ -78,6 +78,13 @@ export interface TokenResponse {
   refreshTokenExpiresAt: string
 }
 
+// Giriş yapmış kullanıcı (üst bardaki ad ve misafir kısıtları için)
+export interface MeResponse {
+  userName: string
+  displayName: string | null
+  roles: string[]
+}
+
 export interface CacheClearResponse {
   deletedKeys: number
 }

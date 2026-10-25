@@ -4,18 +4,29 @@
   <div class="app">
     <header class="topbar">
       <h1 class="brand">MatchForecast</h1>
-      <div class="date-nav">
-        <button type="button" (click)="shiftDay(-1)" aria-label="Önceki gün">‹</button>
-        <input type="date" [value]="date()" (change)="onDateInput($any($event.target).value)" aria-label="Tarih" />
-        <button type="button" (click)="shiftDay(1)" aria-label="Sonraki gün">›</button>
-      </div>
+      @if (isGuest()) {
+        <div class="date-nav">
+          <input type="date" [value]="date()" disabled aria-label="Tarih (misafir yalnızca bugünü görür)" />
+        </div>
+      } @else {
+        <div class="date-nav">
+          <button type="button" (click)="shiftDay(-1)" aria-label="Önceki gün">‹</button>
+          <input type="date" [value]="date()" (change)="onDateInput($any($event.target).value)" aria-label="Tarih" />
+          <button type="button" (click)="shiftDay(1)" aria-label="Sonraki gün">›</button>
+        </div>
+      }
       <div class="cache-actions">
         @if (cacheState().message) {
           <span [class]="cacheState().error ? 'cache-msg cache-msg-error' : 'cache-msg'" role="status">{{ cacheState().message }}</span>
         }
-        <button type="button" class="cache-btn" (click)="handleClearCache()" [disabled]="cacheState().clearing">
-          {{ cacheState().clearing ? 'Temizleniyor…' : 'Cache Temizle' }}
-        </button>
+        @if (me(); as user) {
+          <span class="user-name">{{ user.displayName || user.userName }}</span>
+        }
+        @if (!isGuest()) {
+          <button type="button" class="cache-btn" (click)="handleClearCache()" [disabled]="cacheState().clearing">
+            {{ cacheState().clearing ? 'Temizleniyor…' : 'Cache Temizle' }}
+          </button>
+        }
         <button type="button" class="cache-btn" (click)="handleLogout()">Çıkış</button>
       </div>
     </header>
