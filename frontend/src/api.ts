@@ -1,4 +1,4 @@
-import type { AuthConfigResponse, CacheClearResponse, ForecastResult, MatchSummary, PasswordResponse, TokenResponse } from './types'
+import type { AuthConfigResponse, CacheClearResponse, ForecastResult, MatchSummary, MeResponse, PasswordResponse, TokenResponse } from './types'
 
 /*
  * Oturum:
@@ -136,6 +136,9 @@ export const getMatches = (date: string) =>
 
 export const getForecast = (id: number, refresh = false) =>
   request<ForecastResult>(`/api/matches/${id}/forecast${refresh ? '?refresh=true' : ''}`)
+
+export const getMe = () =>
+  request<MeResponse>('/api/me')
 
 export const clearCache = () =>
   request<CacheClearResponse>('/api/cache', 'DELETE')

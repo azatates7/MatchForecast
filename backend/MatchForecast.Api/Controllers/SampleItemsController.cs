@@ -1,6 +1,9 @@
+using MatchForecast.Api.Services.Security;
+using MatchForecast.Api.Services.Security.Guest;
 using MatchForecast.Data.Configuration;
 using MatchForecast.Data.Entity;
 using MatchForecast.Models.Request;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,6 +12,7 @@ namespace MatchForecast.Api.Controllers;
 // Supabase bağlantısını uçtan uca denemek için örnek CRUD; fallback policy gereği Bearer token ister.
 [ApiController]
 [Route("api/sample-items")]
+[Authorize(Policy = GuestAccess.NotGuestPolicy)] // Misafir hesabı paylaşılan bir hesap; veritabanına yazamasın.
 public sealed class SampleItemsController(AppDbContext db) : ControllerBase
 {
     [HttpGet]

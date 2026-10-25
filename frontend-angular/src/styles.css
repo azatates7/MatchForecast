@@ -96,6 +96,7 @@ button, input { font: inherit; color: inherit; }
 
 .cache-msg { font-size: 0.9rem; color: var(--muted); }
 .cache-msg-error { color: var(--danger); }
+.user-name { font-size: 0.9rem; font-weight: 600; }
 
 /* Giriş ekranı */
 .login {

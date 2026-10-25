@@ -30,6 +30,7 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using MatchForecast.Data.Entity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using MatchForecast.Api.Services.Security.Guest;
 
 var logger = LogManager.Setup().LoadConfigurationFromAppSettings().GetCurrentClassLogger();
 logger.Debug("Initializing MatchForecast API host...");
@@ -104,9 +105,15 @@ try
         });
 
     // Fallback policy: [AllowAnonymous] olmayan TÜM endpoint'ler token ister. Yeni controller'lar varsayılan olarak korunur.
-    builder.Services.AddAuthorization(o => o.FallbackPolicy = new AuthorizationPolicyBuilder()
-        .RequireAuthenticatedUser()
-        .Build());
+    builder.Services.AddAuthorization(o =>
+    {
+        o.FallbackPolicy = new AuthorizationPolicyBuilder()
+            .RequireAuthenticatedUser()
+            .Build();
+        o.AddPolicy(GuestAccess.NotGuestPolicy, p => p
+            .RequireAuthenticatedUser()
+            .RequireAssertion(c => !GuestAccess.IsGuest(c.User)));
+    });
     builder.Services.AddProblemDetails();
 
     /*
@@ -335,6 +342,10 @@ try
         {
             // Admin rolünde kullanıcı yoksa Admin:* ayarlarından ilk admini oluşturur.
             await AdminUserBootstrapper.EnsureAdminAsync(
+                db, scope.ServiceProvider.GetRequiredService<IPasswordHasher<User>>(), app.Configuration, app.Logger);
+
+            // Guest:* ayarları doluysa misafir kullanıcısını (yalnızca Guest rolüyle) bir kez oluşturur.
+            await GuestUserBootstrapper.EnsureGuestAsync(
                 db, scope.ServiceProvider.GetRequiredService<IPasswordHasher<User>>(), app.Configuration, app.Logger);
         }
     }

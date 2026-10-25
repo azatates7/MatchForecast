@@ -9,6 +9,7 @@ public static class RoleNames
 {
     public const string Admin = "Admin";
     public const string User = "User";
+    public const string Guest = "Guest";
 }
 
 /*
@@ -20,7 +21,8 @@ public static class RoleSeed
     private static Role[] CreateRoles() =>
     [
         new() { Name = RoleNames.Admin, Description = "Tüm yönetim işlemleri" },
-        new() { Name = RoleNames.User, Description = "Standart kullanıcı" }
+        new() { Name = RoleNames.User, Description = "Standart kullanıcı" },
+        new() { Name = RoleNames.Guest, Description = "Misafir: yalnızca bugünün Süper Lig maçları, cache temizleyemez" }
     ];
 
     public static void Seed(DbContext context, bool storeManagementPerformed)
