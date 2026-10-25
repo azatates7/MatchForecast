@@ -67,6 +67,11 @@ export async function loginWithGoogle(idToken: string): Promise<void> {
   saveSession(await readJson<TokenResponse>(await postJson('/api/auth/google', { idToken })))
 }
 
+// Şifresiz misafir girişi: yalnızca bugünün Süper Lig maçları görülür (kısıtlar API'de).
+export async function loginAsGuest(): Promise<void> {
+  saveSession(await readJson<TokenResponse>(await postJson('/api/auth/guest', {})))
+}
+
 // E-posta kayıtlı olmasa da başarılı döner (hangi e-postaların kayıtlı olduğu anlaşılmasın).
 export async function forgotPassword(email: string): Promise<void> {
   const res = await postJson('/api/auth/forgot-password', { email })

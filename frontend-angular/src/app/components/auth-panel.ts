@@ -1,5 +1,5 @@
 import { Component, ElementRef, computed, effect, output, signal, viewChild } from '@angular/core';
-import { forgotPassword, generatePassword, getAuthConfig, login, loginWithGoogle, register, resetPassword } from '../core/api';
+import { forgotPassword, generatePassword, getAuthConfig, login, loginAsGuest, loginWithGoogle, register, resetPassword } from '../core/api';
 import { renderGoogleButton } from '../core/google';
 
 type Mode = 'login' | 'register' | 'forgot' | 'reset';
@@ -45,6 +45,7 @@ export class AuthPanel {
   protected readonly passwordRepeat = signal('');
   protected readonly state = signal<FormState>({ loading: false });
   protected readonly googleClientId = signal<string | null>(null);
+  protected readonly guestLoginEnabled = signal(false);
 
   // Kayıt ekranındaki şifre oluşturucu: oluşturulan şifre alana yazılır ve görünür yapılır ki kullanıcı kaydedebilsin.
   protected readonly showPassword = signal(false);
@@ -56,8 +57,13 @@ export class AuthPanel {
   private readonly googleButton = viewChild<ElementRef<HTMLDivElement>>('googleButton');
 
   constructor() {
-    // Google Client ID ayarlı değilse buton hiç gösterilmez.
-    getAuthConfig().then(c => this.googleClientId.set(c.googleClientId)).catch(() => undefined);
+    // Google Client ID ayarlı değilse veya misafir kullanıcısı yoksa ilgili buton hiç gösterilmez.
+    getAuthConfig()
+      .then(c => {
+        this.googleClientId.set(c.googleClientId);
+        this.guestLoginEnabled.set(c.guestLoginEnabled);
+      })
+      .catch(() => undefined);
 
     // Buton alanı ekrana geldiğinde (giriş ekranına her dönüşte) Google butonu yeniden çizilir.
     effect(() => {
@@ -67,6 +73,10 @@ export class AuthPanel {
       renderGoogleButton(element, clientId, idToken => void this.run(() => loginWithGoogle(idToken), true))
         .catch((e: Error) => this.state.set({ loading: false, error: e.message }));
     });
+  }
+
+  protected guestLogin() {
+    void this.run(loginAsGuest, true);
   }
 
   protected switchTo(mode: Mode, info?: string) {

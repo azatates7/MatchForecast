@@ -1,9 +1,11 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using MatchForecast.Api.Services.ApiFootball;
 using MatchForecast.Api.Services.Forecast;
-using MatchForecast.Api.Services.Security;
 using MatchForecast.Api.Services.Security.Guest;
+using MatchForecast.Data.Configuration;
+using MatchForecast.Data.Entity;
 using MatchForecast.Data.Seed;
 using MatchForecast.Models.Response;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -67,5 +69,40 @@ public class GuestAccessIntegrationTests(WebApplicationFactory<Program> factory)
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         ai.Verify(a => a.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GuestLogin_ReturnsNotFound_WhenNoGuestUser()
+    {
+        var response = await factory.WithTestJwt().CreateClient().PostAsync("/api/auth/guest", null);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GuestLogin_ReturnsTokenForGuestUser_WithoutPassword()
+    {
+        var testFactory = factory.WithTestJwt();
+        using (var scope = testFactory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var role = new Role { Name = RoleNames.Guest };
+            var user = new User { UserName = "misafir", Email = "misafir@test.local", DisplayName = GuestUserBootstrapper.DisplayName };
+            user.UserRoles.Add(new UserRole { Role = role });
+            db.Users.Add(user);
+            await db.SaveChangesAsync();
+        }
+
+        var client = testFactory.CreateClient();
+        var login = await client.PostAsync("/api/auth/guest", null);
+        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
+
+        var token = await login.Content.ReadFromJsonAsync<TokenResponse>();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token!.AccessToken);
+        var me = await client.GetFromJsonAsync<MeResponse>("/api/me");
+
+        Assert.NotNull(me);
+        Assert.Equal(GuestUserBootstrapper.DisplayName, me.DisplayName);
+        Assert.Contains(RoleNames.Guest, me.Roles);
     }
 }

@@ -61,6 +61,25 @@ public sealed partial class AuthService(
         return await IssueTokensAsync(user, ct);
     }
 
+    /*
+     * Şifresiz misafir girişi: Guest rolündeki aktif kullanıcı (GuestUserBootstrapper ile oluşturulur) için token üretilir.
+     * Herkes aynı misafir hesabını kullanır; kısıtlar API'de Guest rolüne göre uygulanır (bkz. GuestAccess).
+     */
+    public async Task<TokenResponse?> GuestLoginAsync(CancellationToken ct)
+    {
+        var guest = await FindGuestQuery().FirstOrDefaultAsync(ct);
+        if (guest is null)
+            return null;
+
+        guest.LastLoginAt = DateTime.Now;
+        return await IssueTokensAsync(guest, ct);
+    }
+
+    public Task<bool> IsGuestLoginEnabledAsync(CancellationToken ct) => FindGuestQuery().AnyAsync(ct);
+
+    private IQueryable<User> FindGuestQuery() =>
+        db.Users.Where(x => x.IsActive && x.UserRoles.Any(r => r.Role.Name == RoleNames.Guest)).OrderBy(x => x.Id);
+
     public async Task<TokenResponse?> RefreshAsync(string refreshToken, CancellationToken ct)
     {
         var hash = Hash(refreshToken);

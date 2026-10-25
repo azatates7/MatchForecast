@@ -100,9 +100,16 @@
     <button type="submit" class="cache-btn login-btn" [disabled]="state().loading">{{ submitLabel() }}</button>
 
     @if (mode() === 'login') {
-      @if (googleClientId()) {
+      @if (googleClientId() || guestLoginEnabled()) {
         <div class="auth-divider">veya</div>
+      }
+      @if (googleClientId()) {
         <div #googleButton class="google-button"></div>
+      }
+      @if (guestLoginEnabled()) {
+        <button type="button" class="cache-btn login-btn" (click)="guestLogin()" [disabled]="state().loading">
+          Misafir olarak devam et
+        </button>
       }
       <div class="auth-links">
         <button type="button" class="link-btn" (click)="switchTo('forgot')">Şifremi unuttum</button>

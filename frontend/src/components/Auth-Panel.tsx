@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { forgotPassword, generatePassword, getAuthConfig, login, loginWithGoogle, register, resetPassword } from '../api'
+import { forgotPassword, generatePassword, getAuthConfig, login, loginAsGuest, loginWithGoogle, register, resetPassword } from '../api'
 import { renderGoogleButton } from './Google'
 
 type Mode = 'login' | 'register' | 'forgot' | 'reset'
@@ -30,6 +30,7 @@ export default function AuthPanel({ onAuthenticated }: { onAuthenticated: () => 
   const [passwordRepeat, setPasswordRepeat] = useState('')
   const [state, setState] = useState<FormState>({ loading: false })
   const [googleClientId, setGoogleClientId] = useState<string | null>(null)
+  const [guestLoginEnabled, setGuestLoginEnabled] = useState(false)
   // Kayıt ekranındaki şifre oluşturucu: oluşturulan şifre alana yazılır ve görünür yapılır ki kullanıcı kaydedebilsin.
   const [showPassword, setShowPassword] = useState(false)
   const [generating, setGenerating] = useState(false)
@@ -43,9 +44,14 @@ export default function AuthPanel({ onAuthenticated }: { onAuthenticated: () => 
     history.replaceState(null, '', url)
   }, [])
 
-  // Google Client ID ayarlı değilse buton hiç gösterilmez.
+  // Google Client ID ayarlı değilse veya misafir kullanıcısı yoksa ilgili buton hiç gösterilmez.
   useEffect(() => {
-    getAuthConfig().then(c => setGoogleClientId(c.googleClientId)).catch(() => undefined)
+    getAuthConfig()
+      .then(c => {
+        setGoogleClientId(c.googleClientId)
+        setGuestLoginEnabled(c.guestLoginEnabled)
+      })
+      .catch(() => undefined)
   }, [])
 
   // İşlemi çalıştırır, hata mesajını gösterir. authenticates=true ise başarıda oturumun açıldığını bildirir.
@@ -220,11 +226,17 @@ export default function AuthPanel({ onAuthenticated }: { onAuthenticated: () => 
 
         {mode === 'login' ? (
           <>
-            {googleClientId && (
-              <>
-                <div className="auth-divider">veya</div>
-                <div ref={googleButton} className="google-button" />
-              </>
+            {(googleClientId || guestLoginEnabled) && <div className="auth-divider">veya</div>}
+            {googleClientId && <div ref={googleButton} className="google-button" />}
+            {guestLoginEnabled && (
+              <button
+                type="button"
+                className="cache-btn login-btn"
+                onClick={() => void run(loginAsGuest, true)}
+                disabled={state.loading}
+              >
+                Misafir olarak devam et
+              </button>
             )}
             <div className="auth-links">
               <button type="button" className="link-btn" onClick={() => switchTo('forgot')}>Şifremi unuttum</button>

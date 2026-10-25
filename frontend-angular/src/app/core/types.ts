@@ -68,6 +68,7 @@ export interface ForecastResult {
 
 export interface AuthConfigResponse {
   googleClientId: string | null
+  guestLoginEnabled: boolean
 }
 
 export interface TokenResponse {

@@ -21,10 +21,10 @@ public sealed class AuthController(AuthService auth, GoogleIdTokenValidator goog
 {
     /// <summary>Frontend'in giriş ekranı için ayarlar (ör. Google Client ID; boşsa Google butonu gösterilmez).</summary>
     [HttpGet("config")]
-    public ActionResult<AuthConfigResponse> GetConfig()
+    public async Task<ActionResult<AuthConfigResponse>> GetConfig(CancellationToken ct)
     {
         var clientId = authOptions.Value.GoogleClientId;
-        return new AuthConfigResponse(string.IsNullOrWhiteSpace(clientId) ? null : clientId);
+        return new AuthConfigResponse(string.IsNullOrWhiteSpace(clientId) ? null : clientId, await auth.IsGuestLoginEnabledAsync(ct));
     }
 
     /// <summary>Kullanıcı adı ve şifre ile access token + refresh token üretir.</summary>
@@ -59,6 +59,18 @@ public sealed class AuthController(AuthService auth, GoogleIdTokenValidator goog
         var (token, error) = await auth.RegisterAsync(request, ct);
         if (token is null)
             return Problem(statusCode: StatusCodes.Status409Conflict, detail: error);
+
+        return token;
+    }
+
+    /// <summary>Şifresiz misafir girişi ("Misafir olarak devam et"). Misafir kullanıcısı yoksa 404.</summary>
+    [HttpPost("guest")]
+    [EnableRateLimiting(RateLimitOptions.TokenPolicy)]
+    public async Task<ActionResult<TokenResponse>> Guest(CancellationToken ct)
+    {
+        var token = await auth.GuestLoginAsync(ct);
+        if (token is null)
+            return Problem(statusCode: StatusCodes.Status404NotFound, detail: "Misafir girişi şu an kapalı.");
 
         return token;
     }
