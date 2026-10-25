@@ -35,7 +35,7 @@ public class ForecastServiceTests
         _mockAi.Object,
         _cache,
         Options.Create(new AiOptions { CacheMinutes = 30 }),
-        Options.Create(new ForecastOptions()),
+        Options.Create(new ForecastOptions { PredictionCount = 5 }),
         NullLogger<ForecastService>.Instance);
 
     private void SetupMatch(int id = 1) =>

@@ -9,7 +9,8 @@ namespace MatchForecast.Tests;
 // ProjectionBuilder (doğrulama) ve PredictionSelector (seçim) birlikte test edilir; ikisi de saf fonksiyondur.
 public class PredictionSelectorTests
 {
-    private static readonly ForecastOptions DefaultOptions = new();
+    // Beklenen ilk 5 seçim test ediliyor; varsayılan PredictionCount (10) değişse de testler etkilenmesin.
+    private static readonly ForecastOptions DefaultOptions = new() { PredictionCount = 5 };
 
     private static AiStatsResponse Sample(double? home = 1.6, double? away = 1.0, double? firstHalf = 1.1,
         double? corners = 10.2, double? yellow = 4.6, double? red = 0.2) =>
@@ -106,7 +107,7 @@ public class PredictionSelectorTests
     public void Select_FillsOutsideBand_WhenBandHasTooFewOptions()
     {
         // %99-%100 bandına hiçbir seçenek girmez; liste yine de banda en yakın seçeneklerle 5'e tamamlanır.
-        var picks = PredictionSelector.Select(Build(Sample()), new ForecastOptions { MinPickProbability = 99, MaxPickProbability = 100 });
+        var picks = PredictionSelector.Select(Build(Sample()), new ForecastOptions { PredictionCount = 5, MinPickProbability = 99, MaxPickProbability = 100 });
 
         Assert.Equal(5, picks.Count);
         Assert.Equal("Ev 0.5 Üst", picks[0].Label);

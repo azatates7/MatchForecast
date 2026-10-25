@@ -22,7 +22,7 @@ services:
       # Aşağıdakiler yalnızca ilk çalıştırmada veritabanına kopyalanır (Production satırları yoksa).
       Redis__ConnectionString: redis:6379
       RateLimiting__TrustCloudflareHeader: "true" # API'ye yalnızca tunnel üzerinden ulaşılıyor; CF-Connecting-IP güvenilir.
-      Ai__Provider: Gemini                         # Ollama canlıda yok (bkz. Ai__Ollama__* ile Ollama Cloud seçeneği).
+      Ai__Provider: Ollama                         # Ollama canlıda yok (bkz. Ai__Ollama__* ile Ollama Cloud seçeneği).
     volumes: ["./logs:/app/logs"]
     depends_on: [redis]
 
