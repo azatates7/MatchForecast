@@ -96,7 +96,6 @@ button, input { font: inherit; color: inherit; }
 
 .cache-msg { font-size: 0.9rem; color: var(--muted); }
 .cache-msg-error { color: var(--danger); }
-.user-name { font-size: 0.9rem; font-weight: 600; }
 
 /* Giriş ekranı */
 .login {
@@ -467,6 +466,45 @@ button, input { font: inherit; color: inherit; }
     border-bottom: 1px solid var(--line);
   }
   .empty { padding-top: 1rem; }
+
+  /* Üst bar: 1. satır logo + kullanıcı/çıkış, 2. satır tam genişlik tarih */
+  .topbar {
+    padding: 0.6rem 1rem;
+    gap: 0.5rem 0.75rem;
+  }
+
+  .brand { font-size: 1.35rem; }
+
+  .cache-actions {
+    order: 2;
+    margin-left: auto;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    min-width: 0;
+  }
+
+  .date-nav {
+    order: 3;
+    flex-basis: 100%;
+  }
+  .date-nav input {
+    flex: 1;
+    min-width: 0;
+    font-size: 16px; /* iOS 16px altındaki inputlarda sayfayı yakınlaştırır */
+  }
+
+  .cache-btn { padding: 0.3rem 0.65rem; }
+
+  /* Cache mesajı uzun olursa butonları sıkıştırmasın, kendi satırına insin */
+  .cache-msg { order: 4; flex-basis: 100%; }
+
+  /* Uzun kullanıcı adı Çıkış butonunu dışarı itmesin */
+  .user-name {
+    max-width: 10rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
