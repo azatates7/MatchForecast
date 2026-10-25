@@ -107,7 +107,11 @@ public class PredictionSelectorTests
     public void Select_FillsOutsideBand_WhenBandHasTooFewOptions()
     {
         // %99-%100 bandına hiçbir seçenek girmez; liste yine de banda en yakın seçeneklerle 5'e tamamlanır.
+<<<<<<< HEAD
         var picks = PredictionSelector.Select(Build(Sample()), new ForecastOptions { PredictionCount = 5, MinPickProbability = 99, MaxPickProbability = 100 });
+=======
+        var picks = PredictionSelector.Select(Build(Sample()), new ForecastOptions { PredictionCount = 10, MinPickProbability = 99, MaxPickProbability = 100 });
+>>>>>>> a7daee1798b9d7499419268884e612500b0d9dc2
 
         Assert.Equal(5, picks.Count);
         Assert.Equal("Ev 0.5 Üst", picks[0].Label);
