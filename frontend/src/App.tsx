@@ -104,19 +104,25 @@ export default function App() {
     return () => { cancelled = true; clearInterval(refresh); clearInterval(tick) }
   }, [hasLive, loadMatches, loggedIn])
 
-  // Lig seçenekleri: yüklenen maçlardan, maç sayısıyla birlikte, alfabetik
+  // Arama metnine uyan maçlar. Lig filtresindeki sayılar da bunlardan hesaplanır ki aramayla tutarlı olsun.
+  const searched = useMemo(() => {
+    const q = query.trim().toLocaleLowerCase('tr')
+    if (!q) return matches
+    return matches.filter(m => [m.homeTeam, m.awayTeam, m.league, m.country].some(s => s.toLocaleLowerCase('tr').includes(q)))
+  }, [matches, query])
+
+  // Lig seçenekleri: aramaya uyan maçlardan, maç sayısıyla birlikte, alfabetik.
+  // Seçili lig aramada hiç maç içermese de listede (0) olarak kalır; yoksa seçim kutusu boş görünürdü.
   const leagueOptions = useMemo(() => {
     const counts = new Map<string, number>()
-    for (const m of matches) counts.set(leagueKey(m), (counts.get(leagueKey(m)) ?? 0) + 1)
+    for (const m of searched) counts.set(leagueKey(m), (counts.get(leagueKey(m)) ?? 0) + 1)
+    if (league && !counts.has(league)) counts.set(league, 0)
     return [...counts].sort(([a], [b]) => a.localeCompare(b, 'tr'))
-  }, [matches])
+  }, [searched, league])
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLocaleLowerCase('tr')
-    return matches.filter(m =>
-      (!league || leagueKey(m) === league) &&
-      (!q || [m.homeTeam, m.awayTeam, m.league, m.country].some(s => s.toLocaleLowerCase('tr').includes(q))))
-  }, [matches, query, league])
+  const filtered = useMemo(
+    () => (league ? searched.filter(m => leagueKey(m) === league) : searched),
+    [searched, league])
 
   // Hızlı art arda tıklamalarda eski cevabın yenisini ezmemesi için
   const requestSeq = useRef(0)
@@ -202,6 +208,13 @@ export default function App() {
 
       <main className="layout">
         <section className="fixtures" aria-label="Maçlar">
+          {isGuest && (
+            <div className="guest-notice" role="note">
+              <svg className="guest-notice-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5Zm-3 8V7a3 3 0 0 1 6 0v3H9Zm3 4a2 2 0 0 1 1 3.73V19h-2v-1.27A2 2 0 0 1 12 14Z"/></svg>
+              <span>Misafir olarak yalnızca bugünün Süper Lig maçlarını görüyorsun.</span>
+              <button type="button" className="link-btn" onClick={handleLogout}>Tüm ligleri görmek için giriş yap</button>
+            </div>
+          )}
           <input
             className="search"
             type="search"
@@ -216,7 +229,7 @@ export default function App() {
             aria-label="Lig / turnuva filtresi"
             disabled={leagueOptions.length === 0}
           >
-            <option value="">Tüm ligler ({matches.length})</option>
+            <option value="">Tüm ligler ({searched.length})</option>
             {leagueOptions.map(([key, count]) => (
               <option key={key} value={key}>{key} ({count})</option>
             ))}

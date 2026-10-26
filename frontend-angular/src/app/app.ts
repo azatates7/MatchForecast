@@ -59,19 +59,26 @@ export class App {
 
   protected readonly hasLive = computed(() => this.matches().some(isLive));
 
-  // Lig seçenekleri: yüklenen maçlardan, maç sayısıyla birlikte, alfabetik
+  // Arama metnine uyan maçlar. Lig filtresindeki sayılar da bunlardan hesaplanır ki aramayla tutarlı olsun.
+  protected readonly searched = computed(() => {
+    const q = this.query().trim().toLocaleLowerCase('tr');
+    if (!q) return this.matches();
+    return this.matches().filter(m => [m.homeTeam, m.awayTeam, m.league, m.country].some(s => s.toLocaleLowerCase('tr').includes(q)));
+  });
+
+  // Lig seçenekleri: aramaya uyan maçlardan, maç sayısıyla birlikte, alfabetik.
+  // Seçili lig aramada hiç maç içermese de listede (0) olarak kalır; yoksa seçim kutusu boş görünürdü.
   protected readonly leagueOptions = computed(() => {
     const counts = new Map<string, number>();
-    for (const m of this.matches()) counts.set(leagueKey(m), (counts.get(leagueKey(m)) ?? 0) + 1);
+    for (const m of this.searched()) counts.set(leagueKey(m), (counts.get(leagueKey(m)) ?? 0) + 1);
+    const league = this.league();
+    if (league && !counts.has(league)) counts.set(league, 0);
     return [...counts].sort(([a], [b]) => a.localeCompare(b, 'tr'));
   });
 
   protected readonly filtered = computed(() => {
-    const q = this.query().trim().toLocaleLowerCase('tr');
     const league = this.league();
-    return this.matches().filter(m =>
-      (!league || leagueKey(m) === league) &&
-      (!q || [m.homeTeam, m.awayTeam, m.league, m.country].some(s => s.toLocaleLowerCase('tr').includes(q))));
+    return league ? this.searched().filter(m => leagueKey(m) === league) : this.searched();
   });
 
   protected readonly selected = computed(() => this.matches().find(m => m.id === this.selectedId()) ?? null);

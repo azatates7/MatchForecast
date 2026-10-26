@@ -33,6 +33,13 @@
 
     <main class="layout">
       <section class="fixtures" aria-label="Maçlar">
+        @if (isGuest()) {
+          <div class="guest-notice" role="note">
+            <svg class="guest-notice-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5Zm-3 8V7a3 3 0 0 1 6 0v3H9Zm3 4a2 2 0 0 1 1 3.73V19h-2v-1.27A2 2 0 0 1 12 14Z"/></svg>
+            <span>Misafir olarak yalnızca bugünün Süper Lig maçlarını görüyorsun.</span>
+            <button type="button" class="link-btn" (click)="handleLogout()">Tüm ligleri görmek için giriş yap</button>
+          </div>
+        }
         <input
           class="search"
           type="search"
@@ -47,7 +54,7 @@
           aria-label="Lig / turnuva filtresi"
           [disabled]="leagueOptions().length === 0"
         >
-          <option value="">Tüm ligler ({{ matches().length }})</option>
+          <option value="">Tüm ligler ({{ searched().length }})</option>
           @for (opt of leagueOptions(); track opt[0]) {
             <option [value]="opt[0]" [selected]="opt[0] === league()">{{ opt[0] }} ({{ opt[1] }})</option>
           }
