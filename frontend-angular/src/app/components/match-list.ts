@@ -16,13 +16,7 @@ export class MatchList {
   /** Ekrandaki saat (ms); App tarafından periyodik güncellenir */
   readonly now = input.required<number>();
 
-  /** false ise (misafir) kutucuklar hiç çizilmez, liste eski haliyle görünür */
-  readonly selectable = input(false);
-  /** İşareti kaldırılmış maç id'leri */
-  readonly excluded = input<ReadonlySet<number>>(new Set());
-
   readonly select = output<number>();
-  readonly toggle = output<{ ids: number[]; checked: boolean }>();
 
   // Lig bazında grupla, sıralama API'den gelen başlama saatine göre korunur
   protected readonly groups = computed(() => {
@@ -31,23 +25,10 @@ export class MatchList {
       const key = `${m.country} / ${m.league}`;
       groups.set(key, [...(groups.get(key) ?? []), m]);
     }
-    const excluded = this.excluded();
-    return [...groups].map(([league, items]) => ({
-      league,
-      items,
-      checkedCount: items.filter(m => !excluded.has(m.id)).length,
-    }));
+    return [...groups].map(([league, items]) => ({ league, items }));
   });
 
   protected readonly isLive = isLive;
-
-  protected isChecked(m: MatchSummary): boolean {
-    return !this.excluded().has(m.id);
-  }
-
-  protected emitToggle(items: MatchSummary[], checked: boolean) {
-    this.toggle.emit({ ids: items.map(m => m.id), checked });
-  }
 
   protected minute(m: MatchSummary): string {
     return minuteLabel(m, this.fetchedAt(), this.now());

@@ -47,46 +47,32 @@
           [value]="query()"
           (input)="query.set($any($event.target).value)"
         />
-        <select
-          class="league-filter"
-          [value]="league()"
-          (change)="league.set($any($event.target).value)"
-          aria-label="Lig / turnuva filtresi"
-          [disabled]="leagueOptions().length === 0"
-        >
-          <option value="">{{ allLeaguesLabel() }}</option>
-          @for (opt of leagueOptions(); track opt[0]) {
-            <option [value]="opt[0]" [selected]="opt[0] === league()">{{ opt[0] }} ({{ opt[1] }})</option>
-          }
-        </select>
-        @if (!isGuest() && filtered().length > 0 && !matchesState().loading && !matchesState().error) {
-          <div class="selection-bar">
-            <label>
-              <input
-                type="checkbox"
-                class="match-check"
-                [checked]="checkedCount() === filtered().length"
-                [indeterminate]="checkedCount() > 0 && checkedCount() < filtered().length"
-                (change)="toggleAll($any($event.target).checked)"
-              />
-              Tümü ({{ checkedCount() }}/{{ filtered().length }})
-            </label>
-            <label>
-              <input
-                type="checkbox"
-                class="match-check"
-                [checked]="onlyChecked()"
-                (change)="onlyChecked.set($any($event.target).checked)"
-              />
-              Yalnızca seçilenleri göster
-            </label>
-          </div>
+        @if (isGuest()) {
+          <!-- Misafir: mevcut tek seçimli liste korunur (Süper Lig varsayılan). -->
+          <select
+            class="league-filter"
+            [value]="leagues()[0] ?? ''"
+            (change)="onGuestLeague($any($event.target).value)"
+            aria-label="Lig / turnuva filtresi"
+            [disabled]="leagueOptions().length === 0"
+          >
+            <option value="">Tüm ligler ({{ searched().length }})</option>
+            @for (opt of leagueOptions(); track opt[0]) {
+              <option [value]="opt[0]" [selected]="opt[0] === leagues()[0]">{{ opt[0] }} ({{ opt[1] }})</option>
+            }
+          </select>
+        } @else {
+          <app-league-filter
+            [options]="leagueOptions()"
+            [selected]="leagues()"
+            [total]="searched().length"
+            [selectedCount]="filtered().length"
+            (selectAll)="leagues.set([])"
+            (toggle)="toggleLeague($event)"
+          />
         }
         <app-match-list
-          [matches]="visible()"
-          [selectable]="!isGuest()"
-          [excluded]="excluded()"
-          (toggle)="toggleMatches($event.ids, $event.checked)"
+          [matches]="filtered()"
           [loading]="matchesState().loading"
           [error]="matchesState().error"
           [selectedId]="selectedId()"

@@ -5,6 +5,7 @@ import { isLive } from './core/match-status';
 import { MatchList } from './components/match-list';
 import { ForecastPanel } from './components/forecast-panel';
 import { AuthPanel } from './components/auth-panel';
+import { LeagueFilter } from './components/league-filter';
 
 // Canlı maç varken listenin arka planda yenilenme aralığı. API kotasını korumak için
 // kısa tutulmadı; aradaki dakikalar minuteLabel içinde yerelde ilerletilir.
@@ -35,7 +36,7 @@ interface CacheState { clearing: boolean; message?: string; error?: boolean }
 
 @Component({
   selector: 'app-root',
-  imports: [MatchList, ForecastPanel, AuthPanel],
+  imports: [MatchList, ForecastPanel, AuthPanel, LeagueFilter],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
@@ -45,7 +46,8 @@ export class App {
 
   protected readonly date = signal(toIsoDate(new Date()));
   protected readonly query = signal('');
-  protected readonly league = signal('');
+  // Seçili lig anahtarları ("Ülke / Lig"); boş dizi = "Tümü", yani lig filtresi yok.
+  protected readonly leagues = signal<string[]>([]);
   protected readonly matches = signal<MatchSummary[]>([]);
   protected readonly fetchedAt = signal(Date.now());
   protected readonly now = signal(Date.now());
@@ -56,10 +58,6 @@ export class App {
   protected readonly forecastState = signal<LoadState>({ loading: false });
   protected readonly cacheState = signal<CacheState>({ clearing: false });
   protected readonly me = signal<MeResponse | null>(null);
-  // Seçim kutucukları: işareti kaldırılan maçların id'leri tutulur; böylece varsayılan "tümü seçili" olur ve
-  // canlı yenilemeyle gelen yeni maçlar da otomatik seçili gelir. onlyChecked=true ise işaretsiz maçlar gizlenir.
-  protected readonly excluded = signal<ReadonlySet<number>>(new Set());
-  protected readonly onlyChecked = signal(false);
 
   // Misafir: yalnızca bugünün Süper Lig maçları, tarih seçimi ve cache temizleme yok (API de aynı kuralları uygular).
   protected readonly isGuest = computed(() => this.me()?.roles.includes('Guest') ?? false);
@@ -74,38 +72,17 @@ export class App {
   });
 
   // Lig seçenekleri: aramaya uyan maçlardan, maç sayısıyla birlikte, alfabetik.
-  // Seçili lig aramada hiç maç içermese de listede (0) olarak kalır; yoksa seçim kutusu boş görünürdü.
+  // Seçili ligler aramada hiç maç içermese de listede (0) olarak kalır; yoksa seçim görünmez olurdu.
   protected readonly leagueOptions = computed(() => {
     const counts = new Map<string, number>();
     for (const m of this.searched()) counts.set(leagueKey(m), (counts.get(leagueKey(m)) ?? 0) + 1);
-    const league = this.league();
-    if (league && !counts.has(league)) counts.set(league, 0);
+    for (const l of this.leagues()) if (!counts.has(l)) counts.set(l, 0);
     return [...counts].sort(([a], [b]) => a.localeCompare(b, 'tr'));
   });
 
   protected readonly filtered = computed(() => {
-    const league = this.league();
-    return league ? this.searched().filter(m => leagueKey(m) === league) : this.searched();
-  });
-
-  // Misafirde kutucuk yok; seçim filtresi de uygulanmaz.
-  protected readonly visible = computed(() => {
-    const excluded = this.excluded();
-    return !this.isGuest() && this.onlyChecked() ? this.filtered().filter(m => !excluded.has(m.id)) : this.filtered();
-  });
-
-  // Lig filtresinin ilk seçeneği: aramaya uyan maçlardan işareti kaldırılan varsa "Seçili Ligler (seçili maç sayısı)".
-  protected readonly allLeaguesLabel = computed(() => {
-    const excluded = this.excluded();
-    const total = this.searched().length;
-    const checked = this.searched().filter(m => !excluded.has(m.id)).length;
-    return !this.isGuest() && checked < total ? `Seçili Ligler (${checked})` : `Tüm ligler (${total})`;
-  });
-
-  // "Tümü" kutusu arama + lig filtresine uyan maçlar üzerinde çalışır (gizlenmiş işaretsizler dahil).
-  protected readonly checkedCount = computed(() => {
-    const excluded = this.excluded();
-    return this.filtered().filter(m => !excluded.has(m.id)).length;
+    const leagues = this.leagues();
+    return leagues.length > 0 ? this.searched().filter(m => leagues.includes(leagueKey(m))) : this.searched();
   });
 
   protected readonly selected = computed(() => this.matches().find(m => m.id === this.selectedId()) ?? null);
@@ -129,7 +106,7 @@ export class App {
     effect(() => {
       if (this.isGuest()) {
         this.date.set(toIsoDate(new Date()));
-        this.league.set(GUEST_LEAGUE);
+        this.leagues.set([GUEST_LEAGUE]);
       }
     });
 
@@ -139,9 +116,7 @@ export class App {
       const date = this.date();
       let cancelled = false;
       // Misafirde Süper Lig varsayılan; untracked: rol bilgisi gelince liste yeniden yüklenmesin.
-      this.league.set(untracked(this.isGuest) ? GUEST_LEAGUE : '');
-      this.excluded.set(new Set());
-      this.onlyChecked.set(false);
+      this.leagues.set(untracked(this.isGuest) ? [GUEST_LEAGUE] : []);
       this.loadMatches(date, false, () => cancelled);
       onCleanup(() => { cancelled = true; });
     });
@@ -174,8 +149,6 @@ export class App {
     this.loggedIn.set(false);
     this.me.set(null);
     this.matches.set([]);
-    this.excluded.set(new Set());
-    this.onlyChecked.set(false);
     this.selectedId.set(null);
     this.forecast.set(null);
   }
@@ -205,19 +178,17 @@ export class App {
     if (value) this.date.set(value);
   }
 
-  protected toggleMatches(ids: number[], checked: boolean) {
-    this.excluded.update(prev => {
-      const next = new Set(prev);
-      for (const id of ids) {
-        if (checked) next.delete(id);
-        else next.add(id);
-      }
-      return next;
+  // Bir lig seçilince/kaldırılınca. Hiç lig kalmazsa veya listedeki tüm ligler seçilirse "Tümü"ye dönülür (filtre kalkar).
+  protected toggleLeague(key: string) {
+    this.leagues.update(prev => {
+      const next = prev.includes(key) ? prev.filter(l => l !== key) : [...prev, key];
+      return this.leagueOptions().every(([k]) => next.includes(k)) ? [] : next;
     });
   }
 
-  protected toggleAll(checked: boolean) {
-    this.toggleMatches(this.filtered().map(m => m.id), checked);
+  // Misafirin tek seçimli listesi
+  protected onGuestLeague(value: string) {
+    this.leagues.set(value ? [value] : []);
   }
 
   protected async analyze(id: number, refresh = false) {

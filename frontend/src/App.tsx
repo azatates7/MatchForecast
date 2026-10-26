@@ -6,6 +6,7 @@ import { isLive } from './components/MatchStatus'
 import MatchList from './components/MatchList'
 import ForecastPanel from './components/ForecastPanel'
 import AuthPanel from './components/Auth-Panel'
+import LeagueFilter from './components/LeagueFilter'
 
 // Canlı maç varken listenin arka planda yenilenme aralığı. API kotasını korumak için
 // kısa tutulmadı; aradaki dakikalar matchStatus.minuteLabel içinde yerelde ilerletilir.
@@ -37,7 +38,8 @@ export default function App() {
 
   const [date, setDate] = useState(() => toIsoDate(new Date()))
   const [query, setQuery] = useState('')
-  const [league, setLeague] = useState('')
+  // Seçili lig anahtarları ("Ülke / Lig"); boş dizi = "Tümü", yani lig filtresi yok.
+  const [leagues, setLeagues] = useState<string[]>([])
   const [matches, setMatches] = useState<MatchSummary[]>([])
   const [fetchedAt, setFetchedAt] = useState(() => Date.now())
   const [now, setNow] = useState(() => Date.now())
@@ -48,10 +50,6 @@ export default function App() {
   const [forecastState, setForecastState] = useState<{ loading: boolean; error?: string }>({ loading: false })
   const [cacheState, setCacheState] = useState<{ clearing: boolean; message?: string; error?: boolean }>({ clearing: false })
   const [me, setMe] = useState<MeResponse | null>(null)
-  // Seçim kutucukları: işareti kaldırılan maçların id'leri tutulur; böylece varsayılan "tümü seçili" olur ve
-  // canlı yenilemeyle gelen yeni maçlar da otomatik seçili gelir. onlyChecked=true ise işaretsiz maçlar gizlenir.
-  const [excluded, setExcluded] = useState<Set<number>>(() => new Set())
-  const [onlyChecked, setOnlyChecked] = useState(false)
 
   // Misafir: yalnızca bugünün Süper Lig maçları, tarih seçimi ve cache temizleme yok (API de aynı kuralları uygular).
   const isGuest = me?.roles.includes('Guest') ?? false
@@ -95,9 +93,7 @@ export default function App() {
   useEffect(() => {
     if (!loggedIn) return
     let cancelled = false
-    setLeague('')
-    setExcluded(new Set())
-    setOnlyChecked(false)
+    setLeagues([])
     loadMatches(false, () => cancelled)
     return () => { cancelled = true }
   }, [loadMatches, loggedIn])
@@ -105,7 +101,7 @@ export default function App() {
   // Misafirde lig filtresi varsayılan olarak Süper Lig gelir. Yukarıdaki sıfırlamadan SONRA tanımlı olmalı:
   // aynı render'da ikisi de çalışırsa (tarih değişimi) son yazılan değer geçerli olur.
   useEffect(() => {
-    if (isGuest) setLeague(GUEST_LEAGUE)
+    if (isGuest) setLeagues([GUEST_LEAGUE])
   }, [isGuest, date])
 
   const hasLive = useMemo(() => matches.some(isLive), [matches])
@@ -127,40 +123,23 @@ export default function App() {
   }, [matches, query])
 
   // Lig seçenekleri: aramaya uyan maçlardan, maç sayısıyla birlikte, alfabetik.
-  // Seçili lig aramada hiç maç içermese de listede (0) olarak kalır; yoksa seçim kutusu boş görünürdü.
+  // Seçili ligler aramada hiç maç içermese de listede (0) olarak kalır; yoksa seçim görünmez olurdu.
   const leagueOptions = useMemo(() => {
     const counts = new Map<string, number>()
     for (const m of searched) counts.set(leagueKey(m), (counts.get(leagueKey(m)) ?? 0) + 1)
-    if (league && !counts.has(league)) counts.set(league, 0)
+    for (const l of leagues) if (!counts.has(l)) counts.set(l, 0)
     return [...counts].sort(([a], [b]) => a.localeCompare(b, 'tr'))
-  }, [searched, league])
+  }, [searched, leagues])
 
   const filtered = useMemo(
-    () => (league ? searched.filter(m => leagueKey(m) === league) : searched),
-    [searched, league])
+    () => (leagues.length > 0 ? searched.filter(m => leagues.includes(leagueKey(m))) : searched),
+    [searched, leagues])
 
-  // Misafirde kutucuk yok; seçim filtresi de uygulanmaz.
-  const visible = useMemo(
-    () => (!isGuest && onlyChecked ? filtered.filter(m => !excluded.has(m.id)) : filtered),
-    [filtered, excluded, onlyChecked, isGuest])
-
-  // Lig filtresinin ilk seçeneği: aramaya uyan maçlardan işareti kaldırılan varsa "Seçili Ligler (seçili maç sayısı)".
-  const checkedInSearch = useMemo(() => searched.filter(m => !excluded.has(m.id)).length, [searched, excluded])
-  const allLeaguesLabel = !isGuest && checkedInSearch < searched.length
-    ? `Seçili Ligler (${checkedInSearch})`
-    : `Tüm ligler (${searched.length})`
-
-  // "Tümü" kutusu arama + lig filtresine uyan maçlar üzerinde çalışır (gizlenmiş işaretsizler dahil).
-  const checkedCount = useMemo(() => filtered.filter(m => !excluded.has(m.id)).length, [filtered, excluded])
-
-  const toggleMatches = (ids: number[], checked: boolean) =>
-    setExcluded(prev => {
-      const next = new Set(prev)
-      for (const id of ids) {
-        if (checked) next.delete(id)
-        else next.add(id)
-      }
-      return next
+  // Bir lig seçilince/kaldırılınca. Hiç lig kalmazsa veya listedeki tüm ligler seçilirse "Tümü"ye dönülür (filtre kalkar).
+  const toggleLeague = (key: string) =>
+    setLeagues(prev => {
+      const next = prev.includes(key) ? prev.filter(l => l !== key) : [...prev, key]
+      return leagueOptions.every(([k]) => next.includes(k)) ? [] : next
     })
 
   // Hızlı art arda tıklamalarda eski cevabın yenisini ezmemesi için
@@ -207,8 +186,6 @@ export default function App() {
     setLoggedIn(false)
     setMe(null)
     setMatches([])
-    setExcluded(new Set())
-    setOnlyChecked(false)
     setSelectedId(null)
     setForecast(null)
   }
@@ -263,46 +240,32 @@ export default function App() {
             value={query}
             onChange={e => setQuery(e.target.value)}
           />
-          <select
-            className="league-filter"
-            value={league}
-            onChange={e => setLeague(e.target.value)}
-            aria-label="Lig / turnuva filtresi"
-            disabled={leagueOptions.length === 0}
-          >
-            <option value="">{allLeaguesLabel}</option>
-            {leagueOptions.map(([key, count]) => (
-              <option key={key} value={key}>{key} ({count})</option>
-            ))}
-          </select>
-          {!isGuest && filtered.length > 0 && !matchesState.loading && !matchesState.error && (
-            <div className="selection-bar">
-              <label>
-                <input
-                  type="checkbox"
-                  className="match-check"
-                  checked={checkedCount === filtered.length}
-                  ref={el => { if (el) el.indeterminate = checkedCount > 0 && checkedCount < filtered.length }}
-                  onChange={e => toggleMatches(filtered.map(m => m.id), e.target.checked)}
-                />
-                Tümü ({checkedCount}/{filtered.length})
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  className="match-check"
-                  checked={onlyChecked}
-                  onChange={e => setOnlyChecked(e.target.checked)}
-                />
-                Yalnızca seçilenleri göster
-              </label>
-            </div>
+          {isGuest ? (
+            // Misafir: mevcut tek seçimli liste korunur (Süper Lig varsayılan).
+            <select
+              className="league-filter"
+              value={leagues[0] ?? ''}
+              onChange={e => setLeagues(e.target.value ? [e.target.value] : [])}
+              aria-label="Lig / turnuva filtresi"
+              disabled={leagueOptions.length === 0}
+            >
+              <option value="">Tüm ligler ({searched.length})</option>
+              {leagueOptions.map(([key, count]) => (
+                <option key={key} value={key}>{key} ({count})</option>
+              ))}
+            </select>
+          ) : (
+            <LeagueFilter
+              options={leagueOptions}
+              selected={leagues}
+              total={searched.length}
+              selectedCount={filtered.length}
+              onSelectAll={() => setLeagues([])}
+              onToggle={toggleLeague}
+            />
           )}
           <MatchList
-            matches={visible}
-            selectable={!isGuest}
-            excluded={excluded}
-            onToggle={toggleMatches}
+            matches={filtered}
             loading={matchesState.loading}
             error={matchesState.error}
             selectedId={selectedId}

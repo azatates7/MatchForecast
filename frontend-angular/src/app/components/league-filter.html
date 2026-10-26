@@ -1,0 +1,32 @@
+<div class="league-multi">
+  <button
+    type="button"
+    class="league-filter league-multi-toggle"
+    (click)="open.set(!open())"
+    aria-haspopup="true"
+    [attr.aria-expanded]="open()"
+    aria-label="Lig / turnuva filtresi"
+    [disabled]="options().length === 0"
+  >
+    <span>{{ selected().length === 0 ? 'Tüm ligler (' + total() + ')' : 'Seçili Ligler (' + selectedCount() + ')' }}</span>
+    <svg class="league-multi-chevron" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+      <path fill="currentColor" d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z" />
+    </svg>
+  </button>
+  @if (open() && options().length > 0) {
+    <div class="league-multi-panel" role="group" aria-label="Ligler">
+      <label class="league-multi-option league-multi-all">
+        <input type="checkbox" [checked]="selected().length === 0" (change)="selectAll.emit()" />
+        <span class="league-multi-name">Tümü</span>
+        <span class="league-multi-count">{{ total() }}</span>
+      </label>
+      @for (opt of options(); track opt[0]) {
+        <label class="league-multi-option">
+          <input type="checkbox" [checked]="isSelected(opt[0])" (change)="toggle.emit(opt[0])" />
+          <span class="league-multi-name">{{ opt[0] }}</span>
+          <span class="league-multi-count">{{ opt[1] }}</span>
+        </label>
+      }
+    </div>
+  }
+</div>
