@@ -58,7 +58,12 @@ internal static class TestAuth
                 if (string.IsNullOrWhiteSpace(o.Ollama.BaseUrl))
                     o.Ollama.BaseUrl = "http://localhost:11434/";
             });
-            services.PostConfigure<ForecastOptions>(o => o.PredictionCount = 5);
+            services.PostConfigure<ForecastOptions>(o =>
+            {
+                o.PredictionCount = 5;
+                // Girişte arka plan ısıtması mock'lardaki AI çağrı sayılarını bozmasın; ForecastPrewarmTests ayrıca test eder.
+                o.PrewarmOnLogin = false;
+            });
 
             // Testler gerçek e-posta göndermez ve Google'a gitmez.
             services.AddSingleton<IEmailSender, FakeEmailSender>();

@@ -5,6 +5,7 @@ using System.Net;
 using System.Text.RegularExpressions;
 using MatchForecast.Api.Options;
 using MatchForecast.Api.Services.Email;
+using MatchForecast.Api.Services.Forecast;
 using MatchForecast.Data.Configuration;
 using MatchForecast.Data.Entity;
 using MatchForecast.Data.Seed;
@@ -31,6 +32,7 @@ public sealed partial class AuthService(
     IOptions<JwtOptions> options,
     IOptions<AuthOptions> authOptions,
     IEmailSender emailSender,
+    ForecastPrewarmQueue prewarm,
     ILogger<AuthService> logger)
 {
     public const string GoogleProvider = "Google";
@@ -304,6 +306,9 @@ public sealed partial class AuthService(
 
         // Kullanıcı güncellemesi (LastLoginAt), eski token'ın iptali ve yeni token tek SaveChanges'ta (tek transaction).
         await db.SaveChangesAsync(ct);
+
+        // Giriş, kayıt, Google, misafir ve refresh buradan geçer: günün Süper Lig tahminleri arka planda ısıtılır (beklenmez).
+        prewarm.Request();
 
         return new TokenResponse(access.Token, "Bearer", access.ExpiresAt, rawRefreshToken, new DateTimeOffset(refresh.ExpiresAt));
     }

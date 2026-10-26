@@ -245,6 +245,10 @@ try
         .ValidateOnStart();
     builder.Services.AddScoped<ForecastService>();
 
+    // Girişte günün Süper Lig tahminlerini arka planda önceden üretir (Forecast:PrewarmOnLogin).
+    builder.Services.AddSingleton<ForecastPrewarmQueue>();
+    builder.Services.AddHostedService<ForecastPrewarmWorker>();
+
     /*
      * Rate limiting (ASP.NET Core'un yerleşik middleware'i, ek paket gerekmez). Policy'ler endpoint'lere
      * [EnableRateLimiting] ile bağlanır; attribute'u olmayan endpoint'ler etkilenmez. Ayrıntılar RateLimitOptions'ta.

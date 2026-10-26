@@ -24,6 +24,13 @@ public sealed class ForecastService(
     IOptions<ForecastOptions> forecastOptions,
     ILogger<ForecastService> logger)
 {
+    /*
+     * Aynı maç için eşzamanlı cache miss'lerde AI bir kez çağrılsın (ör. ön ısıtma çalışırken kullanıcı aynı maça tıklarsa).
+     * Sabit sayıda kilit (maç id'sine göre) kullanılır, maç başına nesne birikmez. Tek instance içinde geçerlidir.
+     */
+    private static readonly SemaphoreSlim[] FixtureLocks =
+        Enumerable.Range(0, 64).Select(_ => new SemaphoreSlim(1, 1)).ToArray();
+
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -62,6 +69,28 @@ public sealed class ForecastService(
                 return cached;
         }
 
+        var gate = FixtureLocks[(fixtureId & int.MaxValue) % FixtureLocks.Length];
+        await gate.WaitAsync(ct);
+        try
+        {
+            // Kilit beklenirken başka bir istek (ör. ön ısıtma) aynı tahmini üretip cache'e yazmış olabilir.
+            if (!refresh)
+            {
+                var cached = await cache.GetAsync<ForecastResult>(key);
+                if (cached is not null)
+                    return cached;
+            }
+
+            return await GenerateAsync(fixtureId, key, ct);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private async Task<ForecastResult> GenerateAsync(int fixtureId, string key, CancellationToken ct)
+    {
         var match = await odds.GetMatchAsync(fixtureId, ct);
         if (match is null)
         {

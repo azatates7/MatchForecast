@@ -22,4 +22,7 @@ public sealed class ForecastOptions
     public double MaxCorners { get; set; } = 20;
     public double MaxYellowCards { get; set; } = 10;
     public double MaxRedCards { get; set; } = 1.5;
+
+    // Girişte günün Süper Lig tahminlerini arka planda önceden üret (ForecastPrewarmWorker). false = kapalı.
+    public bool PrewarmOnLogin { get; set; } = true;
 }

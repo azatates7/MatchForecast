@@ -16,6 +16,9 @@ public interface IRedisCacheService
 
     Task<bool> ExistsAsync(string key);
 
+    // Anahtar yoksa oluşturur ve true döner (SET NX + süre); varsa veya Redis'e ulaşılamazsa false. Basit dağıtık kilit için.
+    Task<bool> TryLockAsync(string key, TimeSpan ttl);
+
     // Uygulamanın önekiyle (Redis:InstanceName) başlayan tüm key'leri siler, silinen key sayısını döner.
     Task<long> ClearAsync();
 }
@@ -71,6 +74,19 @@ public sealed class RedisCacheService(
         catch (Exception ex) when (IsCacheFailure(ex))
         {
             logger.LogWarning(ex, "Redis exists check failed for key {Key}.", key);
+            return false;
+        }
+    }
+
+    public async Task<bool> TryLockAsync(string key, TimeSpan ttl)
+    {
+        try
+        {
+            return await Database.StringSetAsync(Prefixed(key), "1", new Expiration(ttl), When.NotExists);
+        }
+        catch (Exception ex) when (IsCacheFailure(ex))
+        {
+            logger.LogWarning(ex, "Redis lock failed for key {Key}.", key);
             return false;
         }
     }

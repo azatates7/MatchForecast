@@ -70,7 +70,13 @@ list are computed in code. Users sign in (username/password or Google) before th
 - **Fail-open:** `AbortOnConnectFail=false` + `BacklogPolicy.FailFast`; read/write errors count as cache misses, so the API
   keeps answering from the source when Redis is down.
 - Cached keys: `fixtures:{date}` (1 min if a match is live, otherwise `OddsProvider:CacheMinutes`), `fixture:{id}`,
-  `forecast:v2:{id}` (`Ai:CacheMinutes`).
+  `forecast:v2:{id}` (`Ai:CacheMinutes`), lock `prewarm:superlig:{date}` (10 min, `TryLockAsync` = `SET NX`).
+- **Forecast prewarm:** every token issue in `AuthService` (login, register, Google, guest, refresh) calls
+  `ForecastPrewarmQueue.Request()` (capacity-1 channel, never blocks). `ForecastPrewarmWorker` (hosted service) takes the
+  Redis lock and generates today's Süper Lig forecasts one by one; cached ones are skipped. Off with
+  `Forecast:PrewarmOnLogin=false` (also off in tests via `TestAuth`). If Redis is down the prewarm is skipped.
+- `ForecastService` serializes cache misses per fixture (64 striped `SemaphoreSlim`s, single instance), so a user click
+  during prewarm waits for the same result instead of calling the AI twice.
 - `DELETE /api/cache` clears only this app's keys using `SCAN` (not `KEYS`, no `allowAdmin`); returns 503 if no Redis
   primary is connected. Startup validation prevents an empty `InstanceName` (which would match `*`).
 - Tests use `InMemoryRedisCacheService`; integration tests never resolve `IConnectionMultiplexer`.

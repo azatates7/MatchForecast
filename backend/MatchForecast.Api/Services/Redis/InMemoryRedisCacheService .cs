@@ -25,6 +25,9 @@ public sealed class InMemoryRedisCacheService : IRedisCacheService
 
     public Task<bool> ExistsAsync(string key) => Task.FromResult(_store.ContainsKey(key));
 
+    // TTL uygulanmaz: kilit ancak RemoveAsync / ClearAsync ile kalkar.
+    public Task<bool> TryLockAsync(string key, TimeSpan ttl) => Task.FromResult(_store.TryAdd(key, "\"1\""));
+
     public Task<long> ClearAsync()
     {
         long count = _store.Count;
