@@ -54,13 +54,39 @@
           aria-label="Lig / turnuva filtresi"
           [disabled]="leagueOptions().length === 0"
         >
-          <option value="">Tüm ligler ({{ searched().length }})</option>
+          <option value="">{{ allLeaguesLabel() }}</option>
           @for (opt of leagueOptions(); track opt[0]) {
             <option [value]="opt[0]" [selected]="opt[0] === league()">{{ opt[0] }} ({{ opt[1] }})</option>
           }
         </select>
+        @if (!isGuest() && filtered().length > 0 && !matchesState().loading && !matchesState().error) {
+          <div class="selection-bar">
+            <label>
+              <input
+                type="checkbox"
+                class="match-check"
+                [checked]="checkedCount() === filtered().length"
+                [indeterminate]="checkedCount() > 0 && checkedCount() < filtered().length"
+                (change)="toggleAll($any($event.target).checked)"
+              />
+              Tümü ({{ checkedCount() }}/{{ filtered().length }})
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                class="match-check"
+                [checked]="onlyChecked()"
+                (change)="onlyChecked.set($any($event.target).checked)"
+              />
+              Yalnızca seçilenleri göster
+            </label>
+          </div>
+        }
         <app-match-list
-          [matches]="filtered()"
+          [matches]="visible()"
+          [selectable]="!isGuest()"
+          [excluded]="excluded()"
+          (toggle)="toggleMatches($event.ids, $event.checked)"
           [loading]="matchesState().loading"
           [error]="matchesState().error"
           [selectedId]="selectedId()"

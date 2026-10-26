@@ -28,6 +28,9 @@ const shiftDate = (iso: string, days: number) => {
 
 const leagueKey = (m: MatchSummary) => `${m.country} / ${m.league}`
 
+// Misafirin görebildiği tek lig (backend GuestAccess.Country / League ile aynı); lig filtresinde varsayılan seçili gelir.
+const GUEST_LEAGUE = 'Turkey / Süper Lig'
+
 export default function App() {
   // Kayıtlı refresh token varsa giriş yapılmış sayılır; geçersizse ilk istekte login ekranına dönülür.
   const [loggedIn, setLoggedIn] = useState(hasSession)
@@ -45,6 +48,10 @@ export default function App() {
   const [forecastState, setForecastState] = useState<{ loading: boolean; error?: string }>({ loading: false })
   const [cacheState, setCacheState] = useState<{ clearing: boolean; message?: string; error?: boolean }>({ clearing: false })
   const [me, setMe] = useState<MeResponse | null>(null)
+  // Seçim kutucukları: işareti kaldırılan maçların id'leri tutulur; böylece varsayılan "tümü seçili" olur ve
+  // canlı yenilemeyle gelen yeni maçlar da otomatik seçili gelir. onlyChecked=true ise işaretsiz maçlar gizlenir.
+  const [excluded, setExcluded] = useState<Set<number>>(() => new Set())
+  const [onlyChecked, setOnlyChecked] = useState(false)
 
   // Misafir: yalnızca bugünün Süper Lig maçları, tarih seçimi ve cache temizleme yok (API de aynı kuralları uygular).
   const isGuest = me?.roles.includes('Guest') ?? false
@@ -89,9 +96,17 @@ export default function App() {
     if (!loggedIn) return
     let cancelled = false
     setLeague('')
+    setExcluded(new Set())
+    setOnlyChecked(false)
     loadMatches(false, () => cancelled)
     return () => { cancelled = true }
   }, [loadMatches, loggedIn])
+
+  // Misafirde lig filtresi varsayılan olarak Süper Lig gelir. Yukarıdaki sıfırlamadan SONRA tanımlı olmalı:
+  // aynı render'da ikisi de çalışırsa (tarih değişimi) son yazılan değer geçerli olur.
+  useEffect(() => {
+    if (isGuest) setLeague(GUEST_LEAGUE)
+  }, [isGuest, date])
 
   const hasLive = useMemo(() => matches.some(isLive), [matches])
 
@@ -123,6 +138,30 @@ export default function App() {
   const filtered = useMemo(
     () => (league ? searched.filter(m => leagueKey(m) === league) : searched),
     [searched, league])
+
+  // Misafirde kutucuk yok; seçim filtresi de uygulanmaz.
+  const visible = useMemo(
+    () => (!isGuest && onlyChecked ? filtered.filter(m => !excluded.has(m.id)) : filtered),
+    [filtered, excluded, onlyChecked, isGuest])
+
+  // Lig filtresinin ilk seçeneği: aramaya uyan maçlardan işareti kaldırılan varsa "Seçili Ligler (seçili maç sayısı)".
+  const checkedInSearch = useMemo(() => searched.filter(m => !excluded.has(m.id)).length, [searched, excluded])
+  const allLeaguesLabel = !isGuest && checkedInSearch < searched.length
+    ? `Seçili Ligler (${checkedInSearch})`
+    : `Tüm ligler (${searched.length})`
+
+  // "Tümü" kutusu arama + lig filtresine uyan maçlar üzerinde çalışır (gizlenmiş işaretsizler dahil).
+  const checkedCount = useMemo(() => filtered.filter(m => !excluded.has(m.id)).length, [filtered, excluded])
+
+  const toggleMatches = (ids: number[], checked: boolean) =>
+    setExcluded(prev => {
+      const next = new Set(prev)
+      for (const id of ids) {
+        if (checked) next.delete(id)
+        else next.add(id)
+      }
+      return next
+    })
 
   // Hızlı art arda tıklamalarda eski cevabın yenisini ezmemesi için
   const requestSeq = useRef(0)
@@ -168,6 +207,8 @@ export default function App() {
     setLoggedIn(false)
     setMe(null)
     setMatches([])
+    setExcluded(new Set())
+    setOnlyChecked(false)
     setSelectedId(null)
     setForecast(null)
   }
@@ -229,13 +270,39 @@ export default function App() {
             aria-label="Lig / turnuva filtresi"
             disabled={leagueOptions.length === 0}
           >
-            <option value="">Tüm ligler ({searched.length})</option>
+            <option value="">{allLeaguesLabel}</option>
             {leagueOptions.map(([key, count]) => (
               <option key={key} value={key}>{key} ({count})</option>
             ))}
           </select>
+          {!isGuest && filtered.length > 0 && !matchesState.loading && !matchesState.error && (
+            <div className="selection-bar">
+              <label>
+                <input
+                  type="checkbox"
+                  className="match-check"
+                  checked={checkedCount === filtered.length}
+                  ref={el => { if (el) el.indeterminate = checkedCount > 0 && checkedCount < filtered.length }}
+                  onChange={e => toggleMatches(filtered.map(m => m.id), e.target.checked)}
+                />
+                Tümü ({checkedCount}/{filtered.length})
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  className="match-check"
+                  checked={onlyChecked}
+                  onChange={e => setOnlyChecked(e.target.checked)}
+                />
+                Yalnızca seçilenleri göster
+              </label>
+            </div>
+          )}
           <MatchList
-            matches={filtered}
+            matches={visible}
+            selectable={!isGuest}
+            excluded={excluded}
+            onToggle={toggleMatches}
             loading={matchesState.loading}
             error={matchesState.error}
             selectedId={selectedId}

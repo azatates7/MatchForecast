@@ -251,6 +251,45 @@ button, input { font: inherit; color: inherit; }
   font: inherit;
 }
 
+/* Maç seçim kutucukları (misafirde çizilmez) */
+.selection-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin: -0.25rem 0 1rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.selection-bar label,
+.league-name-check label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  cursor: pointer;
+}
+
+.match-check {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--pitch);
+  cursor: pointer;
+}
+
+.match-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.match-row .match { flex: 1; min-width: 0; }
+
+.match-row.is-unchecked .match { opacity: 0.5; }
+
 /* Canlı maç dakikası */
 .match-live {
   display: inline-flex;

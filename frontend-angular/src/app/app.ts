@@ -1,4 +1,4 @@
-import { Component, computed, effect, signal } from '@angular/core';
+import { Component, computed, effect, signal, untracked } from '@angular/core';
 import { clearCache, getForecast, getMatches, getMe, hasSession, logout, onSessionExpired } from './core/api';
 import type { ForecastResult, MatchSummary, MeResponse } from './core/types';
 import { isLive } from './core/match-status';
@@ -27,6 +27,9 @@ const shiftDate = (iso: string, days: number) => {
 
 const leagueKey = (m: MatchSummary) => `${m.country} / ${m.league}`;
 
+// Misafirin görebildiği tek lig (backend GuestAccess.Country / League ile aynı); lig filtresinde varsayılan seçili gelir.
+const GUEST_LEAGUE = 'Turkey / Süper Lig';
+
 interface LoadState { loading: boolean; error?: string }
 interface CacheState { clearing: boolean; message?: string; error?: boolean }
 
@@ -53,6 +56,10 @@ export class App {
   protected readonly forecastState = signal<LoadState>({ loading: false });
   protected readonly cacheState = signal<CacheState>({ clearing: false });
   protected readonly me = signal<MeResponse | null>(null);
+  // Seçim kutucukları: işareti kaldırılan maçların id'leri tutulur; böylece varsayılan "tümü seçili" olur ve
+  // canlı yenilemeyle gelen yeni maçlar da otomatik seçili gelir. onlyChecked=true ise işaretsiz maçlar gizlenir.
+  protected readonly excluded = signal<ReadonlySet<number>>(new Set());
+  protected readonly onlyChecked = signal(false);
 
   // Misafir: yalnızca bugünün Süper Lig maçları, tarih seçimi ve cache temizleme yok (API de aynı kuralları uygular).
   protected readonly isGuest = computed(() => this.me()?.roles.includes('Guest') ?? false);
@@ -81,6 +88,26 @@ export class App {
     return league ? this.searched().filter(m => leagueKey(m) === league) : this.searched();
   });
 
+  // Misafirde kutucuk yok; seçim filtresi de uygulanmaz.
+  protected readonly visible = computed(() => {
+    const excluded = this.excluded();
+    return !this.isGuest() && this.onlyChecked() ? this.filtered().filter(m => !excluded.has(m.id)) : this.filtered();
+  });
+
+  // Lig filtresinin ilk seçeneği: aramaya uyan maçlardan işareti kaldırılan varsa "Seçili Ligler (seçili maç sayısı)".
+  protected readonly allLeaguesLabel = computed(() => {
+    const excluded = this.excluded();
+    const total = this.searched().length;
+    const checked = this.searched().filter(m => !excluded.has(m.id)).length;
+    return !this.isGuest() && checked < total ? `Seçili Ligler (${checked})` : `Tüm ligler (${total})`;
+  });
+
+  // "Tümü" kutusu arama + lig filtresine uyan maçlar üzerinde çalışır (gizlenmiş işaretsizler dahil).
+  protected readonly checkedCount = computed(() => {
+    const excluded = this.excluded();
+    return this.filtered().filter(m => !excluded.has(m.id)).length;
+  });
+
   protected readonly selected = computed(() => this.matches().find(m => m.id === this.selectedId()) ?? null);
 
   // Hızlı art arda tıklamalarda eski cevabın yenisini ezmemesi için
@@ -100,7 +127,10 @@ export class App {
 
     // Misafir her zaman bugünü görür (önceki oturumda başka bir tarih seçilmiş olabilir)
     effect(() => {
-      if (this.isGuest()) this.date.set(toIsoDate(new Date()));
+      if (this.isGuest()) {
+        this.date.set(toIsoDate(new Date()));
+        this.league.set(GUEST_LEAGUE);
+      }
     });
 
     // Tarih değişince (veya giriş yapılınca) listeyi yükle ve lig filtresini sıfırla (yeni tarihte o lig olmayabilir)
@@ -108,7 +138,10 @@ export class App {
       if (!this.loggedIn()) return;
       const date = this.date();
       let cancelled = false;
-      this.league.set('');
+      // Misafirde Süper Lig varsayılan; untracked: rol bilgisi gelince liste yeniden yüklenmesin.
+      this.league.set(untracked(this.isGuest) ? GUEST_LEAGUE : '');
+      this.excluded.set(new Set());
+      this.onlyChecked.set(false);
       this.loadMatches(date, false, () => cancelled);
       onCleanup(() => { cancelled = true; });
     });
@@ -141,6 +174,8 @@ export class App {
     this.loggedIn.set(false);
     this.me.set(null);
     this.matches.set([]);
+    this.excluded.set(new Set());
+    this.onlyChecked.set(false);
     this.selectedId.set(null);
     this.forecast.set(null);
   }
@@ -168,6 +203,21 @@ export class App {
 
   protected onDateInput(value: string) {
     if (value) this.date.set(value);
+  }
+
+  protected toggleMatches(ids: number[], checked: boolean) {
+    this.excluded.update(prev => {
+      const next = new Set(prev);
+      for (const id of ids) {
+        if (checked) next.delete(id);
+        else next.add(id);
+      }
+      return next;
+    });
+  }
+
+  protected toggleAll(checked: boolean) {
+    this.toggleMatches(this.filtered().map(m => m.id), checked);
   }
 
   protected async analyze(id: number, refresh = false) {

@@ -8,10 +8,34 @@
   <div class="match-groups">
     @for (g of groups(); track g.league) {
       <div class="league">
-        <h2 class="league-name">{{ g.league }}</h2>
+        @if (selectable()) {
+          <h2 class="league-name league-name-check">
+            <label>
+              <input
+                type="checkbox"
+                class="match-check"
+                [checked]="g.checkedCount === g.items.length"
+                [indeterminate]="g.checkedCount > 0 && g.checkedCount < g.items.length"
+                (change)="emitToggle(g.items, $any($event.target).checked)"
+              />
+              {{ g.league }}
+            </label>
+          </h2>
+        } @else {
+          <h2 class="league-name">{{ g.league }}</h2>
+        }
         <ul>
           @for (m of g.items; track m.id) {
-            <li>
+            <li [class.match-row]="selectable()" [class.is-unchecked]="selectable() && !isChecked(m)">
+              @if (selectable()) {
+                <input
+                  type="checkbox"
+                  class="match-check"
+                  [checked]="isChecked(m)"
+                  (change)="emitToggle([m], $any($event.target).checked)"
+                  [attr.aria-label]="m.homeTeam + ' - ' + m.awayTeam + ' seç'"
+                />
+              }
               <button
                 type="button"
                 class="match"
