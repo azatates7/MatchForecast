@@ -11,12 +11,15 @@ interface Props {
   canRetry?: boolean
 }
 
-/* 1 / X / 2 olasılıkları tek çubukta; parçalar toplamı 100 olduğu için yan yana dizilir. */
+/*
+ * 1 / X / 2 olasılıkları tek çubukta; parçalar toplamı 100 olduğu için yan yana dizilir.
+ * Dar parçaya yazı sığmadığı için (%12 altı) çubuğun altında üç değeri de gösteren bir satır her zaman bulunur.
+ */
 function ResultBar({ title, home, draw, away }: { title: string; home: number; draw: number; away: number }) {
   const parts = [
-    { key: '1', value: home, className: 'seg-home' },
-    { key: 'X', value: draw, className: 'seg-draw' },
-    { key: '2', value: away, className: 'seg-away' },
+    { key: '1', name: 'Ev', value: home, className: 'seg-home' },
+    { key: 'X', name: 'Beraberlik', value: draw, className: 'seg-draw' },
+    { key: '2', name: 'Deplasman', value: away, className: 'seg-away' },
   ]
   return (
     <div className="result">
@@ -28,6 +31,14 @@ function ResultBar({ title, home, draw, away }: { title: string; home: number; d
           </span>
         ))}
       </div>
+      <p className="result-legend" aria-hidden="true">
+        {parts.map(p => (
+          <span key={p.key} className="legend-item">
+            <i className={`legend-dot ${p.className}`} />
+            {p.name} <strong>%{p.value}</strong>
+          </span>
+        ))}
+      </p>
     </div>
   )
 }

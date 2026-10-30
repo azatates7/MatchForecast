@@ -1,4 +1,4 @@
-import { Component, computed, effect, signal } from '@angular/core';
+import { Component, computed, effect, signal, untracked } from '@angular/core';
 import { clearCache, getForecast, getMatches, getMe, hasSession, logout, onSessionExpired } from './core/api';
 import type { ForecastResult, MatchSummary, MeResponse } from './core/types';
 import { isLive } from './core/match-status';
@@ -120,6 +120,15 @@ export class App {
       this.leagues.set([]);
       this.loadMatches(date, false, () => cancelled);
       onCleanup(() => { cancelled = true; });
+    });
+
+    // Misafirin bugün tek maçı varsa beklemeden o maçın tahmini açılır (listeden seçim gerekmez).
+    // Yalnızca hiç maç seçilmemişken çalışır; arama sonucu tek maça düşünce tetiklenmesin diye tüm liste (matches) kullanılır.
+    effect(() => {
+      const state = this.matchesState();
+      const matches = this.matches();
+      if (!this.isGuest() || state.loading || state.error || this.selectedId() !== null || matches.length !== 1) return;
+      untracked(() => this.analyze(matches[0].id));
     });
 
     // Canlı maç varsa: listeyi periyodik yenile ve dakika etiketini ilerlet

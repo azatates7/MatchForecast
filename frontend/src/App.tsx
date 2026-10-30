@@ -160,6 +160,15 @@ export default function App() {
     }
   }
 
+  // Misafirin bugün tek maçı varsa beklemeden o maçın tahmini açılır (listeden seçim gerekmez).
+  // Yalnızca hiç maç seçilmemişken çalışır; arama sonucu tek maça düşünce tetiklenmesin diye tüm liste (matches) kullanılır.
+  useEffect(() => {
+    if (!isGuest || matchesState.loading || matchesState.error || selectedId !== null || matches.length !== 1) return
+    analyze(matches[0].id)
+    // analyze her render'da yeniden oluşur; bağımlılığa eklenirse etki gereksiz yere tekrar çalışır.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGuest, matchesState, selectedId, matches])
+
   // Cache silindikten sonra maç listesi API'den taze çekilir; ekrandaki tahmin korunur, sonraki analiz AI'dan yeniden üretilir.
   const handleClearCache = async () => {
     setCacheState({ clearing: true })

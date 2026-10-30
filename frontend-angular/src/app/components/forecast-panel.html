@@ -48,6 +48,14 @@
                 </span>
               }
             </div>
+            <p class="result-legend" aria-hidden="true">
+              @for (p of b.parts; track p.key) {
+                <span class="legend-item">
+                  <i class="legend-dot" [class]="p.className"></i>
+                  {{ p.name }} <strong>%{{ p.value }}</strong>
+                </span>
+              }
+            </p>
           </div>
         }
         <p class="btts">Karşılıklı gol: <strong>Var %{{ f.outcomes.bttsYes }}</strong> · Yok %{{ 100 - f.outcomes.bttsYes }}</p>
