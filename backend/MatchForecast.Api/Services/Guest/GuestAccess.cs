@@ -20,15 +20,18 @@ public static class GuestAccess
 
     public static bool IsGuest(ClaimsPrincipal user) => user.IsInRole(RoleNames.Guest);
 
-    public static DateOnly Today => DateOnly.FromDateTime(DateTime.Today);
+    // "Bugün" sunucunun saat diliminden bağımsız olarak İstanbul saatine göre hesaplanır (fikstürler de bu saat diliminde gelir).
+    private static readonly TimeZoneInfo Istanbul = TimeZoneInfo.FindSystemTimeZoneById("Europe/Istanbul");
+
+    public static DateOnly Today => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, Istanbul).DateTime);
 
     public static bool IsAllowed(MatchSummary match) =>
         string.Equals(match.Country, Country, StringComparison.OrdinalIgnoreCase) &&
         string.Equals(match.League, League, StringComparison.OrdinalIgnoreCase);
 
-    // Maç saati API-Football'dan Timezone ayarıyla (Europe/Istanbul) gelir; container da aynı saat diliminde çalışır.
+    // Maçın günü de İstanbul saatine çevrilerek bulunur; Kickoff hangi offset ile gelirse gelsin sonuç aynı olur.
     public static bool IsAllowedToday(MatchSummary match) =>
-        IsAllowed(match) && DateOnly.FromDateTime(match.Kickoff.DateTime) == Today;
+        IsAllowed(match) && DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(match.Kickoff, Istanbul).DateTime) == Today;
 
     public static IReadOnlyList<MatchSummary> Filter(IReadOnlyList<MatchSummary> matches) =>
         matches.Where(IsAllowed).ToList();

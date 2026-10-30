@@ -7,6 +7,8 @@ interface Props {
   loading: boolean
   error?: string
   onRetry: () => void
+  /** false: "Tekrar / Yeniden analiz et" butonları gizlenir (misafir; API refresh'i yalnızca Admin'e uygular) */
+  canRetry?: boolean
 }
 
 /* 1 / X / 2 olasılıkları tek çubukta; parçalar toplamı 100 olduğu için yan yana dizilir. */
@@ -42,7 +44,7 @@ function Outcomes({ o }: { o: OutcomeProbabilities }) {
   )
 }
 
-export default function ForecastPanel({ match, forecast, loading, error, onRetry }: Props) {
+export default function ForecastPanel({ match, forecast, loading, error, onRetry, canRetry = true }: Props) {
   if (!match) {
     return (
       <div className="empty">
@@ -68,7 +70,7 @@ export default function ForecastPanel({ match, forecast, loading, error, onRetry
       {error && (
         <div className="note note-error">
           <p>{error}</p>
-          <button type="button" className="link-btn" onClick={onRetry}>Tekrar analiz et</button>
+          {canRetry && <button type="button" className="link-btn" onClick={onRetry}>Tekrar analiz et</button>}
         </div>
       )}
 
@@ -106,7 +108,7 @@ export default function ForecastPanel({ match, forecast, loading, error, onRetry
 
           <footer className="forecast-foot">
             <span>Değerler yapay zekanın genel bilgisine dayanır; güncel kadro, sakatlık ve hakem bilgisi içermez.</span>
-            <button type="button" className="link-btn" onClick={onRetry}>Yeniden analiz et</button>
+            {canRetry && <button type="button" className="link-btn" onClick={onRetry}>Yeniden analiz et</button>}
           </footer>
           <p className="disclaimer">Tahminler olasılık tahminidir, sonuç garantisi vermez.</p>
         </>

@@ -26,6 +26,7 @@ public sealed class RateLimitOptions
     public int CacheClearWindowMinutes { get; set; } = 60;
 
     // AI tahmini üreten endpoint'ler: kullanıcı başına (token'daki "sub"), sabit pencere. Cache'ten dönen istekler de sayılır.
+    // Misafir (paylaşımlı hesap) istemci IP'si başına sayılır.
     // Kayıt herkese açık olduğu için bir hesabın AI faturasını şişirmesini engeller.
     public int AiPermitLimit { get; set; } = 30;
     public int AiWindowMinutes { get; set; } = 10;

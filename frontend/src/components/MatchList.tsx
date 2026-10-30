@@ -11,15 +11,17 @@ interface Props {
   fetchedAt: number
   /** Ekrandaki saat (ms); App tarafından periyodik güncellenir */
   now: number
+  /** Liste boşken gösterilecek metin (misafir gün/lig seçemediği için ona özel metin verilir) */
+  emptyText?: string
 }
 
 const time = (iso: string) =>
   new Date(iso).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
 
-export default function MatchList({ matches, loading, error, selectedId, onSelect, fetchedAt, now }: Props) {
+export default function MatchList({ matches, loading, error, selectedId, onSelect, fetchedAt, now, emptyText }: Props) {
   if (loading) return <p className="note">Maçlar yükleniyor…</p>
   if (error) return <p className="note note-error">{error}</p>
-  if (matches.length === 0) return <p className="note">Gösterilecek maç yok. Başka bir gün veya lig seçin.</p>
+  if (matches.length === 0) return <p className="note">{emptyText ?? 'Gösterilecek maç yok. Başka bir gün veya lig seçin.'}</p>
 
   // Lig bazında grupla, sıralama API'den gelen başlama saatine göre korunur
   const groups = new Map<string, MatchSummary[]>()

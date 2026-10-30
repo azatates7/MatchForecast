@@ -1,4 +1,4 @@
-import { Component, computed, effect, signal, untracked } from '@angular/core';
+import { Component, computed, effect, signal } from '@angular/core';
 import { clearCache, getForecast, getMatches, getMe, hasSession, logout, onSessionExpired } from './core/api';
 import type { ForecastResult, MatchSummary, MeResponse } from './core/types';
 import { isLive } from './core/match-status';
@@ -20,6 +20,14 @@ const toIsoDate = (d: Date) => {
   return local.toISOString().slice(0, 10);
 };
 
+// "Bugün" tarayıcının saat diliminden bağımsız olarak İstanbul'a göre (API ve fikstürler bu saat diliminde) YYYY-MM-DD
+const todayInIstanbul = () => {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit' })
+    .formatToParts(new Date());
+  const get = (type: string) => parts.find(p => p.type === type)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+};
+
 const shiftDate = (iso: string, days: number) => {
   const d = new Date(`${iso}T12:00:00`);
   d.setDate(d.getDate() + days);
@@ -27,9 +35,6 @@ const shiftDate = (iso: string, days: number) => {
 };
 
 const leagueKey = (m: MatchSummary) => `${m.country} / ${m.league}`;
-
-// Misafirin görebildiği tek lig (backend GuestAccess.Country / League ile aynı); lig filtresinde varsayılan seçili gelir.
-const GUEST_LEAGUE = 'Turkey / Süper Lig';
 
 interface LoadState { loading: boolean; error?: string }
 interface CacheState { clearing: boolean; message?: string; error?: boolean }
@@ -44,7 +49,7 @@ export class App {
   // Kayıtlı refresh token varsa giriş yapılmış sayılır; geçersizse ilk istekte login ekranına dönülür.
   protected readonly loggedIn = signal(hasSession());
 
-  protected readonly date = signal(toIsoDate(new Date()));
+  protected readonly date = signal(todayInIstanbul());
   protected readonly query = signal('');
   // Seçili lig anahtarları ("Ülke / Lig"); boş dizi = "Tümü", yani lig filtresi yok.
   protected readonly leagues = signal<string[]>([]);
@@ -104,10 +109,7 @@ export class App {
 
     // Misafir her zaman bugünü görür (önceki oturumda başka bir tarih seçilmiş olabilir)
     effect(() => {
-      if (this.isGuest()) {
-        this.date.set(toIsoDate(new Date()));
-        this.leagues.set([GUEST_LEAGUE]);
-      }
+      if (this.isGuest()) this.date.set(todayInIstanbul());
     });
 
     // Tarih değişince (veya giriş yapılınca) listeyi yükle ve lig filtresini sıfırla (yeni tarihte o lig olmayabilir)
@@ -115,8 +117,7 @@ export class App {
       if (!this.loggedIn()) return;
       const date = this.date();
       let cancelled = false;
-      // Misafirde Süper Lig varsayılan; untracked: rol bilgisi gelince liste yeniden yüklenmesin.
-      this.leagues.set(untracked(this.isGuest) ? [GUEST_LEAGUE] : []);
+      this.leagues.set([]);
       this.loadMatches(date, false, () => cancelled);
       onCleanup(() => { cancelled = true; });
     });
@@ -184,11 +185,6 @@ export class App {
       const next = prev.includes(key) ? prev.filter(l => l !== key) : [...prev, key];
       return this.leagueOptions().every(([k]) => next.includes(k)) ? [] : next;
     });
-  }
-
-  // Misafirin tek seçimli listesi
-  protected onGuestLeague(value: string) {
-    this.leagues.set(value ? [value] : []);
   }
 
   protected async analyze(id: number, refresh = false) {

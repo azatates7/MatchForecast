@@ -16,6 +16,8 @@ export class MatchList {
   /** Ekrandaki saat (ms); App tarafından periyodik güncellenir */
   readonly now = input.required<number>();
 
+  /** Liste boşken gösterilecek metin (misafir gün/lig seçemediği için ona özel metin verilir) */
+  readonly emptyText = input<string>();
   readonly select = output<number>();
 
   // Lig bazında grupla, sıralama API'den gelen başlama saatine göre korunur

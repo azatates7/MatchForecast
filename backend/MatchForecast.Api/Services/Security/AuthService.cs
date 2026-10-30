@@ -92,6 +92,14 @@ public sealed partial class AuthService(
 
         if (stored.RevokedAt is not null)
         {
+            // Misafir hesabı herkesin paylaştığı tek hesap: toplu iptal o an girişli tüm misafirleri düşürürdü.
+            // Bu yüzden misafirde yalnızca gelen token reddedilir (zaten iptal edilmiş), diğer oturumlara dokunulmaz.
+            if (await db.UserRoles.AnyAsync(x => x.UserId == stored.UserId && x.Role.Name == RoleNames.Guest, ct))
+            {
+                logger.LogInformation("Misafir hesabında iptal edilmiş refresh token tekrar kullanıldı; yalnızca bu istek reddedildi.");
+                return null;
+            }
+
             logger.LogWarning("İptal edilmiş refresh token tekrar kullanıldı; kullanıcının tüm oturumları kapatılıyor. UserId: {UserId}", stored.UserId);
             await RevokeAllAsync(stored.UserId, ct);
             return null;

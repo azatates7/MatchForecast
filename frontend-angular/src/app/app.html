@@ -47,21 +47,8 @@
           [value]="query()"
           (input)="query.set($any($event.target).value)"
         />
-        @if (isGuest()) {
-          <!-- Misafir: mevcut tek seçimli liste korunur (Süper Lig varsayılan). -->
-          <select
-            class="league-filter"
-            [value]="leagues()[0] ?? ''"
-            (change)="onGuestLeague($any($event.target).value)"
-            aria-label="Lig / turnuva filtresi"
-            [disabled]="leagueOptions().length === 0"
-          >
-            <option value="">Tüm ligler ({{ searched().length }})</option>
-            @for (opt of leagueOptions(); track opt[0]) {
-              <option [value]="opt[0]" [selected]="opt[0] === leagues()[0]">{{ opt[0] }} ({{ opt[1] }})</option>
-            }
-          </select>
-        } @else {
+        <!-- Misafir: API yalnızca Süper Lig döndürdüğü için lig seçimi gösterilmez. -->
+        @if (!isGuest()) {
           <app-league-filter
             [options]="leagueOptions()"
             [selected]="leagues()"
@@ -78,6 +65,7 @@
           [selectedId]="selectedId()"
           [fetchedAt]="fetchedAt()"
           [now]="now()"
+          [emptyText]="isGuest() ? 'Bugün Süper Lig maçı yok.' : undefined"
           (select)="analyze($event)"
         />
       </section>
@@ -88,6 +76,7 @@
           [forecast]="forecast()"
           [loading]="forecastState().loading"
           [error]="forecastState().error"
+          [canRetry]="!isGuest()"
           (retry)="retry()"
         />
       </section>

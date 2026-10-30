@@ -24,7 +24,9 @@
     @if (error()) {
       <div class="note note-error">
         <p>{{ error() }}</p>
-        <button type="button" class="link-btn" (click)="retry.emit()">Tekrar analiz et</button>
+        @if (canRetry()) {
+          <button type="button" class="link-btn" (click)="retry.emit()">Tekrar analiz et</button>
+        }
       </div>
     }
 
@@ -81,7 +83,9 @@
 
       <footer class="forecast-foot">
         <span>Değerler yapay zekanın genel bilgisine dayanır; güncel kadro, sakatlık ve hakem bilgisi içermez.</span>
-        <button type="button" class="link-btn" (click)="retry.emit()">Yeniden analiz et</button>
+        @if (canRetry()) {
+          <button type="button" class="link-btn" (click)="retry.emit()">Yeniden analiz et</button>
+        }
       </footer>
       <p class="disclaimer">Tahminler olasılık tahminidir, sonuç garantisi vermez.</p>
     }

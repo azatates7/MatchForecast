@@ -77,5 +77,5 @@ public sealed class MatchesController(IOddsProvider odds, ForecastService foreca
     private bool CanRefresh(bool? refresh) => refresh == true && User.IsInRole(RoleNames.Admin);
 
     private static DateOnly ParseDate(string? date) =>
-        DateOnly.TryParse(date, out var d) ? d : DateOnly.FromDateTime(DateTime.Today);
+        DateOnly.TryParse(date, out var d) ? d : GuestAccess.Today; // Tarih yoksa İstanbul'a göre bugün.
 }

@@ -282,7 +282,8 @@ try
 
         // Giriş yapmış kullanıcı başına; token'sız istek zaten 401 alır (limiter yetkilendirmeden sonra çalışır).
         o.AddPolicy(RateLimitOptions.AiPolicy, http => RateLimitPartition.GetFixedWindowLimiter(
-            http.User.FindFirst("sub")?.Value is { } userId ? $"user:{userId}" : $"ip:{ClientIp(http)}",
+            // Misafirlerin hepsi aynı hesabı (aynı sub) kullanır; tek sayacı paylaşmasınlar diye misafir IP'ye göre sayılır.
+            http.User.FindFirst("sub")?.Value is { } userId && !GuestAccess.IsGuest(http.User) ? $"user:{userId}" : $"ip:{ClientIp(http)}",
             _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = rateLimit.AiPermitLimit,

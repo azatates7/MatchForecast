@@ -3,7 +3,7 @@
 } @else if (error()) {
   <p class="note note-error">{{ error() }}</p>
 } @else if (matches().length === 0) {
-  <p class="note">Gösterilecek maç yok. Başka bir gün veya lig seçin.</p>
+  <p class="note">{{ emptyText() ?? 'Gösterilecek maç yok. Başka bir gün veya lig seçin.' }}</p>
 } @else {
   <div class="match-groups">
     @for (g of groups(); track g.league) {

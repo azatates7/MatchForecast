@@ -21,6 +21,14 @@ const toIsoDate = (d: Date) => {
   return local.toISOString().slice(0, 10)
 }
 
+// "Bugün" tarayıcının saat diliminden bağımsız olarak İstanbul'a göre (API ve fikstürler bu saat diliminde) YYYY-MM-DD
+const todayInIstanbul = () => {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit' })
+    .formatToParts(new Date())
+  const get = (type: string) => parts.find(p => p.type === type)?.value ?? ''
+  return `${get('year')}-${get('month')}-${get('day')}`
+}
+
 const shiftDate = (iso: string, days: number) => {
   const d = new Date(`${iso}T12:00:00`)
   d.setDate(d.getDate() + days)
@@ -29,14 +37,11 @@ const shiftDate = (iso: string, days: number) => {
 
 const leagueKey = (m: MatchSummary) => `${m.country} / ${m.league}`
 
-// Misafirin görebildiği tek lig (backend GuestAccess.Country / League ile aynı); lig filtresinde varsayılan seçili gelir.
-const GUEST_LEAGUE = 'Turkey / Süper Lig'
-
 export default function App() {
   // Kayıtlı refresh token varsa giriş yapılmış sayılır; geçersizse ilk istekte login ekranına dönülür.
   const [loggedIn, setLoggedIn] = useState(hasSession)
 
-  const [date, setDate] = useState(() => toIsoDate(new Date()))
+  const [date, setDate] = useState(todayInIstanbul)
   const [query, setQuery] = useState('')
   // Seçili lig anahtarları ("Ülke / Lig"); boş dizi = "Tümü", yani lig filtresi yok.
   const [leagues, setLeagues] = useState<string[]>([])
@@ -86,7 +91,7 @@ export default function App() {
 
   // Misafir her zaman bugünü görür (önceki oturumda başka bir tarih seçilmiş olabilir)
   useEffect(() => {
-    if (isGuest) setDate(toIsoDate(new Date()))
+    if (isGuest) setDate(todayInIstanbul())
   }, [isGuest])
 
   // Tarih değişince (veya giriş yapılınca) listeyi yükle ve lig filtresini sıfırla (yeni tarihte o lig olmayabilir)
@@ -97,12 +102,6 @@ export default function App() {
     loadMatches(false, () => cancelled)
     return () => { cancelled = true }
   }, [loadMatches, loggedIn])
-
-  // Misafirde lig filtresi varsayılan olarak Süper Lig gelir. Yukarıdaki sıfırlamadan SONRA tanımlı olmalı:
-  // aynı render'da ikisi de çalışırsa (tarih değişimi) son yazılan değer geçerli olur.
-  useEffect(() => {
-    if (isGuest) setLeagues([GUEST_LEAGUE])
-  }, [isGuest, date])
 
   const hasLive = useMemo(() => matches.some(isLive), [matches])
 
@@ -240,21 +239,8 @@ export default function App() {
             value={query}
             onChange={e => setQuery(e.target.value)}
           />
-          {isGuest ? (
-            // Misafir: mevcut tek seçimli liste korunur (Süper Lig varsayılan).
-            <select
-              className="league-filter"
-              value={leagues[0] ?? ''}
-              onChange={e => setLeagues(e.target.value ? [e.target.value] : [])}
-              aria-label="Lig / turnuva filtresi"
-              disabled={leagueOptions.length === 0}
-            >
-              <option value="">Tüm ligler ({searched.length})</option>
-              {leagueOptions.map(([key, count]) => (
-                <option key={key} value={key}>{key} ({count})</option>
-              ))}
-            </select>
-          ) : (
+          {/* Misafir: API yalnızca Süper Lig döndürdüğü için lig seçimi gösterilmez. */}
+          {!isGuest && (
             <LeagueFilter
               options={leagueOptions}
               selected={leagues}
@@ -272,6 +258,7 @@ export default function App() {
             onSelect={id => analyze(id)}
             fetchedAt={fetchedAt}
             now={now}
+            emptyText={isGuest ? 'Bugün Süper Lig maçı yok.' : undefined}
           />
         </section>
 
@@ -282,6 +269,7 @@ export default function App() {
             loading={forecastState.loading}
             error={forecastState.error}
             onRetry={() => selectedId && analyze(selectedId, true)}
+            canRetry={!isGuest}
           />
         </section>
       </main>

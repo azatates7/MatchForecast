@@ -18,6 +18,8 @@ export class ForecastPanel {
   readonly forecast = input<ForecastResult | null>(null);
   readonly loading = input(false);
   readonly error = input<string>();
+  /** false: "Tekrar / Yeniden analiz et" butonları gizlenir (misafir; API refresh'i yalnızca Admin'e uygular) */
+  readonly canRetry = input(true);
 
   readonly retry = output<void>();
 
