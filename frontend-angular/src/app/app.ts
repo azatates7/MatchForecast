@@ -6,6 +6,7 @@ import { MatchList } from './components/match-list';
 import { ForecastPanel } from './components/forecast-panel';
 import { AuthPanel } from './components/auth-panel';
 import { LeagueFilter } from './components/league-filter';
+import { ThemeToggle } from './components/theme-toggle';
 
 // Canlı maç varken listenin arka planda yenilenme aralığı. API kotasını korumak için
 // kısa tutulmadı; aradaki dakikalar minuteLabel içinde yerelde ilerletilir.
@@ -41,7 +42,7 @@ interface CacheState { clearing: boolean; message?: string; error?: boolean }
 
 @Component({
   selector: 'app-root',
-  imports: [MatchList, ForecastPanel, AuthPanel, LeagueFilter],
+  imports: [MatchList, ForecastPanel, AuthPanel, LeagueFilter, ThemeToggle],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
@@ -63,9 +64,13 @@ export class App {
   protected readonly forecastState = signal<LoadState>({ loading: false });
   protected readonly cacheState = signal<CacheState>({ clearing: false });
   protected readonly me = signal<MeResponse | null>(null);
+  // /api/me başarısız olursa kısıtlı görünümde takılı kalınmasın diye (API kısıtları yine uygular)
+  private readonly meFailed = signal(false);
 
   // Misafir: yalnızca bugünün Süper Lig maçları, tarih seçimi ve cache temizleme yok (API de aynı kuralları uygular).
   protected readonly isGuest = computed(() => this.me()?.roles.includes('Guest') ?? false);
+  // Rol bilgisi gelene kadar misafire kapalı alanlar (tarih okları, cache, lig filtresi) gösterilmez; misafir onları bir an bile görmesin.
+  protected readonly restricted = computed(() => this.isGuest() || (this.me() === null && !this.meFailed()));
 
   protected readonly hasLive = computed(() => this.matches().some(isLive));
 
@@ -103,7 +108,7 @@ export class App {
     effect(onCleanup => {
       if (!this.loggedIn()) return;
       let cancelled = false;
-      getMe().then(data => { if (!cancelled) this.me.set(data); }).catch(() => undefined);
+      getMe().then(data => { if (!cancelled) this.me.set(data); }).catch(() => { if (!cancelled) this.meFailed.set(true); });
       onCleanup(() => { cancelled = true; });
     });
 
@@ -158,6 +163,7 @@ export class App {
     await logout();
     this.loggedIn.set(false);
     this.me.set(null);
+    this.meFailed.set(false);
     this.matches.set([]);
     this.selectedId.set(null);
     this.forecast.set(null);

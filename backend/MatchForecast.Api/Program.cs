@@ -72,6 +72,8 @@ try
     builder.Services.AddOptions<JwtOptions>()
         .Bind(builder.Configuration.GetSection(JwtOptions.Section))
         .Validate(o => Encoding.UTF8.GetByteCount(o.SecretKey) >= 32, "Jwt:SecretKey en az 32 byte olmalı (HS256).")
+        .Validate(o => !JwtOptions.IsLeakedKey(o.SecretKey),
+            "Jwt:SecretKey git geçmişinde açık metin olarak duran eski bir anahtar; yeni bir anahtar üretip app_settings / user-secrets / .env'de değiştirin.")
         .Validate(o => o.ExpiryMinutes > 0 && o.RefreshTokenExpiryDays > 0, "Jwt:ExpiryMinutes ve Jwt:RefreshTokenExpiryDays 0'dan büyük olmalı.")
         .ValidateOnStart();
     builder.Services.AddSingleton<JwtTokenService>();
@@ -248,6 +250,9 @@ try
     // Girişte günün Süper Lig tahminlerini arka planda önceden üretir (Forecast:PrewarmOnLogin).
     builder.Services.AddSingleton<ForecastPrewarmQueue>();
     builder.Services.AddHostedService<ForecastPrewarmWorker>();
+
+    // Süresi dolmuş refresh token'ları ve kullanılmış/süresi dolmuş şifre sıfırlama kayıtlarını günde bir siler.
+    builder.Services.AddHostedService<TokenCleanUpWorker>();
 
     /*
      * Rate limiting (ASP.NET Core'un yerleşik middleware'i, ek paket gerekmez). Policy'ler endpoint'lere

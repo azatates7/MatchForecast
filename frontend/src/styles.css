@@ -15,19 +15,21 @@
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --paper: #0f1a22;
-    --surface: #16242f;
-    --ink: #e6edf2;
-    --muted: #93a4b2;
-    --line: #2a3b48;
-    --pitch: #4fb384;
-    --pitch-soft: #1b3b2e;
-    --card: #f2c23a;
-    --danger: #ff8a80;
-    color-scheme: dark;
-  }
+/*
+ * Karanlık tema <html data-theme="dark"> ile açılır. İlk değeri index.html'deki betik atar (kayıtlı seçim, yoksa sistem
+ * tercihi); üst bardaki tema düğmesi değiştirir ve localStorage'a kaydeder.
+ */
+:root[data-theme="dark"] {
+  --paper: #0f1a22;
+  --surface: #16242f;
+  --ink: #e6edf2;
+  --muted: #93a4b2;
+  --line: #2a3b48;
+  --pitch: #4fb384;
+  --pitch-soft: #1b3b2e;
+  --card: #f2c23a;
+  --danger: #ff8a80;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -93,6 +95,9 @@ button, input { font: inherit; color: inherit; }
 
 .cache-btn:hover:not(:disabled) { border-color: var(--pitch); color: var(--pitch); }
 .cache-btn:disabled { opacity: 0.6; cursor: progress; }
+
+/* Tema düğmesi: yalnızca simge, diğer üst bar düğmeleriyle aynı yükseklikte kare */
+.theme-btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.35rem 0.5rem; line-height: 1; }
 
 .cache-msg { font-size: 0.9rem; color: var(--muted); }
 .cache-msg-error { color: var(--danger); }

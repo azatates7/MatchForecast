@@ -216,14 +216,15 @@ list are computed in code. Users sign in (username/password or Google) before th
 - [ ] docker-compose: `healthcheck` entries using `/healthz` and `/healthz/ready`, Redis volume, `.env.example`,
       optional `web-angular` service (e.g. `profiles: [angular]`, port `8081`).
 - [ ] Optional: distributed (Redis-backed) rate limiting if the API is scaled to multiple instances.
-- [ ] Clean up expired/revoked refresh tokens and used password-reset tokens (rows accumulate).
+- [x] Token cleanup: `TokenCleanupWorker` (hosted service) deletes expired refresh tokens and used/expired
+      password-reset tokens once a day. Revoked-but-unexpired refresh tokens are kept on purpose (reuse detection).
 - [ ] Optional: trigger a settings reload instead of requiring a restart after `PUT /api/app-settings/{id}`.
 
 ### Known issues
-- `backend/MatchForecast.Tests/AuthFlowsIntegrationTests` has **no `.cs` extension**, so it is not compiled and its
-  tests never run. Rename it to `AuthFlowsIntegrationTests.cs`.
 - Real secrets (`Smtp:Password`, `Jwt:SecretKey`) are blank in `appsettings.json` now, but they are still in **git
   history** (earlier commits). Rotate the Gmail App Password and the JWT key if not already done.
+  `JwtOptions.IsLeakedKey` (SHA-256 hashes of the leaked keys) makes startup fail if one of them is still configured
+  (e.g. still in `app_settings`).
 - `appsettings.json` has `Ai:Provider=Ollama` with an empty `Ai:Ollama:BaseUrl`/`Model`; a fresh clone without
   user-secrets/DB settings fails on the first forecast. Set the provider explicitly in user-secrets.
 - `OddsProvider:UseMock` is not read anywhere; `MockOddsProvider` and `PublicOddsProvider` are not registered

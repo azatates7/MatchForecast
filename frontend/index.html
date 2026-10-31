@@ -8,6 +8,17 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet" />
     <title>MatchForecast</title>
+    <script>
+      // Tema ilk boyamadan önce uygulanır (açılışta yanlış tema bir an bile görünmesin): kayıtlı seçim, yoksa sistem tercihi.
+      // Anahtar ThemeToggle.tsx'teki THEME_KEY ile aynı olmalı.
+      (function () {
+        var theme = null;
+        try { theme = localStorage.getItem('matchforecast.theme'); } catch (e) { /* gizli pencere vb. */ }
+        if (theme !== 'light' && theme !== 'dark')
+          theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.dataset.theme = theme;
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

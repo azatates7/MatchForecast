@@ -3,6 +3,17 @@
 <head>
   <meta charset="utf-8">
   <title>MatchForecast</title>
+  <script>
+    // Tema ilk boyamadan önce uygulanır (açılışta yanlış tema bir an bile görünmesin): kayıtlı seçim, yoksa sistem tercihi.
+    // Anahtar components/theme-toggle.ts'teki THEME_KEY ile aynı olmalı.
+    (function () {
+      var theme = null;
+      try { theme = localStorage.getItem('matchforecast.theme'); } catch (e) { /* gizli pencere vb. */ }
+      if (theme !== 'light' && theme !== 'dark')
+        theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      document.documentElement.dataset.theme = theme;
+    })();
+  </script>
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">

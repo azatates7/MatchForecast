@@ -7,6 +7,7 @@ import MatchList from './components/MatchList'
 import ForecastPanel from './components/ForecastPanel'
 import AuthPanel from './components/Auth-Panel'
 import LeagueFilter from './components/LeagueFilter'
+import ThemeToggle from './components/ThemeToggle'
 
 // Canlı maç varken listenin arka planda yenilenme aralığı. API kotasını korumak için
 // kısa tutulmadı; aradaki dakikalar matchStatus.minuteLabel içinde yerelde ilerletilir.
@@ -55,9 +56,13 @@ export default function App() {
   const [forecastState, setForecastState] = useState<{ loading: boolean; error?: string }>({ loading: false })
   const [cacheState, setCacheState] = useState<{ clearing: boolean; message?: string; error?: boolean }>({ clearing: false })
   const [me, setMe] = useState<MeResponse | null>(null)
+  // /api/me başarısız olursa kısıtlı görünümde takılı kalınmasın diye (API kısıtları yine uygular)
+  const [meFailed, setMeFailed] = useState(false)
 
   // Misafir: yalnızca bugünün Süper Lig maçları, tarih seçimi ve cache temizleme yok (API de aynı kuralları uygular).
   const isGuest = me?.roles.includes('Guest') ?? false
+  // Rol bilgisi gelene kadar misafire kapalı alanlar (tarih okları, cache, lig filtresi) gösterilmez; misafir onları bir an bile görmesin.
+  const restricted = isGuest || (me === null && !meFailed)
 
   // silent=true: arka plan yenilemesi; listeyi "yükleniyor" durumuna sokmaz, hata olursa eski listeyi korur.
   const loadMatches = useCallback((silent: boolean, isCancelled: () => boolean = () => false) => {
@@ -85,7 +90,7 @@ export default function App() {
   useEffect(() => {
     if (!loggedIn) return
     let cancelled = false
-    getMe().then(data => { if (!cancelled) setMe(data) }).catch(() => undefined)
+    getMe().then(data => { if (!cancelled) setMe(data) }).catch(() => { if (!cancelled) setMeFailed(true) })
     return () => { cancelled = true }
   }, [loggedIn])
 
@@ -193,6 +198,7 @@ export default function App() {
     await logout()
     setLoggedIn(false)
     setMe(null)
+    setMeFailed(false)
     setMatches([])
     setSelectedId(null)
     setForecast(null)
@@ -207,7 +213,7 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <h1 className="brand">MatchForecast</h1>
-        {isGuest ? (
+        {restricted ? (
           <div className="date-nav">
             <input type="date" value={date} disabled aria-label="Tarih (misafir yalnızca bugünü görür)" />
           </div>
@@ -223,11 +229,12 @@ export default function App() {
             <span className={cacheState.error ? 'cache-msg cache-msg-error' : 'cache-msg'} role="status">{cacheState.message}</span>
           )}
           {me && <span className="user-name">{me.displayName || me.userName}</span>}
-          {!isGuest && (
+          {!restricted && (
             <button type="button" className="cache-btn" onClick={handleClearCache} disabled={cacheState.clearing}>
               {cacheState.clearing ? 'Temizleniyor…' : 'Cache Temizle'}
             </button>
           )}
+          <ThemeToggle />
           <button type="button" className="cache-btn" onClick={handleLogout}>Çıkış</button>
         </div>
       </header>
@@ -249,7 +256,7 @@ export default function App() {
             onChange={e => setQuery(e.target.value)}
           />
           {/* Misafir: API yalnızca Süper Lig döndürdüğü için lig seçimi gösterilmez. */}
-          {!isGuest && (
+          {!restricted && (
             <LeagueFilter
               options={leagueOptions}
               selected={leagues}
