@@ -1,3 +1,4 @@
+using MatchForecast.Models.Common;
 using System.Linq.Expressions;
 using MatchForecast.Api.Services.Security;
 using MatchForecast.Data.Configuration;
@@ -55,10 +56,10 @@ public sealed class UsersController(AppDbContext db, IPasswordHasher<User> hashe
         var email = Normalize(request.Email);
 
         if (await db.Users.AnyAsync(x => x.UserName == userName, ct))
-            return Problem(statusCode: StatusCodes.Status409Conflict, detail: "Bu kullanıcı adı kullanılıyor.");
+            return Problem(statusCode: StatusCodes.Status409Conflict, detail: Lang.T("Bu kullanıcı adı kullanılıyor.", "This user name is already taken."));
 
         if (await db.Users.AnyAsync(x => x.Email == email, ct))
-            return Problem(statusCode: StatusCodes.Status409Conflict, detail: "Bu e-posta adresi kullanılıyor.");
+            return Problem(statusCode: StatusCodes.Status409Conflict, detail: Lang.T("Bu e-posta adresi kullanılıyor.", "This e-mail address is already in use."));
 
         var user = new User { UserName = userName, Email = email, DisplayName = request.DisplayName };
         user.PasswordHash = hasher.HashPassword(user, request.Password);
@@ -80,7 +81,7 @@ public sealed class UsersController(AppDbContext db, IPasswordHasher<User> hashe
         if (email != user.Email)
         {
             if (await db.Users.AnyAsync(x => x.Email == email, ct))
-                return Problem(statusCode: StatusCodes.Status409Conflict, detail: "Bu e-posta adresi kullanılıyor.");
+                return Problem(statusCode: StatusCodes.Status409Conflict, detail: Lang.T("Bu e-posta adresi kullanılıyor.", "This e-mail address is already in use."));
 
             user.Email = email;
             user.EmailConfirmed = false; // Yeni adres henüz doğrulanmadı.
@@ -131,7 +132,7 @@ public sealed class UsersController(AppDbContext db, IPasswordHasher<User> hashe
 
         var roleIds = request.RoleIds.Distinct().ToList();
         if (await db.Roles.CountAsync(x => roleIds.Contains(x.Id), ct) != roleIds.Count)
-            return Problem(statusCode: StatusCodes.Status400BadRequest, detail: "Listede bulunmayan bir rol id'si var.");
+            return Problem(statusCode: StatusCodes.Status400BadRequest, detail: Lang.T("Listede bulunmayan bir rol id'si var.", "The list contains an unknown role id."));
 
         // Mevcut atamalar korunur (AssignedAt değişmez); yalnızca fark uygulanır.
         user.UserRoles.RemoveAll(x => !roleIds.Contains(x.RoleId));
@@ -153,7 +154,7 @@ public sealed class UsersController(AppDbContext db, IPasswordHasher<User> hashe
 
         var groupIds = request.GroupIds.Distinct().ToList();
         if (await db.Groups.CountAsync(x => groupIds.Contains(x.Id), ct) != groupIds.Count)
-            return Problem(statusCode: StatusCodes.Status400BadRequest, detail: "Listede bulunmayan bir grup id'si var.");
+            return Problem(statusCode: StatusCodes.Status400BadRequest, detail: Lang.T("Listede bulunmayan bir grup id'si var.", "The list contains an unknown group id."));
 
         user.UserGroups.RemoveAll(x => !groupIds.Contains(x.GroupId));
         foreach (var groupId in groupIds.Where(gid => user.UserGroups.All(x => x.GroupId != gid)))

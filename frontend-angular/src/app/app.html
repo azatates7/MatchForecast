@@ -3,16 +3,16 @@
 } @else {
   <div class="app">
     <header class="topbar">
-      <h1 class="brand">MatchForecast</h1>
+      <h1 class="brand">{{ i18n.t('brand') }}</h1>
       @if (restricted()) {
         <div class="date-nav">
-          <input type="date" [value]="date()" disabled aria-label="Tarih (misafir yalnızca bugünü görür)" />
+          <input type="date" [value]="date()" disabled [attr.aria-label]="i18n.t('date.guest')" />
         </div>
       } @else {
         <div class="date-nav">
-          <button type="button" (click)="shiftDay(-1)" aria-label="Önceki gün">‹</button>
-          <input type="date" [value]="date()" (change)="onDateInput($any($event.target).value)" aria-label="Tarih" />
-          <button type="button" (click)="shiftDay(1)" aria-label="Sonraki gün">›</button>
+          <button type="button" (click)="shiftDay(-1)" [attr.aria-label]="i18n.t('date.prev')">‹</button>
+          <input type="date" [value]="date()" (change)="onDateInput($any($event.target).value)" [attr.aria-label]="i18n.t('date.label')" />
+          <button type="button" (click)="shiftDay(1)" [attr.aria-label]="i18n.t('date.next')">›</button>
         </div>
       }
       <div class="cache-actions">
@@ -24,27 +24,28 @@
         }
         @if (!restricted()) {
           <button type="button" class="cache-btn" (click)="handleClearCache()" [disabled]="cacheState().clearing">
-            {{ cacheState().clearing ? 'Temizleniyor…' : 'Cache Temizle' }}
+            {{ i18n.t(cacheState().clearing ? 'cache.clearing' : 'cache.clear') }}
           </button>
         }
+        <app-language-toggle />
         <app-theme-toggle />
-        <button type="button" class="cache-btn" (click)="handleLogout()">Çıkış</button>
+        <button type="button" class="cache-btn" (click)="handleLogout()">{{ i18n.t('logout') }}</button>
       </div>
     </header>
 
     <main class="layout">
-      <section class="fixtures" aria-label="Maçlar">
+      <section class="fixtures" [attr.aria-label]="i18n.t('matches.aria')">
         @if (isGuest()) {
           <div class="guest-notice" role="note">
             <svg class="guest-notice-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5Zm-3 8V7a3 3 0 0 1 6 0v3H9Zm3 4a2 2 0 0 1 1 3.73V19h-2v-1.27A2 2 0 0 1 12 14Z"/></svg>
-            <span>Misafir kullanıcı olarak yalnızca bugünün Türkiye Süper Lig maçlarını görüyorsun.</span>
-            <button type="button" class="link-btn" (click)="handleLogout()">Tüm ligleri görmek için giriş yap</button>
+            <span>{{ i18n.t('guest.notice') }}</span>
+            <button type="button" class="link-btn" (click)="handleLogout()">{{ i18n.t('guest.signIn') }}</button>
           </div>
         }
         <input
           class="search"
           type="search"
-          placeholder="Takım veya lig ara"
+          [placeholder]="i18n.t('matches.search')"
           [value]="query()"
           (input)="query.set($any($event.target).value)"
         />
@@ -66,7 +67,7 @@
           [selectedId]="selectedId()"
           [fetchedAt]="fetchedAt()"
           [now]="now()"
-          [emptyText]="isGuest() ? 'Bugün Süper Lig maçı yok.' : undefined"
+          [emptyText]="isGuest() ? i18n.t('guest.noMatches') : undefined"
           (select)="analyze($event)"
         />
       </section>

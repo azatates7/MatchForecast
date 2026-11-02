@@ -1,3 +1,4 @@
+using MatchForecast.Models.Common;
 using MatchForecast.Api.Services.Security;
 using MatchForecast.Models.Response;
 using Microsoft.AspNetCore.Authorization;
@@ -25,7 +26,7 @@ public sealed class PasswordController : ControllerBase
         if (length is < PasswordGenerator.MinLength or > PasswordGenerator.MaxLength)
             return Problem(
                 statusCode: StatusCodes.Status400BadRequest,
-                detail: $"Şifre uzunluğu {PasswordGenerator.MinLength} ile {PasswordGenerator.MaxLength} arasında olmalı.");
+                detail: Lang.T($"Şifre uzunluğu {PasswordGenerator.MinLength} ile {PasswordGenerator.MaxLength} arasında olmalı.", $"Password length must be between {PasswordGenerator.MinLength} and {PasswordGenerator.MaxLength}."));
 
         return Ok(new PasswordResponse(PasswordGenerator.Generate(length), length));
     }

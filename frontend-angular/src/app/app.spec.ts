@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { App } from './app';
+import { I18nService } from './core/i18n/i18n.service';
 
 describe('App', () => {
   beforeEach(async () => {
@@ -21,6 +22,18 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h1')?.textContent).toContain('MatchForecast');
+    expect(compiled.querySelector('h1')?.textContent).toContain('Maç Analiz');
+  });
+
+  it('should switch brand and texts to English', async () => {
+    const fixture = TestBed.createComponent(App);
+    const i18n = TestBed.inject(I18nService);
+    i18n.setLang('en');
+    await fixture.whenStable();
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('h1')?.textContent).toContain('Match Forecast');
+    expect(document.title).toBe('Match Forecast');
+    expect(document.documentElement.lang).toBe('en');
+    i18n.setLang('tr');
   });
 });

@@ -37,7 +37,7 @@ public class ExceptionMiddleware
             // ForecastException kendi status kodunu (404, 502 vb.) ve kullanıcıya gösterilebilir mesajını taşır; diğer hatalar 500.
             var (status, detail) = ex is ForecastException fe
                 ? (fe.StatusCode, fe.Message)
-                : (StatusCodes.Status500InternalServerError, "Beklenmeyen bir hata oluştu.");
+                : (StatusCodes.Status500InternalServerError, Lang.T("Beklenmeyen bir hata oluştu.", "An unexpected error occurred."));
 
             if (status >= StatusCodes.Status500InternalServerError)
             {

@@ -1,3 +1,7 @@
+import type { LocalizedText } from './i18n/i18n'
+
+export type { LocalizedText }
+
 export interface MatchSummary {
   id: number
   kickoff: string
@@ -14,12 +18,13 @@ export interface MatchSummary {
 
 export interface Prediction {
   rank: number
-  label: string
+  /** İki dilli etiket, ör. { tr: "KG Var", en: "BTTS Yes" } */
+  label: LocalizedText
   market: string
   selection: string
   /** Hesaplanan gerçekleşme olasılığı (0-100) */
   confidence: number
-  reasoning: string
+  reasoning: LocalizedText
 }
 
 export type StatMetric =
@@ -35,7 +40,7 @@ export interface LineProbability {
 
 export interface StatProjection {
   metric: StatMetric
-  label: string
+  label: LocalizedText
   /** Beklenen değer (ör. 2.6 gol) */
   expected: number
   /** Olası aralık: dağılımın ortadaki %80'i */
@@ -43,7 +48,7 @@ export interface StatProjection {
   rangeMax: number
   /** Korner için her zaman boş */
   lines: LineProbability[]
-  reasoning: string
+  reasoning: LocalizedText
 }
 
 /** Yüzde; home + draw + away = 100. İlk yarı alanları model ilk yarı beklentisi vermediyse null */
@@ -59,7 +64,7 @@ export interface OutcomeProbabilities {
 
 export interface ForecastResult {
   match: MatchSummary
-  summary: string
+  summary: LocalizedText
   outcomes: OutcomeProbabilities
   stats: StatProjection[]
   predictions: Prediction[]

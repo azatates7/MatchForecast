@@ -1,4 +1,5 @@
 import { Component, ElementRef, inject, input, output, signal } from '@angular/core';
+import { I18nService } from '../core/i18n/i18n.service';
 
 /*
  * Çoklu lig / ülke filtresi. Native <select multiple> Ctrl+tık istediği için kutucuklu açılır liste kullanılır.
@@ -28,6 +29,7 @@ export class LeagueFilter {
   readonly toggle = output<string>();
 
   protected readonly open = signal(false);
+  protected readonly i18n = inject(I18nService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   protected onDocumentDown(e: MouseEvent) {

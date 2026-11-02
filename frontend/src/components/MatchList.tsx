@@ -1,5 +1,6 @@
-import type { MatchSummary } from './Types'
+import type { MatchSummary } from '../types'
 import { isLive, minuteLabel } from './MatchStatus'
+import { useI18n } from '../i18n/useI18n'
 
 interface Props {
   matches: MatchSummary[]
@@ -15,13 +16,14 @@ interface Props {
   emptyText?: string
 }
 
-const time = (iso: string) =>
-  new Date(iso).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+const time = (iso: string, locale: string) =>
+  new Date(iso).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
 
 export default function MatchList({ matches, loading, error, selectedId, onSelect, fetchedAt, now, emptyText }: Props) {
-  if (loading) return <p className="note">Maçlar yükleniyor…</p>
+  const { t, locale } = useI18n()
+  if (loading) return <p className="note">{t('matches.loading')}</p>
   if (error) return <p className="note note-error">{error}</p>
-  if (matches.length === 0) return <p className="note">{emptyText ?? 'Gösterilecek maç yok. Başka bir gün veya lig seçin.'}</p>
+  if (matches.length === 0) return <p className="note">{emptyText ?? t('matches.empty')}</p>
 
   // Lig bazında grupla, sıralama API'den gelen başlama saatine göre korunur
   const groups = new Map<string, MatchSummary[]>()
@@ -47,11 +49,11 @@ export default function MatchList({ matches, loading, error, selectedId, onSelec
                     aria-pressed={m.id === selectedId}
                   >
                     {live ? (
-                      <span className="match-time match-live" aria-label={`Canlı, ${minuteLabel(m, fetchedAt, now)}`}>
+                      <span className="match-time match-live" aria-label={t('matches.live', { minute: minuteLabel(m, fetchedAt, now) })}>
                         {minuteLabel(m, fetchedAt, now)}
                       </span>
                     ) : (
-                      <span className="match-time">{time(m.kickoff)}</span>
+                      <span className="match-time">{time(m.kickoff, locale)}</span>
                     )}
                     <span className="match-teams">
                       <span>{m.homeTeam}</span>

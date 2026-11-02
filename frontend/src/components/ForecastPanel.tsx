@@ -1,5 +1,6 @@
 import type { ForecastResult, MatchSummary, OutcomeProbabilities } from '../types'
 import StatsTable from './StatsTable'
+import { useI18n } from '../i18n/useI18n'
 
 interface Props {
   match: MatchSummary | null
@@ -16,18 +17,19 @@ interface Props {
  * Dar parçaya yazı sığmadığı için (%12 altı) çubuğun altında üç değeri de gösteren bir satır her zaman bulunur.
  */
 function ResultBar({ title, home, draw, away }: { title: string; home: number; draw: number; away: number }) {
+  const { t, pct } = useI18n()
   const parts = [
-    { key: '1', name: 'Ev', value: home, className: 'seg-home' },
-    { key: 'X', name: 'Beraberlik', value: draw, className: 'seg-draw' },
-    { key: '2', name: 'Deplasman', value: away, className: 'seg-away' },
+    { key: '1', name: t('outcome.home'), value: home, className: 'seg-home' },
+    { key: 'X', name: t('outcome.draw'), value: draw, className: 'seg-draw' },
+    { key: '2', name: t('outcome.away'), value: away, className: 'seg-away' },
   ]
   return (
     <div className="result">
       <p className="result-title">{title}</p>
-      <div className="result-bar" role="img" aria-label={`${title}: 1 %${home}, X %${draw}, 2 %${away}`}>
+      <div className="result-bar" role="img" aria-label={`${title}: 1 ${pct(home)}, X ${pct(draw)}, 2 ${pct(away)}`}>
         {parts.map(p => (
           <span key={p.key} className={`result-seg ${p.className}`} style={{ flexGrow: p.value }}>
-            {p.value >= 12 && `${p.key} %${p.value}`}
+            {p.value >= 12 && `${p.key} ${pct(p.value)}`}
           </span>
         ))}
       </div>
@@ -35,7 +37,7 @@ function ResultBar({ title, home, draw, away }: { title: string; home: number; d
         {parts.map(p => (
           <span key={p.key} className="legend-item">
             <i className={`legend-dot ${p.className}`} />
-            {p.name} <strong>%{p.value}</strong>
+            {p.name} <strong>{pct(p.value)}</strong>
           </span>
         ))}
       </p>
@@ -44,26 +46,33 @@ function ResultBar({ title, home, draw, away }: { title: string; home: number; d
 }
 
 function Outcomes({ o }: { o: OutcomeProbabilities }) {
+  const { t, pct } = useI18n()
   return (
     <section className="outcomes">
-      <ResultBar title="Maç sonucu" home={o.home} draw={o.draw} away={o.away} />
+      <ResultBar title={t('outcome.fullTime')} home={o.home} draw={o.draw} away={o.away} />
       {o.firstHalfHome != null && o.firstHalfDraw != null && o.firstHalfAway != null && (
-        <ResultBar title="İlk yarı" home={o.firstHalfHome} draw={o.firstHalfDraw} away={o.firstHalfAway} />
+        <ResultBar title={t('outcome.firstHalf')} home={o.firstHalfHome} draw={o.firstHalfDraw} away={o.firstHalfAway} />
       )}
-      <p className="btts">Karşılıklı gol: <strong>Var %{o.bttsYes}</strong> · Yok %{100 - o.bttsYes}</p>
+      <p className="btts">
+        {t('outcome.btts')} <strong>{t('outcome.yes')} {pct(o.bttsYes)}</strong> · {t('outcome.no')} {pct(100 - o.bttsYes)}
+      </p>
     </section>
   )
 }
 
 export default function ForecastPanel({ match, forecast, loading, error, onRetry, canRetry = true }: Props) {
+  const { t, pct, loc } = useI18n()
+
   if (!match) {
     return (
       <div className="empty">
-        <p className="empty-title">Bir maç seçin</p>
-        <p>Yapay zeka seçtiğiniz maçın gol, korner ve kart beklentilerini çıkarır; bunlardan hesaplanan, olasılığı en yüksek 10 tahmin listelenir.</p>
+        <p className="empty-title">{t('forecast.emptyTitle')}</p>
+        <p>{t('forecast.emptyText')}</p>
       </div>
     )
   }
+
+  const summary = forecast ? loc(forecast.summary) : ''
 
   return (
     <article className="forecast">
@@ -76,40 +85,40 @@ export default function ForecastPanel({ match, forecast, loading, error, onRetry
         </h2>
       </header>
 
-      {loading && <p className="note pulse">Maç analiz ediliyor, bu 10-30 saniye sürebilir…</p>}
+      {loading && <p className="note pulse">{t('forecast.loading')}</p>}
 
       {error && (
         <div className="note note-error">
           <p>{error}</p>
-          {canRetry && <button type="button" className="link-btn" onClick={onRetry}>Tekrar analiz et</button>}
+          {canRetry && <button type="button" className="link-btn" onClick={onRetry}>{t('forecast.retry')}</button>}
         </div>
       )}
 
       {forecast && (
         <>
-          {forecast.summary && <p className="summary">{forecast.summary}</p>}
+          {summary && <p className="summary">{summary}</p>}
 
           <Outcomes o={forecast.outcomes} />
 
-          <h3 className="section-title">En olası 10 tahmin</h3>
+          <h3 className="section-title">{t('forecast.top', { n: forecast.predictions.length })}</h3>
           <ol className="picks">
             {forecast.predictions.map(p => (
               <li key={`${p.market}-${p.selection}`} className="pick">
                 <span className="pick-rank">{p.rank}</span>
                 <div className="pick-body">
                   <div className="pick-line">
-                    <h3 className="pick-label">{p.label}</h3>
+                    <h3 className="pick-label">{loc(p.label)}</h3>
                   </div>
                   <p className="pick-market">{p.market}: {p.selection}</p>
 
-                  <div className="meter" role="img" aria-label={`Gerçekleşme olasılığı %${p.confidence}`}>
+                  <div className="meter" role="img" aria-label={t('forecast.probabilityAria', { p: pct(p.confidence) })}>
                     <span className="meter-fill" style={{ width: `${p.confidence}%` }} />
                   </div>
                   <p className="meter-legend">
-                    <span>Olasılık %{p.confidence}</span>
+                    <span>{t('forecast.probability', { p: pct(p.confidence) })}</span>
                   </p>
 
-                  {p.reasoning && <p className="pick-reason">{p.reasoning}</p>}
+                  {loc(p.reasoning) && <p className="pick-reason">{loc(p.reasoning)}</p>}
                 </div>
               </li>
             ))}
@@ -118,10 +127,10 @@ export default function ForecastPanel({ match, forecast, loading, error, onRetry
           <StatsTable stats={forecast.stats} />
 
           <footer className="forecast-foot">
-            <span>Değerler yapay zekanın genel bilgisine dayanır; güncel kadro, sakatlık ve hakem bilgisi içermez.</span>
-            {canRetry && <button type="button" className="link-btn" onClick={onRetry}>Yeniden analiz et</button>}
+            <span>{t('forecast.footnote')}</span>
+            {canRetry && <button type="button" className="link-btn" onClick={onRetry}>{t('forecast.reanalyze')}</button>}
           </footer>
-          <p className="disclaimer">Tahminler olasılık tahminidir, sonuç garantisi vermez.</p>
+          <p className="disclaimer">{t('forecast.disclaimer')}</p>
         </>
       )}
     </article>

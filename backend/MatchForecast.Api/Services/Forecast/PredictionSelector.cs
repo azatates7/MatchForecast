@@ -50,7 +50,7 @@ public static class PredictionSelector
                 c.Option.Selection,
                 c.Percent,
                 ProjectionBuilder.Join(c.Option.ReasonFrom
-                    .Select(m => projection.Reasons.TryGetValue(m, out var r) ? r : "")
+                    .Select(m => projection.Reasons.TryGetValue(m, out var r) ? r : LocalizedText.Empty)
                     .ToArray())))
             .ToList();
     }

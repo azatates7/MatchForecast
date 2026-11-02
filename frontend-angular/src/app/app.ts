@@ -1,4 +1,4 @@
-import { Component, computed, effect, signal, untracked } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { clearCache, getForecast, getMatches, getMe, hasSession, logout, onSessionExpired } from './core/api';
 import type { ForecastResult, MatchSummary, MeResponse } from './core/types';
 import { isLive } from './core/match-status';
@@ -7,6 +7,8 @@ import { ForecastPanel } from './components/forecast-panel';
 import { AuthPanel } from './components/auth-panel';
 import { LeagueFilter } from './components/league-filter';
 import { ThemeToggle } from './components/theme-toggle';
+import { LanguageToggle } from './components/language-toggle';
+import { I18nService } from './core/i18n/i18n.service';
 
 // Canlı maç varken listenin arka planda yenilenme aralığı. API kotasını korumak için
 // kısa tutulmadı; aradaki dakikalar minuteLabel içinde yerelde ilerletilir.
@@ -42,11 +44,13 @@ interface CacheState { clearing: boolean; message?: string; error?: boolean }
 
 @Component({
   selector: 'app-root',
-  imports: [MatchList, ForecastPanel, AuthPanel, LeagueFilter, ThemeToggle],
+  imports: [MatchList, ForecastPanel, AuthPanel, LeagueFilter, ThemeToggle, LanguageToggle],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
 export class App {
+  protected readonly i18n = inject(I18nService);
+
   // Kayıtlı refresh token varsa giriş yapılmış sayılır; geçersizse ilk istekte login ekranına dönülür.
   protected readonly loggedIn = signal(hasSession());
 
@@ -87,7 +91,7 @@ export class App {
     const counts = new Map<string, number>();
     for (const m of this.searched()) counts.set(leagueKey(m), (counts.get(leagueKey(m)) ?? 0) + 1);
     for (const l of this.leagues()) if (!counts.has(l)) counts.set(l, 0);
-    return [...counts].sort(([a], [b]) => a.localeCompare(b, 'tr'));
+    return [...counts].sort(([a], [b]) => a.localeCompare(b, this.i18n.lang()));
   });
 
   protected readonly filtered = computed(() => {
@@ -228,7 +232,7 @@ export class App {
     this.cacheState.set({ clearing: true });
     try {
       const { deletedKeys } = await clearCache();
-      this.cacheState.set({ clearing: false, message: `Önbellek temizlendi (${deletedKeys} kayıt).` });
+      this.cacheState.set({ clearing: false, message: this.i18n.t('cache.cleared', { n: deletedKeys }) });
       this.loadMatches(this.date(), false);
     } catch (e) {
       this.cacheState.set({ clearing: false, message: (e as Error).message, error: true });

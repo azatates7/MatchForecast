@@ -1,6 +1,9 @@
-import { Component, ElementRef, computed, effect, output, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, computed, effect, inject, output, signal, viewChild } from '@angular/core';
 import { forgotPassword, generatePassword, getAuthConfig, login, loginAsGuest, loginWithGoogle, register, resetPassword } from '../core/api';
 import { renderGoogleButton } from '../core/google';
+import { I18nService } from '../core/i18n/i18n.service';
+import type { MessageKey } from '../core/i18n/messages';
+import { LanguageToggle } from './language-toggle';
 
 type Mode = 'login' | 'register' | 'forgot' | 'reset';
 
@@ -20,20 +23,23 @@ const takeResetToken = (): string | null => {
   return token;
 };
 
-const SUBMIT_LABELS: Record<Mode, [idle: string, busy: string]> = {
-  login: ['Giriş yap', 'Giriş yapılıyor…'],
-  register: ['Kayıt ol', 'Kaydediliyor…'],
-  forgot: ['Bağlantı gönder', 'Gönderiliyor…'],
-  reset: ['Şifreyi güncelle', 'Güncelleniyor…'],
+const SUBMIT_LABELS: Record<Mode, [idle: MessageKey, busy: MessageKey]> = {
+  login: ['auth.submit.login', 'auth.busy.login'],
+  register: ['auth.submit.register', 'auth.busy.register'],
+  forgot: ['auth.submit.forgot', 'auth.busy.forgot'],
+  reset: ['auth.submit.reset', 'auth.busy.reset'],
 };
 
 // Giriş, kayıt, şifremi unuttum ve şifre sıfırlama ekranları. Oturum açılınca "authenticated" yayınlanır.
 @Component({
   selector: 'app-auth-panel',
+  imports: [LanguageToggle],
   templateUrl: './auth-panel.html',
 })
 export class AuthPanel {
   readonly authenticated = output<void>();
+
+  protected readonly i18n = inject(I18nService);
 
   private readonly resetToken = takeResetToken();
 
@@ -52,7 +58,7 @@ export class AuthPanel {
   protected readonly generating = signal(false);
   protected readonly copied = signal(false);
 
-  protected readonly submitLabel = computed(() => SUBMIT_LABELS[this.mode()][this.state().loading ? 1 : 0]);
+  protected readonly submitLabel = computed(() => this.i18n.t(SUBMIT_LABELS[this.mode()][this.state().loading ? 1 : 0]));
 
   private readonly googleButton = viewChild<ElementRef<HTMLDivElement>>('googleButton');
 
@@ -65,10 +71,11 @@ export class AuthPanel {
       })
       .catch(() => undefined);
 
-    // Buton alanı ekrana geldiğinde (giriş ekranına her dönüşte) Google butonu yeniden çizilir.
+    // Buton alanı ekrana geldiğinde (giriş ekranına her dönüşte) ve dil değişince Google butonu yeniden çizilir.
     effect(() => {
       const element = this.googleButton()?.nativeElement;
       const clientId = this.googleClientId();
+      this.i18n.lang();
       if (!element || !clientId) return;
       renderGoogleButton(element, clientId, idToken => void this.run(() => loginWithGoogle(idToken), true))
         .catch((e: Error) => this.state.set({ loading: false, error: e.message }));
@@ -100,17 +107,17 @@ export class AuthPanel {
       case 'forgot':
         void this.run(async () => {
           await forgotPassword(this.email().trim());
-          this.switchTo('login', 'Bu e-posta kayıtlıysa şifre sıfırlama bağlantısı gönderildi.');
+          this.switchTo('login', this.i18n.t('auth.resetSent'));
         });
         break;
       case 'reset':
         if (this.password() !== this.passwordRepeat()) {
-          this.state.set({ loading: false, error: 'Şifreler eşleşmiyor.' });
+          this.state.set({ loading: false, error: this.i18n.t('auth.mismatch') });
           return;
         }
         void this.run(async () => {
           await resetPassword(this.resetToken ?? '', this.password());
-          this.switchTo('login', 'Şifren güncellendi, yeni şifrenle giriş yapabilirsin.');
+          this.switchTo('login', this.i18n.t('auth.resetDone'));
         });
         break;
     }
@@ -122,7 +129,7 @@ export class AuthPanel {
       const { password } = await generatePassword();
       this.password.set(password);
       this.showPassword.set(true);
-      this.state.set({ loading: false, info: 'Güçlü bir şifre oluşturuldu; kopyalayıp güvenli bir yere kaydet.' });
+      this.state.set({ loading: false, info: this.i18n.t('auth.generated') });
     } catch (e) {
       this.state.set({ loading: false, error: (e as Error).message });
     } finally {
@@ -137,7 +144,7 @@ export class AuthPanel {
       this.copied.set(true);
       setTimeout(() => this.copied.set(false), COPIED_MSG_MS);
     } catch {
-      this.state.set({ loading: false, error: 'Kopyalanamadı; şifreyi alandan seçip elle kopyalayın.' });
+      this.state.set({ loading: false, error: this.i18n.t('auth.copyFailed') });
     }
   }
 

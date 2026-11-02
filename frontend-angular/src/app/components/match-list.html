@@ -1,9 +1,9 @@
 @if (loading()) {
-  <p class="note">Maçlar yükleniyor…</p>
+  <p class="note">{{ i18n.t('matches.loading') }}</p>
 } @else if (error()) {
   <p class="note note-error">{{ error() }}</p>
 } @else if (matches().length === 0) {
-  <p class="note">{{ emptyText() ?? 'Gösterilecek maç yok. Başka bir gün veya lig seçin.' }}</p>
+  <p class="note">{{ emptyText() ?? i18n.t('matches.empty') }}</p>
 } @else {
   <div class="match-groups">
     @for (g of groups(); track g.league) {
@@ -20,7 +20,7 @@
                 (click)="select.emit(m.id)"
               >
                 @if (isLive(m)) {
-                  <span class="match-time match-live" [attr.aria-label]="'Canlı, ' + minute(m)">{{ minute(m) }}</span>
+                  <span class="match-time match-live" [attr.aria-label]="i18n.t('matches.live', { minute: minute(m) })">{{ minute(m) }}</span>
                 } @else {
                   <span class="match-time">{{ time(m.kickoff) }}</span>
                 }

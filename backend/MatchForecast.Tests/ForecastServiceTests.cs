@@ -54,11 +54,11 @@ public class ForecastServiceTests
 
         var result = await CreateService().GetForecastAsync(1, false, CancellationToken.None);
 
-        Assert.Equal("Ev sahibi önde.", result.Summary);
+        Assert.Equal("Ev sahibi önde.", result.Summary.Tr);
         Assert.Equal(7, result.Stats.Count); // 6 model metriği + hesaplanan toplam gol
         Assert.Equal(100, result.Outcomes.Home + result.Outcomes.Draw + result.Outcomes.Away);
         Assert.Equal(5, result.Predictions.Count);
-        Assert.Equal("Ev 0.5 Üst", result.Predictions[0].Label);
+        Assert.Equal("Ev 0.5 Üst", result.Predictions[0].Label.Tr);
     }
 
     [Fact]
@@ -80,6 +80,8 @@ public class ForecastServiceTests
     {
         SetupMatch();
         SetupAi("Sorry, I cannot produce JSON right now.");
+        // Mesaj dili CurrentUICulture'a bağlı (Lang.T); test makinenin dilinden bağımsız olsun.
+        System.Globalization.CultureInfo.CurrentUICulture = System.Globalization.CultureInfo.GetCultureInfo("tr");
 
         var ex = await Assert.ThrowsAsync<ForecastException>(() => CreateService().GetForecastAsync(1, false, CancellationToken.None));
         Assert.Contains("JSON içermiyor", ex.Message);

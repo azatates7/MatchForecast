@@ -9,7 +9,7 @@ namespace MatchForecast.Api.Services.Forecast;
 
 /*
  * Giriş anında günün Türkiye Süper Lig tahminlerini arka planda önceden üretir (cache ısıtma).
- * - Tahmin cache'i (forecast:v2:{id}) kullanıcıdan bağımsızdır; bir kez üretilen tahmin tüm kullanıcılara cache'ten döner.
+ * - Tahmin cache'i (forecast:v3:{id}) kullanıcıdan bağımsızdır; bir kez üretilen tahmin tüm kullanıcılara cache'ten döner.
  * - AuthService her token üretiminde (giriş, kayıt, Google, misafir, refresh) Request() çağırır. Kuyruk kapasitesi 1 olduğundan
  *   aynı anda gelen çok sayıda giriş tek işe indirgenir; giriş isteği hiç beklemez.
  * - Redis kilidi (prewarm:superlig:{tarih}) LockDuration boyunca tekrar çalışmayı engeller; birden fazla API instance'ında da geçerlidir.

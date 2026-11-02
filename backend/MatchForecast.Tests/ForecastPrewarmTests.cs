@@ -77,9 +77,9 @@ public class ForecastPrewarmTests
         await CreateWorker().PrewarmTodayAsync(CancellationToken.None);
 
         Assert.Equal(2, AiCalls());
-        Assert.NotNull(await _cache.GetAsync<ForecastResult>($"forecast:v2:{SuperLig1.Id}"));
-        Assert.NotNull(await _cache.GetAsync<ForecastResult>($"forecast:v2:{SuperLig2.Id}"));
-        Assert.Null(await _cache.GetAsync<ForecastResult>($"forecast:v2:{PremierLeague.Id}"));
+        Assert.NotNull(await _cache.GetAsync<ForecastResult>($"forecast:v3:{SuperLig1.Id}"));
+        Assert.NotNull(await _cache.GetAsync<ForecastResult>($"forecast:v3:{SuperLig2.Id}"));
+        Assert.Null(await _cache.GetAsync<ForecastResult>($"forecast:v3:{PremierLeague.Id}"));
     }
 
     [Fact]
@@ -113,8 +113,8 @@ public class ForecastPrewarmTests
 
         await CreateWorker().PrewarmTodayAsync(CancellationToken.None);
 
-        Assert.Null(await _cache.GetAsync<ForecastResult>($"forecast:v2:{SuperLig1.Id}"));
-        Assert.NotNull(await _cache.GetAsync<ForecastResult>($"forecast:v2:{SuperLig2.Id}"));
+        Assert.Null(await _cache.GetAsync<ForecastResult>($"forecast:v3:{SuperLig1.Id}"));
+        Assert.NotNull(await _cache.GetAsync<ForecastResult>($"forecast:v3:{SuperLig2.Id}"));
     }
 
     [Fact]

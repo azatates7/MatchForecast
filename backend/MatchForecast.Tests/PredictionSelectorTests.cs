@@ -14,9 +14,9 @@ public class PredictionSelectorTests
 
     private static AiStatsResponse Sample(double? home = 1.6, double? away = 1.0, double? firstHalf = 1.1,
         double? corners = 10.2, double? yellow = 4.6, double? red = 0.2) =>
-        new("Dengeli maç.",
-            new AiMetric(home, "Ev sahibi içeride etkili."),
-            new AiMetric(away, "Deplasman hücumu zayıf."),
+        new("Dengeli maç.", "Balanced match.",
+            new AiMetric(home, "Ev sahibi içeride etkili.", "Strong at home."),
+            new AiMetric(away, "Deplasman hücumu zayıf.", "Weak away attack."),
             new AiMetric(firstHalf, "İlk yarı temkinli."),
             new AiMetric(corners, "Kanat oyunu."),
             new AiMetric(yellow, "Sert maç."),
@@ -81,7 +81,7 @@ public class PredictionSelectorTests
     {
         var picks = PredictionSelector.Select(Build(Sample()), DefaultOptions);
 
-        Assert.Equal(new[] { "Ev 0.5 Üst", "ÇŞ 1X", "3.5 Alt", "Dep 1.5 Alt", "İY 1.5 Alt" }, picks.Select(p => p.Label));
+        Assert.Equal(new[] { "Ev 0.5 Üst", "ÇŞ 1X", "3.5 Alt", "Dep 1.5 Alt", "İY 1.5 Alt" }, picks.Select(p => p.Label.Tr));
         Assert.Equal(new[] { 80, 76, 74, 74, 70 }, picks.Select(p => p.Confidence));
         Assert.Equal(new[] { 1, 2, 3, 4, 5 }, picks.Select(p => p.Rank));
     }
@@ -110,7 +110,7 @@ public class PredictionSelectorTests
         var picks = PredictionSelector.Select(Build(Sample()), new ForecastOptions { PredictionCount = 5, MinPickProbability = 99, MaxPickProbability = 100 });
 
         Assert.Equal(5, picks.Count);
-        Assert.Equal("Ev 0.5 Üst", picks[0].Label);
+        Assert.Equal("Ev 0.5 Üst", picks[0].Label.Tr);
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public class PredictionSelectorTests
     {
         var picks = PredictionSelector.Select(Build(Sample()), DefaultOptions);
 
-        Assert.Equal("Ev sahibi içeride etkili.", picks.Single(p => p.Label == "Ev 0.5 Üst").Reasoning);
-        Assert.Equal("Ev sahibi içeride etkili. Deplasman hücumu zayıf.", picks.Single(p => p.Label == "ÇŞ 1X").Reasoning);
+        Assert.Equal("Ev sahibi içeride etkili.", picks.Single(p => p.Label.Tr == "Ev 0.5 Üst").Reasoning.Tr);
+        Assert.Equal("Ev sahibi içeride etkili. Deplasman hücumu zayıf.", picks.Single(p => p.Label.Tr == "ÇŞ 1X").Reasoning.Tr);
     }
 }

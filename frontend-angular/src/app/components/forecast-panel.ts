@@ -1,4 +1,5 @@
-import { Component, input, output } from '@angular/core';
+import { Component, inject, input, output } from '@angular/core';
+import { I18nService } from '../core/i18n/i18n.service';
 import type { ForecastResult, MatchSummary } from '../core/types';
 import { StatsTable } from './stats-table';
 
@@ -23,25 +24,28 @@ export class ForecastPanel {
 
   readonly retry = output<void>();
 
+  protected readonly i18n = inject(I18nService);
+
   /*
    * 1 / X / 2 olasılıkları tek çubukta; parçalar toplamı 100 olduğu için yan yana dizilir.
    * Dar parçaya yazı sığmadığı için (%12 altı) çubuğun altında üç değeri de gösteren bir satır her zaman bulunur.
    */
   protected resultBars(f: ForecastResult): ResultBar[] {
     const o = f.outcomes;
+    const i18n = this.i18n;
     const bar = (title: string, home: number, draw: number, away: number): ResultBar => ({
       title,
-      label: `${title}: 1 %${home}, X %${draw}, 2 %${away}`,
+      label: `${title}: 1 ${i18n.pct(home)}, X ${i18n.pct(draw)}, 2 ${i18n.pct(away)}`,
       parts: [
-        { key: '1', name: 'Ev', value: home, className: 'seg-home' },
-        { key: 'X', name: 'Beraberlik', value: draw, className: 'seg-draw' },
-        { key: '2', name: 'Deplasman', value: away, className: 'seg-away' },
+        { key: '1', name: i18n.t('outcome.home'), value: home, className: 'seg-home' },
+        { key: 'X', name: i18n.t('outcome.draw'), value: draw, className: 'seg-draw' },
+        { key: '2', name: i18n.t('outcome.away'), value: away, className: 'seg-away' },
       ],
     });
 
-    const bars = [bar('Maç sonucu', o.home, o.draw, o.away)];
+    const bars = [bar(i18n.t('outcome.fullTime'), o.home, o.draw, o.away)];
     if (o.firstHalfHome != null && o.firstHalfDraw != null && o.firstHalfAway != null)
-      bars.push(bar('İlk yarı', o.firstHalfHome, o.firstHalfDraw, o.firstHalfAway));
+      bars.push(bar(i18n.t('outcome.firstHalf'), o.firstHalfHome, o.firstHalfDraw, o.firstHalfAway));
     return bars;
   }
 }

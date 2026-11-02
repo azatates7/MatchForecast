@@ -1,4 +1,6 @@
 import type { LineProbability, StatProjection } from '../types'
+import { useI18n } from '../i18n/useI18n'
+import { pct, t } from '../i18n/i18n'
 
 interface Props {
   stats: StatProjection[]
@@ -6,32 +8,36 @@ interface Props {
 
 /* Kırmızı kartta tek çizgi (0.5) "Var/Yok" olarak okunur; diğer metriklerde "Üst/Alt". */
 function formatLine(metric: StatProjection['metric'], l: LineProbability) {
-  if (metric === 'RedCards') return `Var %${l.over} · Yok %${l.under}`
-  return `${l.line.toFixed(1)}: Üst %${l.over} · Alt %${l.under}`
+  const over = pct(l.over)
+  const under = pct(l.under)
+  if (metric === 'RedCards') return t('stats.yesNo', { over, under })
+  return t('stats.line', { line: l.line.toFixed(1), over, under })
 }
 
 export default function StatsTable({ stats }: Props) {
+  // formatLine i18n.ts'teki o anki dili kullanır; hook, dil değişince tablonun yeniden çizilmesini sağlar.
+  const { t, loc } = useI18n()
   if (stats.length === 0) return null
 
   return (
     <section className="stats" aria-labelledby="stats-title">
-      <h3 id="stats-title" className="section-title">Maç istatistikleri tahmini</h3>
+      <h3 id="stats-title" className="section-title">{t('stats.title')}</h3>
       <div className="stats-scroll">
         <table className="stats-table">
           <thead>
             <tr>
-              <th scope="col">İstatistik</th>
-              <th scope="col" className="num">Beklenen</th>
-              <th scope="col" className="num">Aralık</th>
-              <th scope="col">Alt / Üst</th>
+              <th scope="col">{t('stats.stat')}</th>
+              <th scope="col" className="num">{t('stats.expected')}</th>
+              <th scope="col" className="num">{t('stats.range')}</th>
+              <th scope="col">{t('stats.lines')}</th>
             </tr>
           </thead>
           <tbody>
             {stats.map(s => (
               <tr key={s.metric}>
                 <th scope="row">
-                  {s.label}
-                  {s.reasoning && <span className="stats-reason">{s.reasoning}</span>}
+                  {loc(s.label)}
+                  {loc(s.reasoning) && <span className="stats-reason">{loc(s.reasoning)}</span>}
                 </th>
                 <td className="num">{s.expected.toFixed(1)}</td>
                 <td className="num">{s.rangeMin}–{s.rangeMax}</td>
@@ -45,7 +51,7 @@ export default function StatsTable({ stats }: Props) {
           </tbody>
         </table>
       </div>
-      <p className="stats-note">Aralık, olası değerlerin %80'ini kapsar.</p>
+      <p className="stats-note">{t('stats.note')}</p>
     </section>
   )
 }

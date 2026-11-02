@@ -1,4 +1,5 @@
-import { Component, computed, input, output } from '@angular/core';
+import { Component, computed, inject, input, output } from '@angular/core';
+import { I18nService } from '../core/i18n/i18n.service';
 import type { MatchSummary } from '../core/types';
 import { isLive, minuteLabel } from '../core/match-status';
 
@@ -20,6 +21,8 @@ export class MatchList {
   readonly emptyText = input<string>();
   readonly select = output<number>();
 
+  protected readonly i18n = inject(I18nService);
+
   // Lig bazında grupla, sıralama API'den gelen başlama saatine göre korunur
   protected readonly groups = computed(() => {
     const groups = new Map<string, MatchSummary[]>();
@@ -32,11 +35,13 @@ export class MatchList {
 
   protected readonly isLive = isLive;
 
+  // minuteLabel i18n.ts'teki o anki dili kullanır; lang() okunur ki dil değişince etiket yeniden hesaplansın.
   protected minute(m: MatchSummary): string {
+    this.i18n.lang();
     return minuteLabel(m, this.fetchedAt(), this.now());
   }
 
   protected time(iso: string): string {
-    return new Date(iso).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+    return new Date(iso).toLocaleTimeString(this.i18n.locale(), { hour: '2-digit', minute: '2-digit' });
   }
 }

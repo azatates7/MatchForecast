@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { forgotPassword, generatePassword, getAuthConfig, login, loginAsGuest, loginWithGoogle, register, resetPassword } from '../api'
 import { renderGoogleButton } from './Google'
+import LanguageToggle from './LanguageToggle'
+import { useI18n } from '../i18n/useI18n'
+import type { MessageKey } from '../i18n/messages'
 
 type Mode = 'login' | 'register' | 'forgot' | 'reset'
 
@@ -12,15 +15,16 @@ interface FormState { loading: boolean; error?: string; info?: string }
 // token adres çubuğundan bir effect'te silinir (tarayıcı geçmişinde, ekran paylaşımında görünmesin).
 const readResetToken = (): string | null => new URL(window.location.href).searchParams.get('resetToken')
 
-const SUBMIT_LABELS: Record<Mode, [idle: string, busy: string]> = {
-  login: ['Giriş yap', 'Giriş yapılıyor…'],
-  register: ['Kayıt ol', 'Kaydediliyor…'],
-  forgot: ['Bağlantı gönder', 'Gönderiliyor…'],
-  reset: ['Şifreyi güncelle', 'Güncelleniyor…'],
+const SUBMIT_LABELS: Record<Mode, [idle: MessageKey, busy: MessageKey]> = {
+  login: ['auth.submit.login', 'auth.busy.login'],
+  register: ['auth.submit.register', 'auth.busy.register'],
+  forgot: ['auth.submit.forgot', 'auth.busy.forgot'],
+  reset: ['auth.submit.reset', 'auth.busy.reset'],
 }
 
 // Giriş, kayıt, şifremi unuttum ve şifre sıfırlama ekranları. Oturum açılınca onAuthenticated çağrılır.
 export default function AuthPanel({ onAuthenticated }: { onAuthenticated: () => void }) {
+  const { t, lang } = useI18n()
   const [resetToken] = useState(readResetToken)
   const [mode, setMode] = useState<Mode>(resetToken ? 'reset' : 'login')
   const [userName, setUserName] = useState('')
@@ -70,7 +74,7 @@ export default function AuthPanel({ onAuthenticated }: { onAuthenticated: () => 
     }
   }
 
-  // Buton alanı ekrana geldiğinde (giriş ekranına her dönüşte) Google butonu yeniden çizilir.
+  // Buton alanı ekrana geldiğinde (giriş ekranına her dönüşte) ve dil değişince Google butonu yeniden çizilir.
   // Callback ref'te tutulur ki effect her render'da tekrar çalışmasın.
   const runRef = useRef(run)
   useEffect(() => { runRef.current = run })
@@ -79,7 +83,7 @@ export default function AuthPanel({ onAuthenticated }: { onAuthenticated: () => 
     if (mode !== 'login' || !element || !googleClientId) return
     renderGoogleButton(element, googleClientId, idToken => void runRef.current(() => loginWithGoogle(idToken), true))
       .catch((e: Error) => setState({ loading: false, error: e.message }))
-  }, [mode, googleClientId])
+  }, [mode, googleClientId, lang])
 
   const switchTo = (next: Mode, info?: string) => {
     setMode(next)
@@ -95,7 +99,7 @@ export default function AuthPanel({ onAuthenticated }: { onAuthenticated: () => 
       const { password: generated } = await generatePassword()
       setPassword(generated)
       setShowPassword(true)
-      setState({ loading: false, info: 'Güçlü bir şifre oluşturuldu; kopyalayıp güvenli bir yere kaydet.' })
+      setState({ loading: false, info: t('auth.generated') })
     } catch (e) {
       setState({ loading: false, error: (e as Error).message })
     } finally {
@@ -110,7 +114,7 @@ export default function AuthPanel({ onAuthenticated }: { onAuthenticated: () => 
       setCopied(true)
       setTimeout(() => setCopied(false), COPIED_MSG_MS)
     } catch {
-      setState({ loading: false, error: 'Kopyalanamadı; şifreyi alandan seçip elle kopyalayın.' })
+      setState({ loading: false, error: t('auth.copyFailed') })
     }
   }
 
@@ -127,17 +131,17 @@ export default function AuthPanel({ onAuthenticated }: { onAuthenticated: () => 
       case 'forgot':
         void run(async () => {
           await forgotPassword(email.trim())
-          switchTo('login', 'Bu e-posta kayıtlıysa şifre sıfırlama bağlantısı gönderildi.')
+          switchTo('login', t('auth.resetSent'))
         })
         break
       case 'reset':
         if (password !== passwordRepeat) {
-          setState({ loading: false, error: 'Şifreler eşleşmiyor.' })
+          setState({ loading: false, error: t('auth.mismatch') })
           return
         }
         void run(async () => {
           await resetPassword(resetToken ?? '', password)
-          switchTo('login', 'Şifren güncellendi, yeni şifrenle giriş yapabilirsin.')
+          switchTo('login', t('auth.resetDone'))
         })
         break
     }
@@ -146,36 +150,39 @@ export default function AuthPanel({ onAuthenticated }: { onAuthenticated: () => 
   return (
     <main className="login">
       <form className="login-card" onSubmit={submit}>
-        <h1 className="brand">MatchForecast</h1>
+        <div className="login-head">
+          <h1 className="brand">{t('brand')}</h1>
+          <LanguageToggle />
+        </div>
 
-        {mode === 'register' && <p className="auth-intro">Yeni hesap oluştur.</p>}
-        {mode === 'forgot' && <p className="auth-intro">Kayıtlı e-posta adresine şifre sıfırlama bağlantısı gönderelim.</p>}
-        {mode === 'reset' && <p className="auth-intro">Yeni şifreni belirle.</p>}
+        {mode === 'register' && <p className="auth-intro">{t('auth.intro.register')}</p>}
+        {mode === 'forgot' && <p className="auth-intro">{t('auth.intro.forgot')}</p>}
+        {mode === 'reset' && <p className="auth-intro">{t('auth.intro.reset')}</p>}
 
         {(mode === 'login' || mode === 'register') && (
           <label className="login-field">
-            <span>Kullanıcı adı</span>
+            <span>{t('auth.userName')}</span>
             <input type="text" autoComplete="username" required value={userName} onChange={e => setUserName(e.target.value)} />
           </label>
         )}
 
         {(mode === 'register' || mode === 'forgot') && (
           <label className="login-field">
-            <span>E-posta</span>
+            <span>{t('auth.email')}</span>
             <input type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} />
           </label>
         )}
 
         {mode === 'register' && (
           <label className="login-field">
-            <span>Ad soyad (isteğe bağlı)</span>
+            <span>{t('auth.displayName')}</span>
             <input type="text" autoComplete="name" value={displayName} onChange={e => setDisplayName(e.target.value)} />
           </label>
         )}
 
         {mode !== 'forgot' && (
           <label className="login-field">
-            <span>{mode === 'reset' ? 'Yeni şifre' : 'Şifre'}</span>
+            <span>{t(mode === 'reset' ? 'auth.newPassword' : 'auth.password')}</span>
             <input
               type={showPassword ? 'text' : 'password'}
               required
@@ -190,22 +197,22 @@ export default function AuthPanel({ onAuthenticated }: { onAuthenticated: () => 
         {mode === 'register' && (
           <div className="password-tools">
             <button type="button" className="link-btn" onClick={handleGeneratePassword} disabled={generating}>
-              {generating ? 'Oluşturuluyor…' : 'Güçlü şifre oluştur'}
+              {t(generating ? 'auth.generating' : 'auth.generate')}
             </button>
             {password && (
               <button type="button" className="link-btn" onClick={() => setShowPassword(v => !v)}>
-                {showPassword ? 'Gizle' : 'Göster'}
+                {t(showPassword ? 'auth.hide' : 'auth.show')}
               </button>
             )}
             {showPassword && password && (
-              <button type="button" className="link-btn" onClick={handleCopyPassword}>{copied ? 'Kopyalandı' : 'Kopyala'}</button>
+              <button type="button" className="link-btn" onClick={handleCopyPassword}>{t(copied ? 'auth.copied' : 'auth.copy')}</button>
             )}
           </div>
         )}
 
         {mode === 'reset' && (
           <label className="login-field">
-            <span>Yeni şifre (tekrar)</span>
+            <span>{t('auth.newPasswordRepeat')}</span>
             <input
               type="password"
               autoComplete="new-password"
@@ -221,12 +228,12 @@ export default function AuthPanel({ onAuthenticated }: { onAuthenticated: () => 
         {state.error && <p className="note-error" role="alert">{state.error}</p>}
 
         <button type="submit" className="cache-btn login-btn" disabled={state.loading}>
-          {SUBMIT_LABELS[mode][state.loading ? 1 : 0]}
+          {t(SUBMIT_LABELS[mode][state.loading ? 1 : 0])}
         </button>
 
         {mode === 'login' ? (
           <>
-            {(googleClientId || guestLoginEnabled) && <div className="auth-divider">veya</div>}
+            {(googleClientId || guestLoginEnabled) && <div className="auth-divider">{t('auth.or')}</div>}
             {googleClientId && <div ref={googleButton} className="google-button" />}
             {guestLoginEnabled && (
               <button
@@ -235,17 +242,17 @@ export default function AuthPanel({ onAuthenticated }: { onAuthenticated: () => 
                 onClick={() => void run(loginAsGuest, true)}
                 disabled={state.loading}
               >
-                Misafir olarak devam et
+                {t('auth.guest')}
               </button>
             )}
             <div className="auth-links">
-              <button type="button" className="link-btn" onClick={() => switchTo('forgot')}>Şifremi unuttum</button>
-              <button type="button" className="link-btn" onClick={() => switchTo('register')}>Kayıt ol</button>
+              <button type="button" className="link-btn" onClick={() => switchTo('forgot')}>{t('auth.forgot')}</button>
+              <button type="button" className="link-btn" onClick={() => switchTo('register')}>{t('auth.register')}</button>
             </div>
           </>
         ) : (
           <div className="auth-links">
-            <button type="button" className="link-btn" onClick={() => switchTo('login')}>Girişe dön</button>
+            <button type="button" className="link-btn" onClick={() => switchTo('login')}>{t('auth.back')}</button>
           </div>
         )}
       </form>

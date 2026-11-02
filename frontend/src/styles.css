@@ -99,6 +99,31 @@ button, input { font: inherit; color: inherit; }
 /* Tema düğmesi: yalnızca simge, diğer üst bar düğmeleriyle aynı yükseklikte kare */
 .theme-btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.35rem 0.5rem; line-height: 1; }
 
+/* Dil seçici (TR | EN): tek çerçeve içinde iki parça, seçili dil dolu */
+.lang-toggle {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.lang-btn {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 0.35rem 0.55rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.lang-btn + .lang-btn { border-left: 1px solid var(--line); }
+.lang-btn:hover:not(.is-active) { color: var(--pitch); }
+.lang-btn.is-active { background: var(--pitch); color: var(--surface); }
+.lang-btn:focus-visible { outline: 2px solid var(--pitch); outline-offset: -2px; }
+
 .cache-msg { font-size: 0.9rem; color: var(--muted); }
 .cache-msg-error { color: var(--danger); }
 .user-name { font-size: 0.9rem; font-weight: 600; }
@@ -136,7 +161,10 @@ button, input { font: inherit; color: inherit; }
   border-radius: 10px;
 }
 
-.login-card .brand { margin-bottom: 0.5rem; }
+.login-card .brand { margin: 0; }
+
+/* Giriş kartı başlığı: site adı solda, dil seçici sağda */
+.login-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.5rem; }
 
 .login-field { display: grid; gap: 0.3rem; font-size: 0.9rem; color: var(--muted); }
 

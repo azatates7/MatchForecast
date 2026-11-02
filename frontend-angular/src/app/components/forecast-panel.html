@@ -3,8 +3,8 @@
 
 @if (!m) {
   <div class="empty">
-    <p class="empty-title">Bir maç seçin</p>
-    <p>Yapay zeka seçtiğiniz maçın gol, korner ve kart beklentilerini çıkarır; bunlardan hesaplanan, olasılığı en yüksek 10 tahmin listelenir.</p>
+    <p class="empty-title">{{ i18n.t('forecast.emptyTitle') }}</p>
+    <p>{{ i18n.t('forecast.emptyText') }}</p>
   </div>
 } @else {
   <article class="forecast">
@@ -18,21 +18,21 @@
     </header>
 
     @if (loading()) {
-      <p class="note pulse">Maç analiz ediliyor, bu 10-30 saniye sürebilir…</p>
+      <p class="note pulse">{{ i18n.t('forecast.loading') }}</p>
     }
 
     @if (error()) {
       <div class="note note-error">
         <p>{{ error() }}</p>
         @if (canRetry()) {
-          <button type="button" class="link-btn" (click)="retry.emit()">Tekrar analiz et</button>
+          <button type="button" class="link-btn" (click)="retry.emit()">{{ i18n.t('forecast.retry') }}</button>
         }
       </div>
     }
 
     @if (f) {
-      @if (f.summary) {
-        <p class="summary">{{ f.summary }}</p>
+      @if (i18n.loc(f.summary); as summary) {
+        <p class="summary">{{ summary }}</p>
       }
 
       <section class="outcomes">
@@ -43,7 +43,7 @@
               @for (p of b.parts; track p.key) {
                 <span class="result-seg" [class]="p.className" [style.flex-grow]="p.value">
                   @if (p.value >= 12) {
-                    {{ p.key }} %{{ p.value }}
+                    {{ p.key }} {{ i18n.pct(p.value) }}
                   }
                 </span>
               }
@@ -52,35 +52,38 @@
               @for (p of b.parts; track p.key) {
                 <span class="legend-item">
                   <i class="legend-dot" [class]="p.className"></i>
-                  {{ p.name }} <strong>%{{ p.value }}</strong>
+                  {{ p.name }} <strong>{{ i18n.pct(p.value) }}</strong>
                 </span>
               }
             </p>
           </div>
         }
-        <p class="btts">Karşılıklı gol: <strong>Var %{{ f.outcomes.bttsYes }}</strong> · Yok %{{ 100 - f.outcomes.bttsYes }}</p>
+        <p class="btts">
+          {{ i18n.t('outcome.btts') }} <strong>{{ i18n.t('outcome.yes') }} {{ i18n.pct(f.outcomes.bttsYes) }}</strong>
+          · {{ i18n.t('outcome.no') }} {{ i18n.pct(100 - f.outcomes.bttsYes) }}
+        </p>
       </section>
 
-      <h3 class="section-title">En olası 10 tahmin</h3>
+      <h3 class="section-title">{{ i18n.t('forecast.top', { n: f.predictions.length }) }}</h3>
       <ol class="picks">
         @for (p of f.predictions; track p.market + '-' + p.selection) {
           <li class="pick">
             <span class="pick-rank">{{ p.rank }}</span>
             <div class="pick-body">
               <div class="pick-line">
-                <h3 class="pick-label">{{ p.label }}</h3>
+                <h3 class="pick-label">{{ i18n.loc(p.label) }}</h3>
               </div>
               <p class="pick-market">{{ p.market }}: {{ p.selection }}</p>
 
-              <div class="meter" role="img" [attr.aria-label]="'Gerçekleşme olasılığı %' + p.confidence">
+              <div class="meter" role="img" [attr.aria-label]="i18n.t('forecast.probabilityAria', { p: i18n.pct(p.confidence) })">
                 <span class="meter-fill" [style.width.%]="p.confidence"></span>
               </div>
               <p class="meter-legend">
-                <span>Olasılık %{{ p.confidence }}</span>
+                <span>{{ i18n.t('forecast.probability', { p: i18n.pct(p.confidence) }) }}</span>
               </p>
 
-              @if (p.reasoning) {
-                <p class="pick-reason">{{ p.reasoning }}</p>
+              @if (i18n.loc(p.reasoning); as reason) {
+                <p class="pick-reason">{{ reason }}</p>
               }
             </div>
           </li>
@@ -90,12 +93,12 @@
       <app-stats-table [stats]="f.stats" />
 
       <footer class="forecast-foot">
-        <span>Değerler yapay zekanın genel bilgisine dayanır; güncel kadro, sakatlık ve hakem bilgisi içermez.</span>
+        <span>{{ i18n.t('forecast.footnote') }}</span>
         @if (canRetry()) {
-          <button type="button" class="link-btn" (click)="retry.emit()">Yeniden analiz et</button>
+          <button type="button" class="link-btn" (click)="retry.emit()">{{ i18n.t('forecast.reanalyze') }}</button>
         }
       </footer>
-      <p class="disclaimer">Tahminler olasılık tahminidir, sonuç garantisi vermez.</p>
+      <p class="disclaimer">{{ i18n.t('forecast.disclaimer') }}</p>
     }
   </article>
 }

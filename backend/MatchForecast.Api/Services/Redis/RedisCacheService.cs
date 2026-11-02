@@ -103,7 +103,7 @@ public sealed class RedisCacheService(
         if (primaries.Count == 0)
         {
             logger.LogError("Cache clear failed: no connected Redis primary.");
-            throw new ForecastException("Redis'e bağlanılamadı, önbellek temizlenemedi.", StatusCodes.Status503ServiceUnavailable);
+            throw new ForecastException(Lang.T("Redis'e bağlanılamadı, önbellek temizlenemedi.", "Could not connect to Redis; the cache was not cleared."), StatusCodes.Status503ServiceUnavailable);
         }
 
         long deleted = 0;

@@ -21,7 +21,7 @@ public sealed class ClaudeForecastClient(
         if (string.IsNullOrWhiteSpace(_opt.ApiKey))
         {
             logger.LogError("Ai:Claude:ApiKey configuration is missing or empty.");
-            throw new ForecastException("Ai:Claude:ApiKey tanımlı değil. user-secrets ile ekleyin.",
+            throw new ForecastException(Lang.T("Ai:Claude:ApiKey tanımlı değil. user-secrets ile ekleyin.", "Ai:Claude:ApiKey is not set. Add it with user-secrets."),
                 StatusCodes.Status500InternalServerError);
         }
 

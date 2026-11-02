@@ -1,3 +1,4 @@
+using MatchForecast.Models.Common;
 using System.Globalization;
 using System.Text;
 using System.Threading.RateLimiting;
@@ -129,6 +130,22 @@ try
     // Controllers klasöründeki [ApiController] sınıfları otomatik keşfedilir; yeni endpoint için Program.cs'e dokunmaya gerek yok.
     builder.Services.AddControllers();
 
+    /*
+     * i18n: Accept-Language başlığına göre CurrentUICulture ayarlanır (tr veya en; desteklenmeyen/eksikse tr).
+     * Kullanıcıya dönen mesajlar Lang.T("...", "...") ile seçilir. Yalnızca UI kültürü değişir; sayı/tarih biçimleri
+     * (CurrentCulture) etkilenmesin diye Culture sabit kalır. Tahmin metinleri dilden bağımsızdır: { tr, en } olarak döner.
+     */
+    // İstek dışındaki işler (ön ısıtma, arka plan servisleri) makinenin diline göre değil, varsayılan dilde (tr) çalışsın.
+    CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.GetCultureInfo("tr");
+    builder.Services.Configure<RequestLocalizationOptions>(o =>
+    {
+        string[] languages = ["tr", "en"];
+        o.SetDefaultCulture("tr");
+        o.AddSupportedUICultures(languages);
+        o.FallBackToParentUICultures = true; // "en-US" -> "en"
+        o.RequestCultureProviders = [new Microsoft.AspNetCore.Localization.AcceptLanguageHeaderRequestCultureProvider()];
+    });
+
     builder.Services.AddOpenApi();
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen(c =>
@@ -137,7 +154,7 @@ try
         {
             Title = "MatchForecast API",
             Version = "v1",
-            Description = "Futbol maçları ve LLM (Claude) destekli tahmin analizi API'si"
+            Description = "Futbol maçları ve LLM (Gemini / Claude / Ollama) destekli tahmin analizi API'si. Accept-Language: tr | en"
         });
 
         // Swagger UI "Authorize" butonu: ApiKey tipi değeri header'a olduğu gibi yazdığından değer "Bearer {token}" formatında girilir.
@@ -315,17 +332,19 @@ try
             if (policy == RateLimitOptions.CacheClearPolicy)
             {
                 // Kayan pencerede limiter'ın verdiği RetryAfter yalnızca bir dilim (1 dk) uzunluğundadır, gerçek bekleme süresi değildir; yanlış yönlendirmemek için Retry-After header'ı gönderilmez.
-                detail = $"Cache temizleme {rateLimit.CacheClearWindowMinutes} dakika içinde en fazla {rateLimit.CacheClearPermitLimit} kez yapılabilir. Daha sonra tekrar deneyin.";
+                detail = Lang.T(
+                    $"Cache temizleme {rateLimit.CacheClearWindowMinutes} dakika içinde en fazla {rateLimit.CacheClearPermitLimit} kez yapılabilir. Daha sonra tekrar deneyin.",
+                    $"The cache can be cleared at most {rateLimit.CacheClearPermitLimit} times in {rateLimit.CacheClearWindowMinutes} minutes. Please try again later.");
             }
             else if (ctx.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
             {
                 var seconds = (int)Math.Ceiling(retryAfter.TotalSeconds);
                 http.Response.Headers.RetryAfter = seconds.ToString(CultureInfo.InvariantCulture);
-                detail = $"Çok fazla istek gönderildi. {seconds} saniye sonra tekrar deneyin.";
+                detail = Lang.T($"Çok fazla istek gönderildi. {seconds} saniye sonra tekrar deneyin.", $"Too many requests. Please try again in {seconds} seconds.");
             }
             else
             {
-                detail = "Çok fazla istek gönderildi. Biraz sonra tekrar deneyin.";
+                detail = Lang.T("Çok fazla istek gönderildi. Biraz sonra tekrar deneyin.", "Too many requests. Please try again a little later.");
             }
 
             return new ValueTask(Results.Problem(detail: detail, statusCode: StatusCodes.Status429TooManyRequests).ExecuteAsync(http));
@@ -371,6 +390,9 @@ try
     }
 
     app.UseCors();
+
+    // Exception middleware'den önce: hata mesajları da istek dilinde dönsün.
+    app.UseRequestLocalization();
 
     // Middlewares from MatchForecast.Logger project
     app.UseMatchForecastExceptionHandling();

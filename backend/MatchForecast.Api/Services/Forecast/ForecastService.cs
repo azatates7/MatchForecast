@@ -60,8 +60,8 @@ public sealed class ForecastService(
 
     public async Task<ForecastResult> GetForecastAsync(int fixtureId, bool refresh, CancellationToken ct)
     {
-        // v2: eski (oranlı) formatta cache'lenmiş tahminler yeni modele uymaz; farklı anahtar onları yok sayar, 30 dk'da kendiliğinden silinirler.
-        var key = $"forecast:v2:{fixtureId}";
+        // v3: metinler iki dilli ({ tr, en }). Eski formattaki (v2) kayıtlar farklı anahtar sayesinde yok sayılır, süreleri dolunca silinirler.
+        var key = $"forecast:v3:{fixtureId}";
         if (!refresh)
         {
             var cached = await cache.GetAsync<ForecastResult>(key);
@@ -95,7 +95,7 @@ public sealed class ForecastService(
         if (match is null)
         {
             logger.LogWarning("Fixture {FixtureId} not found.", fixtureId);
-            throw new ForecastException("Maç bulunamadı.", StatusCodes.Status404NotFound);
+            throw new ForecastException(Lang.T("Maç bulunamadı.", "Match not found."), StatusCodes.Status404NotFound);
         }
 
         var raw = await ai.CompleteAsync(ForecastPrompt.System, ForecastPrompt.BuildUser(match), ct);
@@ -108,10 +108,10 @@ public sealed class ForecastService(
         if (predictions.Count == 0)
         {
             logger.LogWarning("No predictions could be selected for fixture {Id}. Raw: {Raw}", fixtureId, raw);
-            throw new ForecastException("Yapay zeka geçerli bir tahmin üretmedi, tekrar deneyin.");
+            throw new ForecastException(Lang.T("Yapay zeka geçerli bir tahmin üretmedi, tekrar deneyin.", "The AI did not produce a valid forecast, please try again."));
         }
 
-        var result = new ForecastResult(match, response.Summary ?? "", projection.Outcomes, projection.Stats, predictions, DateTimeOffset.Now);
+        var result = new ForecastResult(match, LocalizedText.Of(response.Summary, response.SummaryEn), projection.Outcomes, projection.Stats, predictions, DateTimeOffset.Now);
         await cache.SetAsync(key, result, TimeSpan.FromMinutes(aiOptions.Value.CacheMinutes));
         return result;
     }
@@ -124,7 +124,7 @@ public sealed class ForecastService(
         if (start < 0 || end <= start)
         {
             logger.LogWarning("AI response does not contain valid JSON bounds. Raw: {Raw}", raw);
-            throw new ForecastException("Yapay zeka cevabı JSON içermiyor.");
+            throw new ForecastException(Lang.T("Yapay zeka cevabı JSON içermiyor.", "The AI response does not contain JSON."));
         }
 
         try
@@ -135,7 +135,7 @@ public sealed class ForecastService(
         catch (JsonException ex)
         {
             logger.LogWarning(ex, "AI JSON parse failed. Raw: {Raw}", raw);
-            throw new ForecastException("Yapay zeka cevabı okunamadı, tekrar deneyin.");
+            throw new ForecastException(Lang.T("Yapay zeka cevabı okunamadı, tekrar deneyin.", "The AI response could not be read, please try again."));
         }
     }
 }

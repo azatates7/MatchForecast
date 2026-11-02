@@ -28,19 +28,20 @@ public static class ForecastPrompt
         - Başlangıç noktası olarak üst düzey liglerin yaklaşık maç ortalamalarını al (toplam gol ~2.7,
           ilk yarı gol ~1.2, korner ~10, sarı kart ~4.5, kırmızı kart ~0.2) ve bunu takımların gücü,
           oyun tarzı, lig karakteri ve ev sahibi avantajına göre ayarla.
-        - reasoning: en fazla 1 cümle, Türkçe.
-        - summary: maçın 1-2 cümlelik genel değerlendirmesi, Türkçe.
+        - reasoning: en fazla 1 cümle, Türkçe. reasoningEn: aynı cümlenin İngilizcesi.
+        - summary: maçın 1-2 cümlelik genel değerlendirmesi, Türkçe. summaryEn: aynı metnin İngilizcesi.
         - Cevabın SADECE geçerli JSON olsun; açıklama, markdown veya kod bloğu ekleme.
 
         JSON şeması:
         {
           "summary": "...",
-          "homeGoals": { "expected": 1.5, "reasoning": "..." },
-          "awayGoals": { "expected": 1.1, "reasoning": "..." },
-          "firstHalfGoals": { "expected": 1.2, "reasoning": "..." },
-          "corners": { "expected": 10.0, "reasoning": "..." },
-          "yellowCards": { "expected": 4.5, "reasoning": "..." },
-          "redCards": { "expected": 0.2, "reasoning": "..." }
+          "summaryEn": "...",
+          "homeGoals": { "expected": 1.5, "reasoning": "...", "reasoningEn": "..." },
+          "awayGoals": { "expected": 1.1, "reasoning": "...", "reasoningEn": "..." },
+          "firstHalfGoals": { "expected": 1.2, "reasoning": "...", "reasoningEn": "..." },
+          "corners": { "expected": 10.0, "reasoning": "...", "reasoningEn": "..." },
+          "yellowCards": { "expected": 4.5, "reasoning": "...", "reasoningEn": "..." },
+          "redCards": { "expected": 0.2, "reasoning": "...", "reasoningEn": "..." }
         }
         """;
 

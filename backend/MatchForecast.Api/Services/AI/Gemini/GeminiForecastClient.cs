@@ -21,7 +21,7 @@ public sealed class GeminiForecastClient(
         if (string.IsNullOrWhiteSpace(_opt.ApiKey))
         {
             logger.LogError("Ai:Gemini:ApiKey configuration is missing or empty.");
-            throw new ForecastException("Ai:Gemini:ApiKey tanımlı değil. user-secrets ile ekleyin.",
+            throw new ForecastException(Lang.T("Ai:Gemini:ApiKey tanımlı değil. user-secrets ile ekleyin.", "Ai:Gemini:ApiKey is not set. Add it with user-secrets."),
                 StatusCodes.Status500InternalServerError);
         }
 
@@ -39,15 +39,15 @@ public sealed class GeminiForecastClient(
         {
             logger.LogError("Gemini API call failed with status code {StatusCode}. ApiKey: {ApiKey}. Raw response: {Raw}", status, _opt.MaskedApiKey(), raw);
             throw status == StatusCodes.Status503ServiceUnavailable
-                ? new ForecastException("AI servisi şu an yoğun. Birkaç dakika sonra tekrar deneyin.", StatusCodes.Status503ServiceUnavailable)
-                : new ForecastException($"AI servisi (Gemini, anahtar: {_opt.MaskedApiKey()}) HTTP {status}: {Truncate(raw, 300)}");
+                ? new ForecastException(Lang.T("AI servisi şu an yoğun. Birkaç dakika sonra tekrar deneyin.", "The AI service is busy right now. Please try again in a few minutes."), StatusCodes.Status503ServiceUnavailable)
+                : new ForecastException(Lang.T($"AI servisi (Gemini, anahtar: {_opt.MaskedApiKey()}) HTTP {status}: {Truncate(raw, 300)}", $"AI service (Gemini, key: {_opt.MaskedApiKey()}) HTTP {status}: {Truncate(raw, 300)}"));
         }
 
         using var doc = JsonDocument.Parse(raw);
         if (!doc.RootElement.TryGetProperty("candidates", out var candidates) || candidates.GetArrayLength() == 0)
         {
             logger.LogError("Gemini API returned no candidates. Raw response: {Raw}", raw);
-            throw new ForecastException("AI servisi yanıt üretmedi (içerik filtresi veya boş yanıt).");
+            throw new ForecastException(Lang.T("AI servisi yanıt üretmedi (içerik filtresi veya boş yanıt).", "The AI service produced no answer (content filter or empty response)."));
         }
 
         var candidate = candidates[0];
@@ -63,8 +63,8 @@ public sealed class GeminiForecastClient(
             var reason = candidate.TryGetProperty("finishReason", out var fr) ? fr.GetString() : "UNKNOWN";
             logger.LogError("Gemini API returned empty text. FinishReason: {Reason}. Raw response: {Raw}", reason, raw);
             throw new ForecastException(reason == "MAX_TOKENS"
-                ? "AI yanıtı token limitine takıldı. Ai:MaxTokens değerini artırın."
-                : $"AI servisi boş yanıt döndü (finishReason: {reason}).");
+                ? Lang.T("AI yanıtı token limitine takıldı. Ai:MaxTokens değerini artırın.", "The AI response hit the token limit. Increase Ai:MaxTokens.")
+                : Lang.T($"AI servisi boş yanıt döndü (finishReason: {reason}).", $"The AI service returned an empty response (finishReason: {reason})."));
         }
 
         return text;

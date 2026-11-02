@@ -50,14 +50,14 @@ public sealed class OllamaForecastClient(
         {
             // Bulut API'lerinin aksine en sık hata "Ollama çalışmıyor"; genel 500 yerine anlaşılır mesaj dönülür.
             logger.LogError(ex, "Ollama server is unreachable at {BaseUrl}.", _opt.BaseUrl);
-            throw new ForecastException($"Ollama sunucusuna ulaşılamadı ({_opt.BaseUrl}). 'ollama serve' çalışıyor mu?",
+            throw new ForecastException(Lang.T($"Ollama sunucusuna ulaşılamadı ({_opt.BaseUrl}). 'ollama serve' çalışıyor mu?", $"Could not reach the Ollama server ({_opt.BaseUrl}). Is 'ollama serve' running?"),
                 StatusCodes.Status503ServiceUnavailable);
         }
         catch (TaskCanceledException ex) when (!ct.IsCancellationRequested)
         {
             // İstemci iptal etmediyse bu HttpClient.Timeout'tur (model yavaş veya ilk yükleniyor).
             logger.LogError(ex, "Ollama request timed out after {Timeout}s. Model: {Model}", _opt.TimeoutSeconds, _opt.Model);
-            throw new ForecastException($"Ollama {_opt.TimeoutSeconds} sn içinde yanıt vermedi. Ai:Ollama:TimeoutSeconds değerini artırın veya daha küçük bir model kullanın.",
+            throw new ForecastException(Lang.T($"Ollama {_opt.TimeoutSeconds} sn içinde yanıt vermedi. Ai:Ollama:TimeoutSeconds değerini artırın veya daha küçük bir model kullanın.", $"Ollama did not answer within {_opt.TimeoutSeconds} s. Increase Ai:Ollama:TimeoutSeconds or use a smaller model."),
                 StatusCodes.Status504GatewayTimeout);
         }
 
@@ -69,8 +69,8 @@ public sealed class OllamaForecastClient(
                 // Ollama hataları {"error":"..."} formatında döner; 404 genelde modelin indirilmediği anlamına gelir.
                 logger.LogError("Ollama API call failed with status code {StatusCode}. Model: {Model}. Raw response: {Raw}", (int)res.StatusCode, _opt.Model, raw);
                 throw res.StatusCode == System.Net.HttpStatusCode.NotFound
-                    ? new ForecastException($"Ollama modeli bulunamadı: '{_opt.Model}'. 'ollama pull {_opt.Model}' ile indirin.")
-                    : new ForecastException($"AI servisi (Ollama) HTTP {(int)res.StatusCode}: {Truncate(raw, 300)}");
+                    ? new ForecastException(Lang.T($"Ollama modeli bulunamadı: '{_opt.Model}'. 'ollama pull {_opt.Model}' ile indirin.", $"Ollama model not found: '{_opt.Model}'. Download it with 'ollama pull {_opt.Model}'."))
+                    : new ForecastException(Lang.T($"AI servisi (Ollama) HTTP {(int)res.StatusCode}: {Truncate(raw, 300)}", $"AI service (Ollama) HTTP {(int)res.StatusCode}: {Truncate(raw, 300)}"));
             }
 
             using var doc = JsonDocument.Parse(raw);
@@ -86,8 +86,8 @@ public sealed class OllamaForecastClient(
                 var reason = root.TryGetProperty("done_reason", out var dr) ? dr.GetString() : "unknown";
                 logger.LogError("Ollama returned empty content. DoneReason: {Reason}. Raw response: {Raw}", reason, raw);
                 throw new ForecastException(reason == "length"
-                    ? "AI yanıtı token limitine takıldı. Ai:MaxTokens değerini artırın."
-                    : $"AI servisi (Ollama) boş yanıt döndü (done_reason: {reason}).");
+                    ? Lang.T("AI yanıtı token limitine takıldı. Ai:MaxTokens değerini artırın.", "The AI response hit the token limit. Increase Ai:MaxTokens.")
+                    : Lang.T($"AI servisi (Ollama) boş yanıt döndü (done_reason: {reason}).", $"The AI service (Ollama) returned an empty response (done_reason: {reason})."));
             }
 
             return text;

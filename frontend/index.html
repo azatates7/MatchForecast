@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet" />
-    <title>MatchForecast</title>
+    <title>Maç Analiz</title>
     <script>
       // Tema ilk boyamadan önce uygulanır (açılışta yanlış tema bir an bile görünmesin): kayıtlı seçim, yoksa sistem tercihi.
       // Anahtar ThemeToggle.tsx'teki THEME_KEY ile aynı olmalı.
@@ -17,6 +17,24 @@
         if (theme !== 'light' && theme !== 'dark')
           theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         document.documentElement.dataset.theme = theme;
+      })();
+      // Dil de ilk boyamadan önce belirlenir (src/i18n/i18n.ts buradan okur; LANG_KEY ile aynı anahtar):
+      // ?lang= (ör. şifre sıfırlama e-postasındaki bağlantı) > kayıtlı seçim > tarayıcı dili (tr ise tr, değilse en).
+      (function () {
+        var key = 'matchforecast.lang';
+        var url = new URL(window.location.href);
+        var lang = url.searchParams.get('lang');
+        if (lang === 'tr' || lang === 'en') {
+          try { localStorage.setItem(key, lang); } catch (e) { /* yok say */ }
+          url.searchParams.delete('lang');
+          history.replaceState(null, '', url);
+        } else {
+          try { lang = localStorage.getItem(key); } catch (e) { lang = null; }
+        }
+        if (lang !== 'tr' && lang !== 'en')
+          lang = (navigator.language || 'tr').toLowerCase().indexOf('tr') === 0 ? 'tr' : 'en';
+        document.documentElement.lang = lang;
+        document.title = lang === 'en' ? 'Match Forecast' : 'Maç Analiz';
       })();
     </script>
   </head>

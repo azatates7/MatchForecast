@@ -1,3 +1,4 @@
+using MatchForecast.Models.Common;
 using System.Buffers.Text;
 using System.Security.Cryptography;
 using System.Text;
@@ -142,10 +143,10 @@ public sealed partial class AuthService(
         var email = request.Email.Trim().ToLowerInvariant();
 
         if (await db.Users.AnyAsync(x => x.UserName == userName, ct))
-            return (null, "Bu kullanıcı adı kullanılıyor.");
+            return (null, Lang.T("Bu kullanıcı adı kullanılıyor.", "This user name is already taken."));
 
         if (await db.Users.AnyAsync(x => x.Email == email, ct))
-            return (null, "Bu e-posta adresiyle zaten bir hesap var. Giriş yapın veya şifrenizi sıfırlayın.");
+            return (null, Lang.T("Bu e-posta adresiyle zaten bir hesap var. Giriş yapın veya şifrenizi sıfırlayın.", "An account with this e-mail already exists. Sign in or reset your password."));
 
         var user = new User { UserName = userName, Email = email, DisplayName = request.DisplayName };
         user.PasswordHash = hasher.HashPassword(user, request.Password);
@@ -219,20 +220,32 @@ public sealed partial class AuthService(
         });
         await db.SaveChangesAsync(ct);
 
-        var link = $"{o.PasswordResetUrl.TrimEnd('/')}/?resetToken={Uri.EscapeDataString(rawToken)}";
-        var body = $"""
-            <p>Merhaba {WebUtility.HtmlEncode(user.DisplayName ?? user.UserName)},</p>
-            <p>MatchForecast şifreni sıfırlamak için aşağıdaki bağlantıya tıkla. Bağlantı {o.PasswordResetTokenMinutes} dakika geçerli ve tek kullanımlıktır.</p>
-            <p><a href="{WebUtility.HtmlEncode(link)}">Şifremi sıfırla</a></p>
-            <p>Bu isteği sen yapmadıysan bu e-postayı yok sayabilirsin; şifren değişmez.</p>
-            """;
+        // E-posta, isteği yapan sayfanın dilinde (Accept-Language) yazılır; bağlantıdaki lang da sıfırlama ekranını aynı dilde açar.
+        var english = Lang.IsEnglish;
+        var link = $"{o.PasswordResetUrl.TrimEnd('/')}/?resetToken={Uri.EscapeDataString(rawToken)}&lang={(english ? "en" : "tr")}";
+        var name = WebUtility.HtmlEncode(user.DisplayName ?? user.UserName);
+        var href = WebUtility.HtmlEncode(link);
+        var subject = english ? "Match Forecast password reset" : "Maç Analiz şifre sıfırlama";
+        var body = english
+            ? $"""
+                <p>Hello {name},</p>
+                <p>Click the link below to reset your Match Forecast password. The link is valid for {o.PasswordResetTokenMinutes} minutes and can be used once.</p>
+                <p><a href="{href}">Reset my password</a></p>
+                <p>If you did not request this, you can ignore this e-mail; your password will not change.</p>
+                """
+            : $"""
+                <p>Merhaba {name},</p>
+                <p>Maç Analiz şifreni sıfırlamak için aşağıdaki bağlantıya tıkla. Bağlantı {o.PasswordResetTokenMinutes} dakika geçerli ve tek kullanımlıktır.</p>
+                <p><a href="{href}">Şifremi sıfırla</a></p>
+                <p>Bu isteği sen yapmadıysan bu e-postayı yok sayabilirsin; şifren değişmez.</p>
+                """;
 
         // IEmailSender singleton; istek bittikten sonra DbContext'e dokunmadan çalışır.
         _ = Task.Run(async () =>
         {
             try
             {
-                await emailSender.SendAsync([user.Email], "MatchForecast şifre sıfırlama", body, isHtml: true, CancellationToken.None);
+                await emailSender.SendAsync([user.Email], subject, body, isHtml: true, CancellationToken.None);
             }
             catch (Exception ex)
             {

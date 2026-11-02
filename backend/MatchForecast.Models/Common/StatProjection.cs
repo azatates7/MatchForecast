@@ -8,9 +8,9 @@ namespace MatchForecast.Models.Common;
  */
 public sealed record StatProjection(
     StatMetric Metric,
-    string Label,
+    LocalizedText Label,
     decimal Expected,
     int RangeMin,
     int RangeMax,
     IReadOnlyList<LineProbability> Lines,
-    string Reasoning);
+    LocalizedText Reasoning);

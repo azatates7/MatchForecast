@@ -1,16 +1,19 @@
 <main class="login">
   <form class="login-card" (submit)="submit($event)">
-    <h1 class="brand">MatchForecast</h1>
+    <div class="login-head">
+      <h1 class="brand">{{ i18n.t('brand') }}</h1>
+      <app-language-toggle />
+    </div>
 
     @switch (mode()) {
-      @case ('register') { <p class="auth-intro">Yeni hesap oluştur.</p> }
-      @case ('forgot') { <p class="auth-intro">Kayıtlı e-posta adresine şifre sıfırlama bağlantısı gönderelim.</p> }
-      @case ('reset') { <p class="auth-intro">Yeni şifreni belirle.</p> }
+      @case ('register') { <p class="auth-intro">{{ i18n.t('auth.intro.register') }}</p> }
+      @case ('forgot') { <p class="auth-intro">{{ i18n.t('auth.intro.forgot') }}</p> }
+      @case ('reset') { <p class="auth-intro">{{ i18n.t('auth.intro.reset') }}</p> }
     }
 
     @if (mode() === 'login' || mode() === 'register') {
       <label class="login-field">
-        <span>Kullanıcı adı</span>
+        <span>{{ i18n.t('auth.userName') }}</span>
         <input
           type="text"
           autocomplete="username"
@@ -23,7 +26,7 @@
 
     @if (mode() === 'register' || mode() === 'forgot') {
       <label class="login-field">
-        <span>E-posta</span>
+        <span>{{ i18n.t('auth.email') }}</span>
         <input
           type="email"
           autocomplete="email"
@@ -36,7 +39,7 @@
 
     @if (mode() === 'register') {
       <label class="login-field">
-        <span>Ad soyad (isteğe bağlı)</span>
+        <span>{{ i18n.t('auth.displayName') }}</span>
         <input
           type="text"
           autocomplete="name"
@@ -48,7 +51,7 @@
 
     @if (mode() !== 'forgot') {
       <label class="login-field">
-        <span>{{ mode() === 'reset' ? 'Yeni şifre' : 'Şifre' }}</span>
+        <span>{{ i18n.t(mode() === 'reset' ? 'auth.newPassword' : 'auth.password') }}</span>
         <input
           [type]="showPassword() ? 'text' : 'password'"
           required
@@ -63,22 +66,22 @@
     @if (mode() === 'register') {
       <div class="password-tools">
         <button type="button" class="link-btn" (click)="handleGeneratePassword()" [disabled]="generating()">
-          {{ generating() ? 'Oluşturuluyor…' : 'Güçlü şifre oluştur' }}
+          {{ i18n.t(generating() ? 'auth.generating' : 'auth.generate') }}
         </button>
         @if (password()) {
           <button type="button" class="link-btn" (click)="showPassword.set(!showPassword())">
-            {{ showPassword() ? 'Gizle' : 'Göster' }}
+            {{ i18n.t(showPassword() ? 'auth.hide' : 'auth.show') }}
           </button>
         }
         @if (showPassword() && password()) {
-          <button type="button" class="link-btn" (click)="handleCopyPassword()">{{ copied() ? 'Kopyalandı' : 'Kopyala' }}</button>
+          <button type="button" class="link-btn" (click)="handleCopyPassword()">{{ i18n.t(copied() ? 'auth.copied' : 'auth.copy') }}</button>
         }
       </div>
     }
 
     @if (mode() === 'reset') {
       <label class="login-field">
-        <span>Yeni şifre (tekrar)</span>
+        <span>{{ i18n.t('auth.newPasswordRepeat') }}</span>
         <input
           type="password"
           autocomplete="new-password"
@@ -101,23 +104,23 @@
 
     @if (mode() === 'login') {
       @if (googleClientId() || guestLoginEnabled()) {
-        <div class="auth-divider">veya</div>
+        <div class="auth-divider">{{ i18n.t('auth.or') }}</div>
       }
       @if (googleClientId()) {
         <div #googleButton class="google-button"></div>
       }
       @if (guestLoginEnabled()) {
         <button type="button" class="cache-btn login-btn" (click)="guestLogin()" [disabled]="state().loading">
-          Misafir olarak devam et
+          {{ i18n.t('auth.guest') }}
         </button>
       }
       <div class="auth-links">
-        <button type="button" class="link-btn" (click)="switchTo('forgot')">Şifremi unuttum</button>
-        <button type="button" class="link-btn" (click)="switchTo('register')">Kayıt ol</button>
+        <button type="button" class="link-btn" (click)="switchTo('forgot')">{{ i18n.t('auth.forgot') }}</button>
+        <button type="button" class="link-btn" (click)="switchTo('register')">{{ i18n.t('auth.register') }}</button>
       </div>
     } @else {
       <div class="auth-links">
-        <button type="button" class="link-btn" (click)="switchTo('login')">Girişe dön</button>
+        <button type="button" class="link-btn" (click)="switchTo('login')">{{ i18n.t('auth.back') }}</button>
       </div>
     }
   </form>

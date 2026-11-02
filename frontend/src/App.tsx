@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { clearCache, getForecast, getMatches, getMe, hasSession, logout, onSessionExpired } from './api'
 import type { MeResponse } from './types'
-import type { ForecastResult, MatchSummary } from './components/Types'
+import type { ForecastResult, MatchSummary } from './types'
 import { isLive } from './components/MatchStatus'
 import MatchList from './components/MatchList'
 import ForecastPanel from './components/ForecastPanel'
 import AuthPanel from './components/Auth-Panel'
 import LeagueFilter from './components/LeagueFilter'
 import ThemeToggle from './components/ThemeToggle'
+import LanguageToggle from './components/LanguageToggle'
+import { useI18n } from './i18n/useI18n'
 
 // Canlı maç varken listenin arka planda yenilenme aralığı. API kotasını korumak için
 // kısa tutulmadı; aradaki dakikalar matchStatus.minuteLabel içinde yerelde ilerletilir.
@@ -41,6 +43,7 @@ const leagueKey = (m: MatchSummary) => `${m.country} / ${m.league}`
 export default function App() {
   // Kayıtlı refresh token varsa giriş yapılmış sayılır; geçersizse ilk istekte login ekranına dönülür.
   const [loggedIn, setLoggedIn] = useState(hasSession)
+  const { t, lang } = useI18n()
 
   const [date, setDate] = useState(todayInIstanbul)
   const [query, setQuery] = useState('')
@@ -132,8 +135,8 @@ export default function App() {
     const counts = new Map<string, number>()
     for (const m of searched) counts.set(leagueKey(m), (counts.get(leagueKey(m)) ?? 0) + 1)
     for (const l of leagues) if (!counts.has(l)) counts.set(l, 0)
-    return [...counts].sort(([a], [b]) => a.localeCompare(b, 'tr'))
-  }, [searched, leagues])
+    return [...counts].sort(([a], [b]) => a.localeCompare(b, lang))
+  }, [searched, leagues, lang])
 
   const filtered = useMemo(
     () => (leagues.length > 0 ? searched.filter(m => leagues.includes(leagueKey(m))) : searched),
@@ -179,7 +182,7 @@ export default function App() {
     setCacheState({ clearing: true })
     try {
       const { deletedKeys } = await clearCache()
-      setCacheState({ clearing: false, message: `Önbellek temizlendi (${deletedKeys} kayıt).` })
+      setCacheState({ clearing: false, message: t('cache.cleared', { n: deletedKeys }) })
       loadMatches(false)
     } catch (e) {
       setCacheState({ clearing: false, message: (e as Error).message, error: true })
@@ -212,16 +215,16 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <h1 className="brand">MatchForecast</h1>
+        <h1 className="brand">{t('brand')}</h1>
         {restricted ? (
           <div className="date-nav">
-            <input type="date" value={date} disabled aria-label="Tarih (misafir yalnızca bugünü görür)" />
+            <input type="date" value={date} disabled aria-label={t('date.guest')} />
           </div>
         ) : (
           <div className="date-nav">
-            <button type="button" onClick={() => setDate(d => shiftDate(d, -1))} aria-label="Önceki gün">‹</button>
-            <input type="date" value={date} onChange={e => e.target.value && setDate(e.target.value)} aria-label="Tarih" />
-            <button type="button" onClick={() => setDate(d => shiftDate(d, 1))} aria-label="Sonraki gün">›</button>
+            <button type="button" onClick={() => setDate(d => shiftDate(d, -1))} aria-label={t('date.prev')}>‹</button>
+            <input type="date" value={date} onChange={e => e.target.value && setDate(e.target.value)} aria-label={t('date.label')} />
+            <button type="button" onClick={() => setDate(d => shiftDate(d, 1))} aria-label={t('date.next')}>›</button>
           </div>
         )}
         <div className="cache-actions">
@@ -231,27 +234,28 @@ export default function App() {
           {me && <span className="user-name">{me.displayName || me.userName}</span>}
           {!restricted && (
             <button type="button" className="cache-btn" onClick={handleClearCache} disabled={cacheState.clearing}>
-              {cacheState.clearing ? 'Temizleniyor…' : 'Cache Temizle'}
+              {t(cacheState.clearing ? 'cache.clearing' : 'cache.clear')}
             </button>
           )}
+          <LanguageToggle />
           <ThemeToggle />
-          <button type="button" className="cache-btn" onClick={handleLogout}>Çıkış</button>
+          <button type="button" className="cache-btn" onClick={handleLogout}>{t('logout')}</button>
         </div>
       </header>
 
       <main className="layout">
-        <section className="fixtures" aria-label="Maçlar">
+        <section className="fixtures" aria-label={t('matches.aria')}>
           {isGuest && (
             <div className="guest-notice" role="note">
               <svg className="guest-notice-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5Zm-3 8V7a3 3 0 0 1 6 0v3H9Zm3 4a2 2 0 0 1 1 3.73V19h-2v-1.27A2 2 0 0 1 12 14Z"/></svg>
-              <span>Misafir kullanıcı olarak yalnızca bugünün Türkiye Süper Lig maçlarını görüyorsun.</span>
-              <button type="button" className="link-btn" onClick={handleLogout}>Tüm ligleri görmek için giriş yap</button>
+              <span>{t('guest.notice')}</span>
+              <button type="button" className="link-btn" onClick={handleLogout}>{t('guest.signIn')}</button>
             </div>
           )}
           <input
             className="search"
             type="search"
-            placeholder="Takım veya lig ara"
+            placeholder={t('matches.search')}
             value={query}
             onChange={e => setQuery(e.target.value)}
           />
@@ -274,7 +278,7 @@ export default function App() {
             onSelect={id => analyze(id)}
             fetchedAt={fetchedAt}
             now={now}
-            emptyText={isGuest ? 'Bugün Süper Lig maçı yok.' : undefined}
+            emptyText={isGuest ? t('guest.noMatches') : undefined}
           />
         </section>
 

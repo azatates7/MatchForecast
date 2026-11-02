@@ -1,3 +1,4 @@
+using MatchForecast.Models.Common;
 using MatchForecast.Api.Options;
 using MatchForecast.Api.Services.ApiFootball;
 using MatchForecast.Api.Services.Forecast;
@@ -60,7 +61,7 @@ public sealed class MatchesController(IOddsProvider odds, ForecastService foreca
         {
             var match = await odds.GetMatchAsync(id, ct);
             if (match is null || !GuestAccess.IsAllowedToday(match))
-                return Problem(statusCode: StatusCodes.Status404NotFound, detail: "Maç bulunamadı.");
+                return Problem(statusCode: StatusCodes.Status404NotFound, detail: Lang.T("Maç bulunamadı.", "Match not found."));
         }
 
         var result = await forecastService.GetForecastAsync(id, CanRefresh(refresh), ct);

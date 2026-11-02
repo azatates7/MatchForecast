@@ -1,23 +1,23 @@
 @if (stats().length > 0) {
   <section class="stats" aria-labelledby="stats-title">
-    <h3 id="stats-title" class="section-title">Maç istatistikleri tahmini</h3>
+    <h3 id="stats-title" class="section-title">{{ i18n.t('stats.title') }}</h3>
     <div class="stats-scroll">
       <table class="stats-table">
         <thead>
           <tr>
-            <th scope="col">İstatistik</th>
-            <th scope="col" class="num">Beklenen</th>
-            <th scope="col" class="num">Aralık</th>
-            <th scope="col">Alt / Üst</th>
+            <th scope="col">{{ i18n.t('stats.stat') }}</th>
+            <th scope="col" class="num">{{ i18n.t('stats.expected') }}</th>
+            <th scope="col" class="num">{{ i18n.t('stats.range') }}</th>
+            <th scope="col">{{ i18n.t('stats.lines') }}</th>
           </tr>
         </thead>
         <tbody>
           @for (s of stats(); track s.metric) {
             <tr>
               <th scope="row">
-                {{ s.label }}
-                @if (s.reasoning) {
-                  <span class="stats-reason">{{ s.reasoning }}</span>
+                {{ i18n.loc(s.label) }}
+                @if (i18n.loc(s.reasoning); as reason) {
+                  <span class="stats-reason">{{ reason }}</span>
                 }
               </th>
               <td class="num">{{ s.expected.toFixed(1) }}</td>
@@ -34,6 +34,6 @@
         </tbody>
       </table>
     </div>
-    <p class="stats-note">Aralık, olası değerlerin %80'ini kapsar.</p>
+    <p class="stats-note">{{ i18n.t('stats.note') }}</p>
   </section>
 }

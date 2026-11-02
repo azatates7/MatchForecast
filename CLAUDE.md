@@ -3,7 +3,7 @@
 MatchForecast fetches the day's football fixtures from API-Football, asks an LLM for the **expected values** of match
 statistics (goals, first-half goals, corners, cards), turns those into probabilities with a Poisson model, and lists
 the **10 most likely predictions** with a stats table. The LLM never picks bets; all probabilities and the prediction
-list are computed in code. Users sign in (username/password or Google) before they can see anything.
+list are computed in code. Users sign in (username/password, Google, or password-less guest) before they can see anything.
 
 - **Backend:** .NET 10 Web API with controllers (`backend/MatchForecast.Api`), Models class library
   (`backend/MatchForecast.Models`), Data library with EF Core (`backend/MatchForecast.Data`), Logger & middleware
@@ -16,7 +16,40 @@ list are computed in code. Users sign in (username/password or Google) before th
 - **External data:** API-Football (api-sports.io v3), fixtures only (odds are no longer used)
 - **AI engine:** pluggable via `Ai:Provider`: Gemini, Claude or Ollama (local or Ollama Cloud)
 - **Infrastructure:** Docker (multi-stage images), `docker-compose.yml` (local) and `docker-compose.prod.yml`
-  (production behind Cloudflare Tunnel)
+  (production behind Cloudflare Tunnel), Azure Pipelines CI/CD (`azure-pipelines.yml`)
+
+### Repository layout
+```
+MatchForecast.slnx                 solution (Api, Models, Data, Logger, Tests)
+azure-pipelines.yml                CI/CD: test → deploy on push to main (self-hosted agent on the VPS)
+docker-compose.yml / .prod.yml     local stack / production stack (+ cloudflared)
+backend/
+  Dockerfile
+  MatchForecast.Api/
+    Controllers/                   Auth, Me, Password, Matches, Cache, Users, AppSettings, SampleItems
+    Filter/                        BearerSecurityOperationFilter (Swagger)
+    Options/                       Ai, Auth, Forecast, Jwt, OddsProvider, RateLimit, Redis, Smtp
+    Services/
+      AI/                          Claude/, Gemini/, Ollama/ clients + PoissonMath
+      ApiFootball/                 IOddsProvider, ApiFootballOddsProvider (+ unused Mock/Public providers)
+      AppSetting/                  DatabaseSettings (DB-backed configuration source)
+      Email/                       SMTP sender, EmailErrorNotifier, StartupNotificationService
+      Forecast/                    ForecastService, Prompt, Catalog, ProjectionBuilder, PredictionSelector,
+                                   ForecastPrewarmQueue (+ ForecastPrewarmWorker in the same file)
+      Guest/                       GuestAccess, GuestUserBootstrapper (namespace: Services.Security.Guest)
+      Health/                      DatabaseHealthCheck, RedisHealthCheck, HealthResponseWriter
+      Redis/                       RedisCacheService, InMemoryRedisCacheService (tests)
+      Security/                    AuthService, JwtTokenService, GoogleIdTokenValidator, PasswordGenerator,
+                                   AdminUserBootstrapper, TokenCleanUpWorker
+  MatchForecast.Models/            Common/, Request/, Response/ DTOs (records)
+  MatchForecast.Data/              Configuration/AppDbContext, Entity/, Migrations/, Seed/, Security/AppSettingsCrypto
+  MatchForecast.Logger/            NLog config, Middleware/ (Logging, Exception), Notifications/IErrorNotifier
+  MatchForecast.Tests/             xUnit unit + WebApplicationFactory integration tests (TestAuth helper)
+frontend/                          React 19 + Vite (src/App.tsx, api.ts, types.ts, i18n/, components/)
+frontend-angular/                  Angular 22 (src/app/app.ts, core/ incl. core/i18n/, components/)
+```
+Code comments are in **Turkish**; keep new ones consistent. UI texts are TR/EN (see "Internationalization" below):
+never hard-code a user-facing string, add it to the dictionaries / `Lang.T(...)`.
 
 ---
 
@@ -28,8 +61,9 @@ list are computed in code. Users sign in (username/password or Google) before th
   misconfiguration fails at boot, not on the first request.
 - **Controllers:** `[ApiController]` classes under `Controllers/` are discovered automatically.
   - `AuthController` (anonymous): `GET /api/auth/config`, `POST /api/auth/token`, `POST /api/auth/refresh`,
-    `POST /api/auth/register`, `POST /api/auth/google`, `POST /api/auth/forgot-password`,
+    `POST /api/auth/register`, `POST /api/auth/google`, `POST /api/auth/guest`, `POST /api/auth/forgot-password`,
     `POST /api/auth/reset-password`, `POST /api/auth/revoke`
+  - `MeController` (any signed-in user, guest included): `GET /api/me` → user name, display name (from DB), roles
   - `PasswordController` (anonymous): `GET /api/password?length=16` (random password generator, 8–128, nothing stored)
   - `MatchesController`: `GET /api/matches`, `GET /api/matches/popular`, `GET /api/matches/popular/forecasts`,
     `GET /api/matches/{id}/forecast`
@@ -70,7 +104,7 @@ list are computed in code. Users sign in (username/password or Google) before th
 - **Fail-open:** `AbortOnConnectFail=false` + `BacklogPolicy.FailFast`; read/write errors count as cache misses, so the API
   keeps answering from the source when Redis is down.
 - Cached keys: `fixtures:{date}` (1 min if a match is live, otherwise `OddsProvider:CacheMinutes`), `fixture:{id}`,
-  `forecast:v2:{id}` (`Ai:CacheMinutes`), lock `prewarm:superlig:{date}` (10 min, `TryLockAsync` = `SET NX`).
+  `forecast:v3:{id}` (`Ai:CacheMinutes`), lock `prewarm:superlig:{date}` (10 min, `TryLockAsync` = `SET NX`).
 - **Forecast prewarm:** every token issue in `AuthService` (login, register, Google, guest, refresh) calls
   `ForecastPrewarmQueue.Request()` (capacity-1 channel, never blocks). `ForecastPrewarmWorker` (hosted service) takes the
   Redis lock and generates today's Süper Lig forecasts one by one; cached ones are skipped. Off with
@@ -88,7 +122,7 @@ list are computed in code. Users sign in (username/password or Google) before th
   - `TokenPolicy` on `token`, `refresh`, `register`, `google`, `forgot-password`, `reset-password`: fixed window
     **per client IP**, default 10 requests / 60 s (also slows down password guessing).
   - `AiPolicy` on `GET /api/matches/{id}/forecast` and `GET /api/matches/popular/forecasts`: fixed window **per user**
-    (JWT `sub`, falls back to IP), default 30 requests / 10 min. Cached answers count too.
+    (JWT `sub`; guests and missing `sub` fall back to IP), default 30 requests / 10 min. Cached answers count too.
   - `CacheClearPolicy` on `DELETE /api/cache`: **global** sliding window, default 2 requests / 60 min.
 - Client IP: `RateLimiting:TrustCloudflareHeader=true` reads `CF-Connecting-IP` (only safe when the API is reachable
   exclusively through Cloudflare, e.g. the prod tunnel); otherwise the connection address is used.
@@ -106,8 +140,12 @@ list are computed in code. Users sign in (username/password or Google) before th
 - `docker-compose.yml` (local): `redis`, `api` (secrets from `.env`, Ollama via `host.docker.internal`, `./logs`
   volume), `web` (React, host port `8080`).
 - `docker-compose.prod.yml`: same services with `restart: unless-stopped`, `ASPNETCORE_ENVIRONMENT=Production`,
-  `Ai__Provider=Gemini`, `RateLimiting__TrustCloudflareHeader=true`, no published ports, plus a `cloudflared` service
+  `Ai__Provider=Ollama` (Ollama Cloud via `Ai__Ollama__*`; like all env values it only seeds `app_settings` on the first
+  run), `RateLimiting__TrustCloudflareHeader=true`, no published ports, plus a `cloudflared` service
   (`CLOUDFLARE_TUNNEL_TOKEN`) that exposes `http://web:80` through a Cloudflare Tunnel.
+- `azure-pipelines.yml`: on push to `main` (PR builds disabled, the repo is public) a self-hosted agent
+  (`matchforecast-vps` pool) runs `dotnet test` (Release), then in `/opt/matchforecast` does `git pull --ff-only` and
+  `docker compose -f docker-compose.prod.yml up -d --build`.
 
 ### ✅ Roadmap step 4 — Database (Supabase / PostgreSQL)
 - Replaced the planned MSSQL step with **Supabase PostgreSQL**. Connection string: `ConnectionStrings:Supabase`
@@ -147,7 +185,21 @@ list are computed in code. Users sign in (username/password or Google) before th
   `Auth:PasswordResetUrl` (never from the request `Origin`) with `?resetToken=...`; token stored hashed, valid
   `Auth:PasswordResetTokenMinutes`. A successful reset revokes all refresh tokens.
 - **Authorization:** a **fallback policy** protects every endpoint without `[AllowAnonymous]`. `UsersController` and
-  `AppSettingsController` require `Admin`.
+  `AppSettingsController` require `Admin`. Roles (`RoleNames`): `Admin`, `User`, `Guest`.
+
+### ✅ Guest access
+- **Guest user:** `GuestUserBootstrapper` creates one shared account with only the `Guest` role at startup when
+  `Guest:UserName` and `Guest:Email` are set (env/user-secrets only; the `Guest` section is **not** copied into
+  `app_settings`). `Guest:Password` is optional; empty = only the button login works. Use a fake e-mail.
+- **Login:** `POST /api/auth/guest` issues tokens for the first active `Guest` user without a password.
+  `GET /api/auth/config` returns `guestLoginEnabled`; the frontends show "continue as guest" only then.
+- **Restrictions (enforced in the API, `GuestAccess`; the frontend only mirrors them):** only **today's** (Istanbul
+  time) **Turkey / Süper Lig** matches; the `date` parameter is ignored; single forecasts only for allowed matches of
+  today. The `NotGuest` policy (`GuestAccess.NotGuestPolicy`) blocks `DELETE /api/cache`,
+  `GET /api/matches/popular/forecasts` and `/api/sample-items`.
+- **Shared-account handling:** `AiPolicy` counts guests per client IP (not per `sub`); reusing a revoked guest refresh
+  token rejects only that request instead of revoking every guest session.
+- Covered by `GuestAccessIntegrationTests`.
 
 ### ✅ Health checks
 - `GET /healthz` — liveness, checks nothing (a DB outage must not restart the container).
@@ -175,20 +227,46 @@ list are computed in code. Users sign in (username/password or Google) before th
 - `Auth-Panel.tsx`: login, register (with password generator via `/api/password`), forgot password, reset password
   (`?resetToken=` is removed from the address bar), Google button (`Google.ts`).
 - `App.tsx`: date navigator, team/league search, league filter, cache-clear button, logout, live-match auto refresh
-  (5 min) with a local minute ticker, request sequencing (`requestSeq`) against stale responses.
-- Components: `MatchList`, `MatchStatus` (live minute labels), `ForecastPanel` (1X2 / first-half bars, BTTS,
-  10 predictions), `StatsTable`.
+  (5 min) with a local minute ticker, request sequencing (`requestSeq`) against stale responses. Loads `GET /api/me`;
+  for guests it pins the date to today, shows a guest notice, hides admin-only actions and auto-selects the match when
+  there is exactly one.
+- Components: `MatchList`, `MatchStatus` (live minute labels), `LeagueFilter`, `ForecastPanel` (1X2 / first-half bars,
+  BTTS, 10 predictions), `StatsTable`, `ThemeToggle` (light/dark via `<html data-theme>`, saved in `localStorage`
+  `matchforecast.theme`; an inline script in `index.html` applies it before first paint, default = system preference).
 
 ### Frontend (Angular 22) — `frontend-angular`
 - One-to-one port of the React UI; same `styles.css`, same behavior, including `auth-panel`.
 - `src/app/core/`: `api.ts` (same fetch/token logic as React), `types.ts`, `match-status.ts`, `google.ts`. These are
   **copies** of the React files; keep both in sync when backend DTOs or auth flows change.
-- `src/app/components/`: `auth-panel`, `match-list`, `forecast-panel`, `stats-table` (signal inputs/outputs, built-in
-  control flow).
+- `src/app/components/`: `auth-panel`, `match-list`, `league-filter`, `forecast-panel`, `stats-table`, `theme-toggle`
+  (signal inputs/outputs, built-in control flow).
 - `app.ts`: state in signals, side effects in `effect()` with `onCleanup`. Zoneless (Angular default since v21).
 - Dev server on `4200`, `proxy.conf.json` (wired in `angular.json` → `serve.options.proxyConfig`) proxies `/api` → `5080`.
   `Auth:PasswordResetUrl` defaults to `http://localhost:4200/`; change it when using the React dev server.
 - Unit tests: Vitest via `ng test` (`app.spec.ts` stubs `fetch`).
+
+### ✅ Internationalization (TR / EN)
+- **Site name:** TR → **"Maç Analiz"**, EN → **"Match Forecast"** (brand, `<title>`, password-reset e-mail).
+- **Language choice:** `TR | EN` toggle in the top bar and on the login card (`LanguageToggle` /
+  `app-language-toggle`). An inline script in `index.html` sets `<html lang>` and the title before the first paint:
+  `?lang=` (removed from the URL) > `localStorage` `matchforecast.lang` > browser language (`tr*` → tr, else en).
+- **Frontend dictionaries:** `frontend/src/i18n/{messages,i18n}.ts` = `frontend-angular/src/app/core/i18n/{messages,i18n}.ts`
+  (**copies**, keep in sync). Add a text: put the key in `tr`, and `en: Dict` then fails to compile until it has the
+  key too. `{name}` placeholders: `t('key', { name })`. Helpers: `pct()` (`%55` vs `55%`), `loc()` (picks from
+  `{ tr, en }`), `locale()` (`tr-TR` / `en-GB`). React: `useI18n()` (`useSyncExternalStore`); Angular: `I18nService`
+  (signal; templates call `i18n.t('key')`). Non-component modules (`api.ts`, `MatchStatus`, `Google.ts`) use `t()` directly.
+- **API requests** send `Accept-Language: tr|en`. The backend uses `UseRequestLocalization` (before the exception
+  middleware; supported `tr`, `en`; default/unsupported → `tr`; only the UI culture changes). User-facing messages
+  are written as `Lang.T("Türkçe", "English")` (`MatchForecast.Models/Common/Lang.cs`), including `ProblemDetails`,
+  `ForecastException`, 429 texts and DataAnnotations (`ValidationMessages`). Work outside a request runs in `tr`
+  (`CultureInfo.DefaultThreadCurrentUICulture`).
+- **Forecasts are language-neutral:** `ForecastResult.Summary`, `StatProjection.Label/Reasoning` and
+  `Prediction.Label/Reasoning` are `LocalizedText` (`{ "tr": ..., "en": ... }`). The prompt asks the model for
+  `summary`+`summaryEn` and `reasoning`+`reasoningEn` in a **single call**; a missing English text falls back to
+  Turkish. Market labels are bilingual in `ForecastCatalog` (`MS 1` / `FT 1`, `KG Var` / `BTTS Yes`, `İY 1.5 Üst` /
+  `HT Over 1.5`). Cache key is `forecast:v3:{id}`; switching language needs no new request.
+- `Prediction.Market` / `Selection` stay as API-Football English names in both languages.
+- Covered by `LocalizationTests` (backend) and `app.spec.ts` (Angular).
 
 ---
 
@@ -216,7 +294,7 @@ list are computed in code. Users sign in (username/password or Google) before th
 - [ ] docker-compose: `healthcheck` entries using `/healthz` and `/healthz/ready`, Redis volume, `.env.example`,
       optional `web-angular` service (e.g. `profiles: [angular]`, port `8081`).
 - [ ] Optional: distributed (Redis-backed) rate limiting if the API is scaled to multiple instances.
-- [x] Token cleanup: `TokenCleanupWorker` (hosted service) deletes expired refresh tokens and used/expired
+- [x] Token cleanup: `TokenCleanUpWorker` (hosted service, first run 1 min after start) deletes expired refresh tokens and used/expired
       password-reset tokens once a day. Revoked-but-unexpired refresh tokens are kept on purpose (reuse detection).
 - [ ] Optional: trigger a settings reload instead of requiring a restart after `PUT /api/app-settings/{id}`.
 
@@ -229,10 +307,10 @@ list are computed in code. Users sign in (username/password or Google) before th
   user-secrets/DB settings fails on the first forecast. Set the provider explicitly in user-secrets.
 - `OddsProvider:UseMock` is not read anywhere; `MockOddsProvider` and `PublicOddsProvider` are not registered
   (`PublicOddsProvider` also depends on an unregistered `IMemoryCache`). Remove or wire them up.
-- `frontend/src/types.ts` and `frontend/src/components/Types.tsx` are duplicates that have drifted and are both
-  imported; keep one (`types.ts`, which has the auth types).
 - File name with a space: `Services/Redis/InMemoryRedisCacheService .cs`.
-- Swagger description still says "LLM (Claude)" although the provider is configurable.
+- `Services/Guest/*` uses namespace `MatchForecast.Api.Services.Security.Guest` (folder and namespace differ).
+- Files ignored by `.gitignore` are still tracked: `backend/MatchForecast.Logger/logs/*` and
+  `frontend/tsconfig.tsbuildinfo`. Remove with `git rm --cached`.
 
 ---
 
@@ -259,6 +337,9 @@ dotnet user-secrets set "Admin:UserName" "admin"          # first admin, created
 dotnet user-secrets set "Admin:Email" "<e-mail>"
 dotnet user-secrets set "Admin:Password" "<password>"
 dotnet user-secrets set "Auth:GoogleClientId" "<...apps.googleusercontent.com>"   # optional
+# Optional guest account (read from env/secrets only, never stored in app_settings):
+dotnet user-secrets set "Guest:UserName" "misafir"
+dotnet user-secrets set "Guest:Email" "misafir@matchforecast.online"
 ```
 A local Redis is expected at `localhost:6379` (e.g. `docker run -d -p 6379:6379 redis:7-alpine`); without it the API
 still works but nothing is cached and cache-clear returns 503. Without `ConnectionStrings:Supabase` the API starts but

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useI18n } from '../i18n/useI18n'
 
 interface Props {
   /** [lig anahtarı, maç sayısı] çiftleri; aramaya uyan maçlardan, alfabetik */
@@ -20,6 +21,7 @@ interface Props {
  * Dışarı tıklayınca veya Escape ile kapanır; lig seçerken açık kalır ki birden fazla lig art arda seçilebilsin.
  */
 export default function LeagueFilter({ options, selected, total, selectedCount, onSelectAll, onToggle }: Props) {
+  const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -50,19 +52,19 @@ export default function LeagueFilter({ options, selected, total, selectedCount, 
         onClick={() => setOpen(o => !o)}
         aria-haspopup="true"
         aria-expanded={open}
-        aria-label="Lig / turnuva filtresi"
+        aria-label={t('league.aria')}
         disabled={disabled}
       >
-        <span>{all ? `Tüm ligler (${total})` : `Seçili Ligler (${selectedCount})`}</span>
+        <span>{all ? t('league.allLeagues', { n: total }) : t('league.selectedLeagues', { n: selectedCount })}</span>
         <svg className="league-multi-chevron" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
           <path fill="currentColor" d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z" />
         </svg>
       </button>
       {open && !disabled && (
-        <div className="league-multi-panel" role="group" aria-label="Ligler">
+        <div className="league-multi-panel" role="group" aria-label={t('league.group')}>
           <label className="league-multi-option league-multi-all">
             <input type="checkbox" checked={all} onChange={onSelectAll} />
-            <span className="league-multi-name">Tümü</span>
+            <span className="league-multi-name">{t('league.all')}</span>
             <span className="league-multi-count">{total}</span>
           </label>
           {options.map(([key, count]) => (

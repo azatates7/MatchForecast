@@ -1,4 +1,5 @@
 import type { AuthConfigResponse, CacheClearResponse, ForecastResult, MatchSummary, MeResponse, PasswordResponse, TokenResponse } from './types'
+import { getLang, t } from './i18n/i18n'
 
 /*
  * Oturum:
@@ -9,6 +10,10 @@ import type { AuthConfigResponse, CacheClearResponse, ForecastResult, MatchSumma
  *   ve onSessionExpired ile uygulamaya haber verilir (login ekranı gösterilir).
  */
 const REFRESH_KEY = 'matchforecast.refreshToken'
+
+// Her istekte seçili dil gönderilir; API hata mesajlarını (ProblemDetails.detail) bu dilde döner.
+const apiFetch = (url: string, init: RequestInit = {}) =>
+  fetch(url, { ...init, headers: { ...(init.headers as Record<string, string> | undefined), 'Accept-Language': getLang() } })
 
 let accessToken: string | null = null
 // Aynı anda 401 alan istekler TEK bir refresh çağrısını paylaşır. Refresh token tek kullanımlık olduğu için iki kez
@@ -41,13 +46,13 @@ async function readJson<T>(res: Response): Promise<T> {
     const problem = await res.json().catch(() => null)
     // Model doğrulama hataları (400) "detail" yerine "errors" alanında gelir; ilk mesaj gösterilir.
     const validation = problem?.errors ? Object.values(problem.errors as Record<string, string[]>).flat()[0] : undefined
-    throw new Error(problem?.detail ?? validation ?? `İstek başarısız oldu (HTTP ${res.status}).`)
+    throw new Error(problem?.detail ?? validation ?? t('api.failed', { status: res.status }))
   }
   return res.json() as Promise<T>
 }
 
 const postJson = (url: string, body: unknown) =>
-  fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  apiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
 
 export async function login(username: string, password: string): Promise<void> {
   saveSession(await readJson<TokenResponse>(await postJson('/api/auth/token', { username, password })))
@@ -55,7 +60,7 @@ export async function login(username: string, password: string): Promise<void> {
 
 // Giriş ekranı ayarları (Google Client ID). Token gerektirmez.
 export const getAuthConfig = async (): Promise<AuthConfigResponse> =>
-  readJson<AuthConfigResponse>(await fetch('/api/auth/config'))
+  readJson<AuthConfigResponse>(await apiFetch('/api/auth/config'))
 
 // Kayıt başarılı olursa doğrudan giriş yapılmış olur.
 export async function register(userName: string, email: string, password: string, displayName: string): Promise<void> {
@@ -112,11 +117,11 @@ function refreshAccessToken(): Promise<string | null> {
 function sessionExpired(): never {
   clearSession()
   sessionExpiredHandler?.()
-  throw new Error('Oturumun süresi doldu, lütfen tekrar giriş yapın.')
+  throw new Error(t('api.sessionExpired'))
 }
 
 const send = (url: string, token: string, method: string) =>
-  fetch(url, { method, headers: { Authorization: `Bearer ${token}` } })
+  apiFetch(url, { method, headers: { Authorization: `Bearer ${token}` } })
 
 async function request<T>(url: string, method = 'GET'): Promise<T> {
   let token = accessToken ?? await refreshAccessToken()
@@ -150,4 +155,4 @@ export const clearCache = () =>
 
 // Kayıt ekranında, giriş yapılmadan kullanılır; token gerektirmez.
 export const generatePassword = async (length = 16): Promise<PasswordResponse> =>
-  readJson<PasswordResponse>(await fetch(`/api/password?length=${length}`))
+  readJson<PasswordResponse>(await apiFetch(`/api/password?length=${length}`))

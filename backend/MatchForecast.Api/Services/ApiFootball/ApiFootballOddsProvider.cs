@@ -88,7 +88,7 @@ public sealed class ApiFootballOddsProvider(
         if (!res.IsSuccessStatusCode)
         {
             logger.LogError("API-Football HTTP request to {Path} failed with status code {StatusCode}", path, (int)res.StatusCode);
-            throw new ForecastException($"API-Football HTTP {(int)res.StatusCode} döndü.");
+            throw new ForecastException(Lang.T($"API-Football HTTP {(int)res.StatusCode} döndü.", $"API-Football returned HTTP {(int)res.StatusCode}."));
         }
 
         var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
@@ -99,7 +99,7 @@ public sealed class ApiFootballOddsProvider(
             var msg = errors.GetRawText();
             doc.Dispose();
             logger.LogWarning("API-Football error for {Path}: {Errors}", path, msg);
-            throw new ForecastException($"API-Football hatası: {msg}");
+            throw new ForecastException(Lang.T($"API-Football hatası: {msg}", $"API-Football error: {msg}"));
         }
         return doc;
     }

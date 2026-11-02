@@ -1,4 +1,5 @@
-import { Component, computed, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
+import { I18nService } from '../core/i18n/i18n.service';
 
 /*
  * Aydınlık / karanlık tema düğmesi. Düğme o an AÇIK olan temayı gösterir:
@@ -31,11 +32,10 @@ const currentTheme = (): Theme => (document.documentElement.dataset['theme'] ===
   `,
 })
 export class ThemeToggle {
+  private readonly i18n = inject(I18nService);
   protected readonly theme = signal<Theme>(currentTheme());
   protected readonly next = computed<Theme>(() => (this.theme() === 'dark' ? 'light' : 'dark'));
-  protected readonly label = computed(() => (this.theme() === 'dark'
-    ? 'Karanlık tema açık (aydınlığa geçmek için tıklayın)'
-    : 'Aydınlık tema açık (karanlığa geçmek için tıklayın)'));
+  protected readonly label = computed(() => this.i18n.t(this.theme() === 'dark' ? 'theme.dark' : 'theme.light'));
 
   protected toggle() {
     const next = this.next();

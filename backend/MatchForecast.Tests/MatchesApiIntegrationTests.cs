@@ -123,7 +123,7 @@ public class MatchesApiIntegrationTests : IClassFixture<WebApplicationFactory<Pr
         var result = await response.Content.ReadFromJsonAsync<ForecastResult>();
         Assert.NotNull(result);
         Assert.Equal("Real Madrid", result.Match.HomeTeam);
-        Assert.Equal("Real Madrid home advantage gives them an edge.", result.Summary);
+        Assert.Equal("Real Madrid home advantage gives them an edge.", result.Summary.Tr);
         Assert.Equal(5, result.Predictions.Count);
         Assert.Contains(result.Stats, s => s.Metric == StatMetric.Corners && s.Lines.Count == 0);
         Assert.Equal(100, result.Outcomes.Home + result.Outcomes.Draw + result.Outcomes.Away);

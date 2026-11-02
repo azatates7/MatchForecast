@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useI18n } from '../i18n/useI18n'
 
 /*
  * Aydınlık / karanlık tema düğmesi. Düğme o an AÇIK olan temayı gösterir:
@@ -13,11 +14,10 @@ type Theme = 'light' | 'dark'
 const currentTheme = (): Theme => (document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light')
 
 export default function ThemeToggle() {
+  const { t } = useI18n()
   const [theme, setTheme] = useState<Theme>(currentTheme)
   const next: Theme = theme === 'dark' ? 'light' : 'dark'
-  const label = theme === 'dark'
-    ? 'Karanlık tema açık (aydınlığa geçmek için tıklayın)'
-    : 'Aydınlık tema açık (karanlığa geçmek için tıklayın)'
+  const label = t(theme === 'dark' ? 'theme.dark' : 'theme.light')
 
   const toggle = () => {
     document.documentElement.dataset.theme = next

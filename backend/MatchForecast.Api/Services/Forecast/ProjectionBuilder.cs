@@ -7,6 +7,7 @@ namespace MatchForecast.Api.Services.Forecast;
 // Modelin döndürdüğü JSON; olasılık içermez, yalnızca beklenen değerler ve gerekçeler.
 public sealed record AiStatsResponse(
     string? Summary,
+    string? SummaryEn,
     AiMetric? HomeGoals,
     AiMetric? AwayGoals,
     AiMetric? FirstHalfGoals,
@@ -14,7 +15,8 @@ public sealed record AiStatsResponse(
     AiMetric? YellowCards,
     AiMetric? RedCards);
 
-public sealed record AiMetric(double? Expected, string? Reasoning);
+// Reasoning: Türkçe, ReasoningEn: İngilizce gerekçe (ikisi tek çağrıda istenir).
+public sealed record AiMetric(double? Expected, string? Reasoning, string? ReasoningEn = null);
 
 /*
  * Doğrulanmış λ'lar ve bunlardan türetilen tüm olasılıklar. Result/BothTeamsScore/FirstHalf yuvarlanmamış değerlerdir;
@@ -22,7 +24,7 @@ public sealed record AiMetric(double? Expected, string? Reasoning);
  */
 public sealed record MatchProjection(
     IReadOnlyDictionary<StatMetric, double> Lambdas,
-    IReadOnlyDictionary<StatMetric, string> Reasons,
+    IReadOnlyDictionary<StatMetric, LocalizedText> Reasons,
     (double Home, double Draw, double Away) Result,
     double BothTeamsScore,
     (double Home, double Draw, double Away)? FirstHalf,
@@ -37,24 +39,24 @@ public sealed record MatchProjection(
  */
 public static class ProjectionBuilder
 {
-    private sealed record MetricDef(StatMetric Metric, string Label, decimal[] Lines);
+    private sealed record MetricDef(StatMetric Metric, LocalizedText Label, decimal[] Lines);
 
     // Sıra, ekrandaki istatistik tablosunun sırasıdır. Korner için çizgi yoktur: yalnızca beklenen sayı ve aralık gösterilir.
     private static readonly MetricDef[] Defs =
     [
-        new(StatMetric.HomeGoals, "Ev sahibi gol", [0.5m, 1.5m]),
-        new(StatMetric.AwayGoals, "Deplasman gol", [0.5m, 1.5m]),
-        new(StatMetric.TotalGoals, "Toplam gol", [1.5m, 2.5m, 3.5m]),
-        new(StatMetric.FirstHalfGoals, "İlk yarı gol", [0.5m, 1.5m]),
-        new(StatMetric.Corners, "Korner", []),
-        new(StatMetric.YellowCards, "Sarı kart", [3.5m, 4.5m, 5.5m]),
-        new(StatMetric.RedCards, "Kırmızı kart", [0.5m]),
+        new(StatMetric.HomeGoals, new("Ev sahibi gol", "Home goals"), [0.5m, 1.5m]),
+        new(StatMetric.AwayGoals, new("Deplasman gol", "Away goals"), [0.5m, 1.5m]),
+        new(StatMetric.TotalGoals, new("Toplam gol", "Total goals"), [1.5m, 2.5m, 3.5m]),
+        new(StatMetric.FirstHalfGoals, new("İlk yarı gol", "First-half goals"), [0.5m, 1.5m]),
+        new(StatMetric.Corners, new("Korner", "Corners"), []),
+        new(StatMetric.YellowCards, new("Sarı kart", "Yellow cards"), [3.5m, 4.5m, 5.5m]),
+        new(StatMetric.RedCards, new("Kırmızı kart", "Red cards"), [0.5m]),
     ];
 
     public static MatchProjection Build(AiStatsResponse ai, ForecastOptions opt, ILogger logger)
     {
         var lambdas = new Dictionary<StatMetric, double>();
-        var reasons = new Dictionary<StatMetric, string>();
+        var reasons = new Dictionary<StatMetric, LocalizedText>();
 
         void Take(StatMetric metric, AiMetric? value, double max)
         {
@@ -64,7 +66,7 @@ public static class ProjectionBuilder
                 return;
             }
             lambdas[metric] = Math.Round(Math.Clamp(expected, 0, max), 2);
-            reasons[metric] = value.Reasoning?.Trim() ?? "";
+            reasons[metric] = LocalizedText.Of(value.Reasoning, value.ReasoningEn);
         }
 
         Take(StatMetric.HomeGoals, ai.HomeGoals, opt.MaxTeamGoals);
@@ -77,7 +79,7 @@ public static class ProjectionBuilder
         if (!lambdas.TryGetValue(StatMetric.HomeGoals, out var home) || !lambdas.TryGetValue(StatMetric.AwayGoals, out var away))
         {
             logger.LogWarning("AI response is missing home/away goal expectations; forecast cannot be built.");
-            throw new ForecastException("Yapay zeka cevabı okunamadı, tekrar deneyin.");
+            throw new ForecastException(Lang.T("Yapay zeka cevabı okunamadı, tekrar deneyin.", "The AI response could not be read, please try again."));
         }
 
         var total = Math.Round(home + away, 2);
@@ -112,7 +114,7 @@ public static class ProjectionBuilder
         return new MatchProjection(lambdas, reasons, result, btts, firstHalf, outcomes, stats);
     }
 
-    private static StatProjection ToStat(MetricDef def, double lambda, string reasoning)
+    private static StatProjection ToStat(MetricDef def, double lambda, LocalizedText reasoning)
     {
         var lines = def.Lines
             .Select(line =>
@@ -134,4 +136,8 @@ public static class ProjectionBuilder
 
     internal static string Join(params string[] parts) =>
         string.Join(" ", parts.Where(p => !string.IsNullOrWhiteSpace(p)).Distinct());
+
+    // Gerekçeleri her dil için ayrı birleştirir.
+    internal static LocalizedText Join(params LocalizedText[] parts) =>
+        new(Join(parts.Select(p => p.Tr).ToArray()), Join(parts.Select(p => p.En).ToArray()));
 }

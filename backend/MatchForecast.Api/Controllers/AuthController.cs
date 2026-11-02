@@ -1,3 +1,4 @@
+using MatchForecast.Models.Common;
 using MatchForecast.Api.Options;
 using MatchForecast.Api.Services.Security;
 using MatchForecast.Models.Request;
@@ -34,7 +35,7 @@ public sealed class AuthController(AuthService auth, GoogleIdTokenValidator goog
     {
         var token = await auth.LoginAsync(request.Username, request.Password, ct);
         if (token is null)
-            return Problem(statusCode: StatusCodes.Status401Unauthorized, detail: "Kullanıcı adı veya şifre hatalı.");
+            return Problem(statusCode: StatusCodes.Status401Unauthorized, detail: Lang.T("Kullanıcı adı veya şifre hatalı.", "Incorrect user name or password."));
 
         return token;
     }
@@ -46,7 +47,7 @@ public sealed class AuthController(AuthService auth, GoogleIdTokenValidator goog
     {
         var token = await auth.RefreshAsync(request.RefreshToken, ct);
         if (token is null)
-            return Problem(statusCode: StatusCodes.Status401Unauthorized, detail: "Oturumun süresi doldu, tekrar giriş yapın.");
+            return Problem(statusCode: StatusCodes.Status401Unauthorized, detail: Lang.T("Oturumun süresi doldu, tekrar giriş yapın.", "Your session has expired, please sign in again."));
 
         return token;
     }
@@ -70,7 +71,7 @@ public sealed class AuthController(AuthService auth, GoogleIdTokenValidator goog
     {
         var token = await auth.GuestLoginAsync(ct);
         if (token is null)
-            return Problem(statusCode: StatusCodes.Status404NotFound, detail: "Misafir girişi şu an kapalı.");
+            return Problem(statusCode: StatusCodes.Status404NotFound, detail: Lang.T("Misafir girişi şu an kapalı.", "Guest sign-in is currently disabled."));
 
         return token;
     }
@@ -83,7 +84,7 @@ public sealed class AuthController(AuthService auth, GoogleIdTokenValidator goog
         var googleUser = await google.ValidateAsync(request.IdToken, ct);
         var token = googleUser is null ? null : await auth.GoogleLoginAsync(googleUser, ct);
         if (token is null)
-            return Problem(statusCode: StatusCodes.Status401Unauthorized, detail: "Google ile giriş yapılamadı.");
+            return Problem(statusCode: StatusCodes.Status401Unauthorized, detail: Lang.T("Google ile giriş yapılamadı.", "Google sign-in failed."));
 
         return token;
     }
@@ -103,7 +104,7 @@ public sealed class AuthController(AuthService auth, GoogleIdTokenValidator goog
     public async Task<IActionResult> ResetPassword(ResetPasswordRequest request, CancellationToken ct)
     {
         if (!await auth.ResetPasswordAsync(request.Token, request.Password, ct))
-            return Problem(statusCode: StatusCodes.Status400BadRequest, detail: "Bağlantı geçersiz veya süresi dolmuş. Yeni bir sıfırlama bağlantısı isteyin.");
+            return Problem(statusCode: StatusCodes.Status400BadRequest, detail: Lang.T("Bağlantı geçersiz veya süresi dolmuş. Yeni bir sıfırlama bağlantısı isteyin.", "The link is invalid or has expired. Request a new reset link."));
 
         return NoContent();
     }
