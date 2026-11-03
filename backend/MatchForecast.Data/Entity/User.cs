@@ -26,4 +26,5 @@ public sealed class User
     public List<UserLogin> Logins { get; set; } = [];
     public List<RefreshToken> RefreshTokens { get; set; } = [];
     public List<PasswordResetToken> PasswordResetTokens { get; set; } = [];
+    public List<UserFavoriteLeague> FavoriteLeagues { get; set; } = [];
 }

@@ -350,6 +350,24 @@ button, input { font: inherit; color: inherit; }
   margin-bottom: 0.25rem;
 }
 
+/* Favori ligler: satırdaki yıldız ve "Favori ligler" seçeneği */
+.league-multi-star {
+  flex: none;
+  display: inline-flex;
+  padding: 0.15rem;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.league-multi-star:hover,
+.league-multi-star[aria-pressed="true"],
+.league-multi-fav-icon { color: var(--card); }
+
+.league-multi-fav-icon { flex: none; }
+
 /* Canlı maç dakikası */
 .match-live {
   display: inline-flex;

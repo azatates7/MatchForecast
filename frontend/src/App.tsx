@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { clearCache, getForecast, getMatches, getMe, hasSession, logout, onSessionExpired } from './api'
+import { addFavoriteLeague, clearCache, getFavoriteLeagues, getForecast, getMatches, getMe, hasSession, logout, onSessionExpired, removeFavoriteLeague } from './api'
 import type { MeResponse } from './types'
 import type { ForecastResult, MatchSummary } from './types'
 import { isLive } from './components/MatchStatus'
@@ -49,6 +49,8 @@ export default function App() {
   const [query, setQuery] = useState('')
   // Seçili lig anahtarları ("Ülke / Lig"); boş dizi = "Tümü", yani lig filtresi yok.
   const [leagues, setLeagues] = useState<string[]>([])
+  // Kullanıcının favori ligleri (API'de kullanıcıya özgü saklanır)
+  const [favorites, setFavorites] = useState<string[]>([])
   const [matches, setMatches] = useState<MatchSummary[]>([])
   const [fetchedAt, setFetchedAt] = useState(() => Date.now())
   const [now, setNow] = useState(() => Date.now())
@@ -99,6 +101,14 @@ export default function App() {
     return () => { cancelled = true }
   }, [loggedIn])
 
+  // Favori ligler kullanıcıya özgüdür; misafirde (paylaşılan hesap) yoktur. Yüklenemezse filtre favorisiz çalışır.
+  useEffect(() => {
+    if (!me || isGuest) return
+    let cancelled = false
+    getFavoriteLeagues().then(data => { if (!cancelled) setFavorites(data) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [me, isGuest])
+
   // Misafir her zaman bugünü görür (önceki oturumda başka bir tarih seçilmiş olabilir)
   useEffect(() => {
     if (isGuest) setDate(todayInIstanbul())
@@ -131,14 +141,15 @@ export default function App() {
     return matches.filter(m => [m.homeTeam, m.awayTeam, m.league, m.country].some(s => s.toLocaleLowerCase('tr').includes(q)))
   }, [matches, query])
 
-  // Lig seçenekleri: aramaya uyan maçlardan, maç sayısıyla birlikte, alfabetik.
+  // Lig seçenekleri: aramaya uyan maçlardan, maç sayısıyla birlikte; önce favoriler, sonra alfabetik.
   // Seçili ligler aramada hiç maç içermese de listede (0) olarak kalır; yoksa seçim görünmez olurdu.
   const leagueOptions = useMemo(() => {
     const counts = new Map<string, number>()
     for (const m of searched) counts.set(leagueKey(m), (counts.get(leagueKey(m)) ?? 0) + 1)
     for (const l of leagues) if (!counts.has(l)) counts.set(l, 0)
-    return [...counts].sort(([a], [b]) => a.localeCompare(b, lang))
-  }, [searched, leagues, lang])
+    const fav = (k: string) => (favorites.includes(k) ? 0 : 1)
+    return [...counts].sort(([a], [b]) => fav(a) - fav(b) || a.localeCompare(b, lang))
+  }, [searched, leagues, favorites, lang])
 
   const filtered = useMemo(
     () => (leagues.length > 0 ? searched.filter(m => leagues.includes(leagueKey(m))) : searched),
@@ -150,6 +161,14 @@ export default function App() {
       const next = prev.includes(key) ? prev.filter(l => l !== key) : [...prev, key]
       return leagueOptions.every(([k]) => next.includes(k)) ? [] : next
     })
+
+  // Yıldız: ekranda hemen güncellenir; API hata verirse eski haline döner.
+  const toggleFavorite = (key: string) => {
+    const wasFavorite = favorites.includes(key)
+    const undo = () => setFavorites(prev => (wasFavorite ? [...prev, key] : prev.filter(l => l !== key)))
+    setFavorites(prev => (wasFavorite ? prev.filter(l => l !== key) : [...prev, key]))
+    ;(wasFavorite ? removeFavoriteLeague(key) : addFavoriteLeague(key)).then(setFavorites).catch(undo)
+  }
 
   // Hızlı art arda tıklamalarda eski cevabın yenisini ezmemesi için
   const requestSeq = useRef(0)
@@ -204,6 +223,7 @@ export default function App() {
     setLoggedIn(false)
     setMe(null)
     setMeFailed(false)
+    setFavorites([])
     setMatches([])
     setSelectedId(null)
     setForecast(null)
@@ -270,6 +290,9 @@ export default function App() {
               selectedCount={filtered.length}
               onSelectAll={() => setLeagues([])}
               onToggle={toggleLeague}
+              favorites={favorites}
+              onSelectFavorites={setLeagues}
+              onToggleFavorite={toggleFavorite}
             />
           )}
           <MatchList

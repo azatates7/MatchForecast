@@ -1,5 +1,5 @@
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
-import { clearCache, getForecast, getMatches, getMe, hasSession, logout, onSessionExpired } from './core/api';
+import { addFavoriteLeague, clearCache, getFavoriteLeagues, getForecast, getMatches, getMe, hasSession, logout, onSessionExpired, removeFavoriteLeague } from './core/api';
 import type { ForecastResult, MatchSummary, MeResponse } from './core/types';
 import { isLive } from './core/match-status';
 import { MatchList } from './components/match-list';
@@ -58,6 +58,8 @@ export class App {
   protected readonly query = signal('');
   // Seçili lig anahtarları ("Ülke / Lig"); boş dizi = "Tümü", yani lig filtresi yok.
   protected readonly leagues = signal<string[]>([]);
+  // Kullanıcının favori ligleri (API'de kullanıcıya özgü saklanır)
+  protected readonly favorites = signal<string[]>([]);
   protected readonly matches = signal<MatchSummary[]>([]);
   protected readonly fetchedAt = signal(Date.now());
   protected readonly now = signal(Date.now());
@@ -87,13 +89,15 @@ export class App {
     return this.matches().filter(m => [m.homeTeam, m.awayTeam, m.league, m.country].some(s => s.toLocaleLowerCase('tr').includes(q)));
   });
 
-  // Lig seçenekleri: aramaya uyan maçlardan, maç sayısıyla birlikte, alfabetik.
+  // Lig seçenekleri: aramaya uyan maçlardan, maç sayısıyla birlikte; önce favoriler, sonra alfabetik.
   // Seçili ligler aramada hiç maç içermese de listede (0) olarak kalır; yoksa seçim görünmez olurdu.
   protected readonly leagueOptions = computed(() => {
     const counts = new Map<string, number>();
     for (const m of this.searched()) counts.set(leagueKey(m), (counts.get(leagueKey(m)) ?? 0) + 1);
     for (const l of this.leagues()) if (!counts.has(l)) counts.set(l, 0);
-    return [...counts].sort(([a], [b]) => a.localeCompare(b, this.i18n.lang()));
+    const favorites = this.favorites();
+    const fav = (k: string) => (favorites.includes(k) ? 0 : 1);
+    return [...counts].sort(([a], [b]) => fav(a) - fav(b) || a.localeCompare(b, this.i18n.lang()));
   });
 
   protected readonly filtered = computed(() => {
@@ -115,6 +119,14 @@ export class App {
       if (!this.loggedIn()) return;
       let cancelled = false;
       getMe().then(data => { if (!cancelled) this.me.set(data); }).catch(() => { if (!cancelled) this.meFailed.set(true); });
+      onCleanup(() => { cancelled = true; });
+    });
+
+    // Favori ligler kullanıcıya özgüdür; misafirde (paylaşılan hesap) yoktur. Yüklenemezse filtre favorisiz çalışır.
+    effect(onCleanup => {
+      if (!this.me() || this.isGuest()) return;
+      let cancelled = false;
+      getFavoriteLeagues().then(data => { if (!cancelled) this.favorites.set(data); }).catch(() => {});
       onCleanup(() => { cancelled = true; });
     });
 
@@ -170,6 +182,7 @@ export class App {
     this.loggedIn.set(false);
     this.me.set(null);
     this.meFailed.set(false);
+    this.favorites.set([]);
     this.matches.set([]);
     this.selectedId.set(null);
     this.forecast.set(null);
@@ -206,6 +219,15 @@ export class App {
       const next = prev.includes(key) ? prev.filter(l => l !== key) : [...prev, key];
       return this.leagueOptions().every(([k]) => next.includes(k)) ? [] : next;
     });
+  }
+
+  // Yıldız: ekranda hemen güncellenir; API hata verirse eski haline döner.
+  protected toggleFavorite(key: string) {
+    const wasFavorite = this.favorites().includes(key);
+    this.favorites.update(prev => (wasFavorite ? prev.filter(l => l !== key) : [...prev, key]));
+    (wasFavorite ? removeFavoriteLeague(key) : addFavoriteLeague(key))
+      .then(data => this.favorites.set(data))
+      .catch(() => this.favorites.update(prev => (wasFavorite ? [...prev, key] : prev.filter(l => l !== key))));
   }
 
   protected async analyze(id: number, refresh = false) {

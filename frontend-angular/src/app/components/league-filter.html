@@ -8,7 +8,7 @@
     [attr.aria-label]="i18n.t('league.aria')"
     [disabled]="options().length === 0"
   >
-    <span>{{ selected().length === 0 ? i18n.t('league.allLeagues', { n: total() }) : i18n.t('league.selectedLeagues', { n: selectedCount() }) }}</span>
+    <span>{{ label() }}</span>
     <svg class="league-multi-chevron" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
       <path fill="currentColor" d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z" />
     </svg>
@@ -20,11 +20,33 @@
         <span class="league-multi-name">{{ i18n.t('league.all') }}</span>
         <span class="league-multi-count">{{ total() }}</span>
       </label>
+      @if (favoriteKeys().length > 0) {
+        <label class="league-multi-option league-multi-all">
+          <input type="checkbox" [checked]="favoritesActive()" (change)="onFavoritesChange()" />
+          <svg class="league-multi-fav-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <path fill="currentColor" [attr.d]="star" />
+          </svg>
+          <span class="league-multi-name">{{ i18n.t('league.favorites') }}</span>
+          <span class="league-multi-count">{{ favoriteCount() }}</span>
+        </label>
+      }
       @for (opt of options(); track opt[0]) {
         <label class="league-multi-option">
           <input type="checkbox" [checked]="isSelected(opt[0])" (change)="toggle.emit(opt[0])" />
           <span class="league-multi-name">{{ opt[0] }}</span>
           <span class="league-multi-count">{{ opt[1] }}</span>
+          <button
+            type="button"
+            class="league-multi-star"
+            [attr.aria-pressed]="isFavorite(opt[0])"
+            [attr.aria-label]="i18n.t(isFavorite(opt[0]) ? 'league.removeFavorite' : 'league.addFavorite')"
+            [title]="i18n.t(isFavorite(opt[0]) ? 'league.removeFavorite' : 'league.addFavorite')"
+            (click)="onStarClick($event, opt[0])"
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+              <path fill="currentColor" [attr.d]="isFavorite(opt[0]) ? star : starOutline" />
+            </svg>
+          </button>
         </label>
       }
     </div>

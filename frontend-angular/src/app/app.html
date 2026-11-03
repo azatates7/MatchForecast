@@ -58,6 +58,9 @@
             [selectedCount]="filtered().length"
             (selectAll)="leagues.set([])"
             (toggle)="toggleLeague($event)"
+            [favorites]="favorites()"
+            (selectFavorites)="leagues.set($event)"
+            (toggleFavorite)="toggleFavorite($event)"
           />
         }
         <app-match-list

@@ -479,6 +479,28 @@ namespace MatchForecast.Data.Migrations
                     b.ToTable("users", "matchforecast");
                 });
 
+            modelBuilder.Entity("MatchForecast.Data.Entity.UserFavoriteLeague", b =>
+                {
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("user_id");
+
+                    b.Property<string>("League")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("league");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("UserId", "League");
+
+                    b.ToTable("user_favorite_leagues", "matchforecast");
+                });
+
             modelBuilder.Entity("MatchForecast.Data.Entity.UserGroup", b =>
                 {
                     b.Property<int>("UserId")
@@ -683,6 +705,17 @@ namespace MatchForecast.Data.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("MatchForecast.Data.Entity.UserFavoriteLeague", b =>
+                {
+                    b.HasOne("MatchForecast.Data.Entity.User", "User")
+                        .WithMany("FavoriteLeagues")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("MatchForecast.Data.Entity.UserGroup", b =>
                 {
                     b.HasOne("MatchForecast.Data.Entity.Group", "Group")
@@ -748,6 +781,8 @@ namespace MatchForecast.Data.Migrations
 
             modelBuilder.Entity("MatchForecast.Data.Entity.User", b =>
                 {
+                    b.Navigation("FavoriteLeagues");
+
                     b.Navigation("Logins");
 
                     b.Navigation("PasswordResetTokens");

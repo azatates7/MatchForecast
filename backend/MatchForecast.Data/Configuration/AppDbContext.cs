@@ -32,6 +32,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
+    public DbSet<UserFavoriteLeague> UserFavoriteLeagues => Set<UserFavoriteLeague>();
 
     // Program.cs (DI kaydı) ve açılıştaki ayar yükleyici aynı Npgsql ayarlarını kullansın.
     public static void UseDatabase(DbContextOptionsBuilder options, string? connectionString) =>
@@ -153,6 +154,16 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
             e.HasIndex(x => x.TokenHash).IsUnique();
             e.HasOne(x => x.User).WithMany(x => x.PasswordResetTokens).HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Bileşik PK aynı ligin iki kez favorilenmesini engeller; kullanıcı silinince favorileri de silinir.
+        modelBuilder.Entity<UserFavoriteLeague>(e =>
+        {
+            e.ToTable("user_favorite_leagues");
+            e.HasKey(x => new { x.UserId, x.League });
+            e.Property(x => x.League).HasMaxLength(200);
+            e.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
+            e.HasOne(x => x.User).WithMany(x => x.FavoriteLeagues).HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<AppSetting>(e =>

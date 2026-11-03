@@ -25,7 +25,7 @@ export const tr = {
 
   'guest.notice': 'Misafir kullanıcı olarak yalnızca bugünün Türkiye Süper Lig maçlarını görüyorsun.',
   'guest.signIn': 'Tüm ligleri görmek için giriş yap',
-  'guest.noMatches': 'Bugün Süper Lig maçı yok.',
+  'guest.noMatches': 'Bugün Türkiye Süper Lig maçı yok.',
 
   'matches.aria': 'Maçlar',
   'matches.search': 'Takım veya lig ara',
@@ -45,6 +45,10 @@ export const tr = {
   'league.allLeagues': 'Tüm ligler ({n})',
   'league.selectedLeagues': 'Seçili Ligler ({n})',
   'league.all': 'Tümü',
+  'league.favorites': 'Favori ligler',
+  'league.favoriteLeagues': 'Favori ligler ({n})',
+  'league.addFavorite': 'Favorilere ekle',
+  'league.removeFavorite': 'Favorilerden çıkar',
 
   'forecast.emptyTitle': 'Bir maç seçin',
   'forecast.emptyText': 'Yapay zeka seçtiğiniz maçın gol, korner ve kart beklentilerini çıkarır; bunlardan hesaplanan, olasılığı en yüksek 10 tahmin listelenir.',
@@ -139,7 +143,7 @@ export const en: Dict = {
 
   'guest.notice': "As a guest you only see today's Turkish Süper Lig matches.",
   'guest.signIn': 'Sign in to see all leagues',
-  'guest.noMatches': 'No Süper Lig matches today.',
+  'guest.noMatches': 'No Türkiye Süper Lig matches today.',
 
   'matches.aria': 'Matches',
   'matches.search': 'Search team or league',
@@ -159,6 +163,10 @@ export const en: Dict = {
   'league.allLeagues': 'All leagues ({n})',
   'league.selectedLeagues': 'Selected leagues ({n})',
   'league.all': 'All',
+  'league.favorites': 'Favorite leagues',
+  'league.favoriteLeagues': 'Favorite leagues ({n})',
+  'league.addFavorite': 'Add to favorites',
+  'league.removeFavorite': 'Remove from favorites',
 
   'forecast.emptyTitle': 'Select a match',
   'forecast.emptyText': 'The AI estimates goals, corners and cards for the selected match; the 10 most likely predictions calculated from them are listed.',

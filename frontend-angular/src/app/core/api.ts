@@ -153,6 +153,18 @@ export const getMe = () =>
 export const clearCache = () =>
   request<CacheClearResponse>('/api/cache', 'DELETE')
 
+// Kullanıcının favori ligleri ("Ülke / Lig" anahtarları). Ekleme/silme güncel listeyi döner.
+const favoriteLeaguesUrl = (league: string) => `/api/me/favorite-leagues?league=${encodeURIComponent(league)}`
+
+export const getFavoriteLeagues = () =>
+  request<string[]>('/api/me/favorite-leagues')
+
+export const addFavoriteLeague = (league: string) =>
+  request<string[]>(favoriteLeaguesUrl(league), 'PUT')
+
+export const removeFavoriteLeague = (league: string) =>
+  request<string[]>(favoriteLeaguesUrl(league), 'DELETE')
+
 // Kayıt ekranında, giriş yapılmadan kullanılır; token gerektirmez.
 export const generatePassword = async (length = 16): Promise<PasswordResponse> =>
   readJson<PasswordResponse>(await apiFetch(`/api/password?length=${length}`))
