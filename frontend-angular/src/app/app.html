@@ -22,7 +22,7 @@
         @if (me(); as user) {
           <span class="user-name">{{ user.displayName || user.userName }}</span>
         }
-        @if (!restricted()) {
+        @if (isAdmin()) {
           <button type="button" class="cache-btn" (click)="handleClearCache()" [disabled]="cacheState().clearing">
             {{ i18n.t(cacheState().clearing ? 'cache.clearing' : 'cache.clear') }}
           </button>

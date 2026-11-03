@@ -75,6 +75,8 @@ export class App {
   protected readonly isGuest = computed(() => this.me()?.roles.includes('Guest') ?? false);
   // Rol bilgisi gelene kadar misafire kapalı alanlar (tarih okları, cache, lig filtresi) gösterilmez; misafir onları bir an bile görmesin.
   protected readonly restricted = computed(() => this.isGuest() || (this.me() === null && !this.meFailed()));
+  // Önbelleği Sil yalnızca Admin'e görünür (API de yalnızca Admin'e izin verir).
+  protected readonly isAdmin = computed(() => this.me()?.roles.includes('Admin') ?? false);
 
   protected readonly hasLive = computed(() => this.matches().some(isLive));
 

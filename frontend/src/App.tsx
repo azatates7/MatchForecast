@@ -66,6 +66,8 @@ export default function App() {
   const isGuest = me?.roles.includes('Guest') ?? false
   // Rol bilgisi gelene kadar misafire kapalı alanlar (tarih okları, cache, lig filtresi) gösterilmez; misafir onları bir an bile görmesin.
   const restricted = isGuest || (me === null && !meFailed)
+  // Önbelleği Sil yalnızca Admin'e görünür (API de yalnızca Admin'e izin verir).
+  const isAdmin = me?.roles.includes('Admin') ?? false
 
   // silent=true: arka plan yenilemesi; listeyi "yükleniyor" durumuna sokmaz, hata olursa eski listeyi korur.
   const loadMatches = useCallback((silent: boolean, isCancelled: () => boolean = () => false) => {
@@ -232,7 +234,7 @@ export default function App() {
             <span className={cacheState.error ? 'cache-msg cache-msg-error' : 'cache-msg'} role="status">{cacheState.message}</span>
           )}
           {me && <span className="user-name">{me.displayName || me.userName}</span>}
-          {!restricted && (
+          {isAdmin && (
             <button type="button" className="cache-btn" onClick={handleClearCache} disabled={cacheState.clearing}>
               {t(cacheState.clearing ? 'cache.clearing' : 'cache.clear')}
             </button>

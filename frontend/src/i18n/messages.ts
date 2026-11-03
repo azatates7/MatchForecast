@@ -18,7 +18,7 @@ export const tr = {
   'date.prev': 'Önceki gün',
   'date.next': 'Sonraki gün',
 
-  'cache.clear': 'Cache Temizle',
+  'cache.clear': 'Önbelleği Sil',
   'cache.clearing': 'Temizleniyor…',
   'cache.cleared': 'Önbellek temizlendi ({n} kayıt).',
   logout: 'Çıkış',

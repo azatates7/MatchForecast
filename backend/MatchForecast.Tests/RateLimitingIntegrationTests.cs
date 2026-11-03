@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using MatchForecast.Api.Services.Security;
+using MatchForecast.Data.Seed;
 using MatchForecast.Models.Request;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -36,7 +37,7 @@ public class RateLimitingIntegrationTests(WebApplicationFactory<Program> factory
     [Fact]
     public async Task ClearCache_AllowsTwoCallsPerHour_ThenReturns429()
     {
-        var client = factory.CreateAuthorizedClient();
+        var client = factory.CreateAuthorizedClient(RoleNames.Admin);
 
         Assert.Equal(HttpStatusCode.OK, (await client.DeleteAsync("/api/cache")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.DeleteAsync("/api/cache")).StatusCode);
@@ -57,9 +58,17 @@ public class RateLimitingIntegrationTests(WebApplicationFactory<Program> factory
         for (var i = 0; i < 3; i++)
             Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.DeleteAsync("/api/cache")).StatusCode);
 
-        var token = testFactory.Services.GetRequiredService<JwtTokenService>().CreateAccessToken(1, "test", []);
+        var token = testFactory.Services.GetRequiredService<JwtTokenService>().CreateAccessToken(1, "test", [RoleNames.Admin]);
         anonymous.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token.Token);
 
         Assert.Equal(HttpStatusCode.OK, (await anonymous.DeleteAsync("/api/cache")).StatusCode);
+    }
+
+    [Fact]
+    public async Task ClearCache_NonAdmin_ReturnsForbidden()
+    {
+        var client = factory.CreateAuthorizedClient(RoleNames.User);
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.DeleteAsync("/api/cache")).StatusCode);
     }
 }
