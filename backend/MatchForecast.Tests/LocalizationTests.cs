@@ -22,7 +22,7 @@ public class LocalizationTests(WebApplicationFactory<Program> factory) : IClassF
     [InlineData("de-DE", "Şifre uzunluğu")] // Desteklenmeyen dil -> varsayılan (tr)
     public async Task ProblemDetail_FollowsAcceptLanguage(string? acceptLanguage, string expected)
     {
-        var client = factory.CreateClient();
+        var client = factory.WithTestJwt().CreateClient();
         using var request = new HttpRequestMessage(HttpMethod.Get, "/api/password?length=3");
         if (acceptLanguage is not null)
             request.Headers.TryAddWithoutValidation("Accept-Language", acceptLanguage);
