@@ -26,7 +26,7 @@ docker-compose.yml / .prod.yml     local stack / production stack (+ cloudflared
 backend/
   Dockerfile
   MatchForecast.Api/
-    Controllers/                   Auth, Me, Password, Matches, Cache, Users, AppSettings, SampleItems
+    Controllers/                   Auth, Me, FavoriteLeagues, Password, Matches, Cache, Users, AppSettings, SampleItems
     Filter/                        BearerSecurityOperationFilter (Swagger)
     Options/                       Ai, Auth, Forecast, Jwt, OddsProvider, RateLimit, Redis, Smtp
     Services/
@@ -53,6 +53,43 @@ never hard-code a user-facing string, add it to the dictionaries / `Lang.T(...)`
 
 ---
 
+## 0. Current Status / Handoff (last updated 2026-11-04)
+
+Read this first when resuming work.
+
+**Next task:** Roadmap step 8 — **Admin panel** (detailed plan in section 2). Start with phase 8.0 (backend prerequisites).
+
+**Changes from the last session, delivered as files but NOT yet verified with a build** (the session environment had
+no NuGet access, so the backend was neither built nor tested; React passed `tsc -b`, Angular passed `ngc` type-check):
+1. **CI fix — `LocalizationTests`:** the theory created its client with `factory.CreateClient()` and skipped
+   `WithTestJwt()`, so the host started with the real `appsettings.json` (`Smtp:Enabled=true`, empty password) and
+   `ValidateOnStart` failed on the CI agent (`Smtp:Password ... boş olamaz`, 5 failures). Fix: line 25 →
+   `factory.WithTestJwt().CreateClient()`. **Apply if not yet done.** Rule: every `WebApplicationFactory` client in
+   integration tests must go through `WithTestJwt()` / `CreateAuthorizedClient()`.
+2. **Cache clear is Admin-only** (see "Cache clear" below).
+3. **Favorite leagues** (see "Favorite leagues" below), including the hand-written migration `AddUserFavoriteLeagues`.
+
+**To verify before starting step 8:**
+- [ ] `dotnet build` + `dotnet test backend/MatchForecast.Tests/MatchForecast.Tests.csproj` (new:
+      `FavoriteLeaguesIntegrationTests`, `RateLimitingIntegrationTests.ClearCache_NonAdmin_ReturnsForbidden`).
+- [ ] Migration check: `dotnet ef migrations add Check --project MatchForecast.Data --startup-project MatchForecast.Api`
+      must produce an **empty** migration (proves the hand-written snapshot matches the model); then
+      `dotnet ef migrations remove ...`. If it is not empty, delete `20261103120000_AddUserFavoriteLeagues*` and the
+      snapshot change and regenerate with `dotnet ef migrations add AddUserFavoriteLeagues`.
+- [ ] Manual UI check in both frontends: star toggle, "Favori ligler" option, cache button only for Admin.
+- [ ] Optional: build warning `MSB3277` (EF Core Relational 10.0.0 vs 10.0.13) — align the EF package versions in
+      `MatchForecast.Tests.csproj` with the Api/Data projects (10.0.13).
+
+**Open UX follow-ups for favorite leagues (agreed as small fixes, not done yet):**
+- [ ] Clicking a star re-sorts the list immediately (favorites go to the top), so the clicked row jumps away and a
+      different league ends up under the cursor. Fix: compute the favorites-first order only when the panel opens and
+      keep it stable while the panel is open.
+- [ ] Hovering an empty star turns it yellow, which looks like an existing favorite. Fix: on hover only darken
+      (`color: var(--ink)`); keep yellow (`var(--card)`) for `aria-pressed="true"` only.
+- [ ] Optional: pre-select favorite leagues on page load (today the default is still "Tümü").
+
+---
+
 ## 1. Steps Completed So Far
 
 ### Backend core
@@ -67,7 +104,8 @@ never hard-code a user-facing string, add it to the dictionaries / `Lang.T(...)`
   - `PasswordController` (anonymous): `GET /api/password?length=16` (random password generator, 8–128, nothing stored)
   - `MatchesController`: `GET /api/matches`, `GET /api/matches/popular`, `GET /api/matches/popular/forecasts`,
     `GET /api/matches/{id}/forecast`
-  - `CacheController`: `DELETE /api/cache`
+  - `CacheController` (Admin): `DELETE /api/cache`
+  - `FavoriteLeaguesController` (signed-in, not guest): `GET|PUT|DELETE /api/me/favorite-leagues`
   - `UsersController` (Admin): CRUD on `/api/users`, plus `PUT /api/users/{id}/password|roles|groups`
   - `AppSettingsController` (Admin): `GET /api/app-settings`, `GET|PUT|DELETE /api/app-settings/{id}`
   - `SampleItemsController`: demo CRUD on `/api/sample-items` (seeded table, kept as an EF Core example)
@@ -157,9 +195,10 @@ never hard-code a user-facing string, add it to the dictionaries / `Lang.T(...)`
 
 ### ✅ Roadmap step 5 — EF Core
 - `AppDbContext` (`MatchForecast.Data/Configuration`) with entities: `User`, `Role`, `Group`, `UserRole`, `UserGroup`,
-  `GroupRole`, `UserLogin` (external logins), `RefreshToken`, `PasswordResetToken`, `AppSetting`, `SampleItem`.
+  `GroupRole`, `UserLogin` (external logins), `RefreshToken`, `PasswordResetToken`, `AppSetting`, `SampleItem`,
+  `UserFavoriteLeague`.
 - Migrations in `MatchForecast.Data/Migrations` (`InitialCreate`, `AddUserManagement`, `AddRefreshTokenReset`,
-  `AddAppSettings`). They are applied **automatically at startup** (`DatabaseSettings.LoadAsync` →
+  `AddAppSettings`, `AddUserFavoriteLeagues` — the last one was written by hand, see section 0). They are applied **automatically at startup** (`DatabaseSettings.LoadAsync` →
   `MigrateAsync`); `EF.IsDesignTime` skips this during `dotnet ef`.
 - Seeding via `UseSeeding`/`UseAsyncSeeding`: roles (`Admin`, `User` — `RoleNames`) and sample items; only missing
   rows are added.
@@ -184,8 +223,8 @@ never hard-code a user-facing string, add it to the dictionaries / `Lang.T(...)`
 - **Password reset:** `forgot-password` always returns 204 (no account enumeration) and mails a link built from
   `Auth:PasswordResetUrl` (never from the request `Origin`) with `?resetToken=...`; token stored hashed, valid
   `Auth:PasswordResetTokenMinutes`. A successful reset revokes all refresh tokens.
-- **Authorization:** a **fallback policy** protects every endpoint without `[AllowAnonymous]`. `UsersController` and
-  `AppSettingsController` require `Admin`. Roles (`RoleNames`): `Admin`, `User`, `Guest`.
+- **Authorization:** a **fallback policy** protects every endpoint without `[AllowAnonymous]`. `UsersController`,
+  `AppSettingsController` and `CacheController` require `Admin`. Roles (`RoleNames`): `Admin`, `User`, `Guest`.
 
 ### ✅ Guest access
 - **Guest user:** `GuestUserBootstrapper` creates one shared account with only the `Guest` role at startup when
@@ -195,8 +234,8 @@ never hard-code a user-facing string, add it to the dictionaries / `Lang.T(...)`
   `GET /api/auth/config` returns `guestLoginEnabled`; the frontends show "continue as guest" only then.
 - **Restrictions (enforced in the API, `GuestAccess`; the frontend only mirrors them):** only **today's** (Istanbul
   time) **Turkey / Süper Lig** matches; the `date` parameter is ignored; single forecasts only for allowed matches of
-  today. The `NotGuest` policy (`GuestAccess.NotGuestPolicy`) blocks `DELETE /api/cache`,
-  `GET /api/matches/popular/forecasts` and `/api/sample-items`.
+  today. The `NotGuest` policy (`GuestAccess.NotGuestPolicy`) blocks `GET /api/matches/popular/forecasts`,
+  `/api/sample-items` and `/api/me/favorite-leagues`. `DELETE /api/cache` is Admin-only (so guests get 403 as well).
 - **Shared-account handling:** `AiPolicy` counts guests per client IP (not per `sub`); reusing a revoked guest refresh
   token rejects only that request instead of revoking every guest session.
 - Covered by `GuestAccessIntegrationTests`.
@@ -219,6 +258,36 @@ never hard-code a user-facing string, add it to the dictionaries / `Lang.T(...)`
   file/secrets/env on the next start. To add a new key: put it in user-secrets/env and restart.
 - Without a connection string (CI tests) the step is skipped and only file/secrets/env are used.
 
+### ✅ Cache clear: Admin only (2026-11-03)
+- `CacheController.Clear` uses `[Authorize(Roles = RoleNames.Admin)]` (was `NotGuest`). Authorization still runs
+  before the rate limiter, so 403 responses do not consume the global 2/hour quota.
+- Both frontends show the button only when `me.roles` contains `Admin` (`isAdmin`); while `/api/me` is loading it
+  stays hidden. Label: TR **"Önbelleği Sil"** (was "Cache Temizle"), EN "Clear cache"; `cache.clearing` is still
+  "Temizleniyor…".
+- Tests: `RateLimitingIntegrationTests` now use Admin tokens; new `ClearCache_NonAdmin_ReturnsForbidden`;
+  `GuestAccessIntegrationTests.ClearCache_Guest_ReturnsForbidden` unchanged.
+
+### ✅ Favorite leagues (2026-11-03)
+- Per-user, stored in the DB: entity `UserFavoriteLeague` (`UserId`, `League`, `CreatedAt`), table
+  `user_favorite_leagues`, composite PK `(user_id, league)`, `league` max 200, cascade delete with the user,
+  navigation `User.FavoriteLeagues`.
+- The league key is the frontend's filter key **`"{Country} / {League}"`** (e.g. `Turkey / Süper Lig`); API-Football
+  league ids are not used. If the provider renames a league, old favorites simply stop matching.
+- API `FavoriteLeaguesController` (`NotGuest` policy): `GET /api/me/favorite-leagues` → `string[]`;
+  `PUT ?league=...` adds, `DELETE ?league=...` removes; both are idempotent and return the updated list. Empty or
+  >200 characters → 400 (`Lang.T`). No body, so the frontends' `request()` helper is reused unchanged.
+- Frontends (`api.ts`: `getFavoriteLeagues`, `addFavoriteLeague`, `removeFavoriteLeague`):
+  - `favorites` state is loaded once `/api/me` is known and the user is not a guest; cleared on logout.
+  - League options are sorted favorites first, then alphabetically.
+  - `LeagueFilter` / `app-league-filter`: star button on every row (`aria-pressed`, label "Favorilere ekle" /
+    "Favorilerden çıkar"; `preventDefault` so it does not toggle the row checkbox). Under "Tümü" a "★ Favori ligler"
+    row (shown when at least one favorite is in the list) selects exactly the favorite leagues; clicking it again
+    returns to "Tümü". While active the toggle button reads "Favori ligler (n)".
+  - Star clicks are optimistic and roll back on API error.
+  - i18n keys: `league.favorites`, `league.favoriteLeagues`, `league.addFavorite`, `league.removeFavorite`.
+  - CSS: `.league-multi-star`, `.league-multi-fav-icon` (yellow = `var(--card)`).
+- Tests: `FavoriteLeaguesIntegrationTests` (idempotency, per-user isolation, 400 on empty, 403 for guest).
+
 ### Frontend (React 19 + Vite) — `frontend`
 - Vite dev server on `5173`, proxies `/api` → `http://localhost:5080`.
 - `api.ts`: access token in memory; **refresh token in `localStorage`** (`matchforecast.refreshToken`) so a page reload
@@ -226,7 +295,7 @@ never hard-code a user-facing string, add it to the dictionaries / `Lang.T(...)`
   automatic refresh + one retry on `401`, error text from `ProblemDetails.detail`.
 - `Auth-Panel.tsx`: login, register (with password generator via `/api/password`), forgot password, reset password
   (`?resetToken=` is removed from the address bar), Google button (`Google.ts`).
-- `App.tsx`: date navigator, team/league search, league filter, cache-clear button, logout, live-match auto refresh
+- `App.tsx`: date navigator, team/league search, league filter (with favorites), cache-clear button (Admin only), logout, live-match auto refresh
   (5 min) with a local minute ticker, request sequencing (`requestSeq`) against stale responses. Loads `GET /api/me`;
   for guests it pins the date to today, shows a guest notice, hides admin-only actions and auto-selects the match when
   there is exactly one.
@@ -279,16 +348,69 @@ never hard-code a user-facing string, add it to the dictionaries / `Lang.T(...)`
 [6. Auth & Users ✅] ◄── [5. EF Core ✅] ◄── [4. Supabase ✅]
         │
         ▼
-[7. Persist forecasts] ──► [8. Admin UI]
+[7. Persist forecasts] ──► [8. Admin panel ◄ next]
 ```
 
-#### 7. Persist forecasts (next)
+#### 7. Persist forecasts (postponed; Admin panel comes first)
 - [ ] Store generated forecasts in the DB (today they exist only in Redis for `Ai:CacheMinutes`).
 - [ ] Later: compare stored predictions with final results to measure hit rate per market.
 
-#### 8. Admin UI
-- [ ] Frontend screens for `/api/users` (roles, groups, activate/deactivate) and `/api/app-settings`
-      (both are API-only today; use Swagger).
+#### 8. Admin panel (next — detailed plan)
+Goal: give Admins a UI for what is API/Swagger-only today (users, roles/groups, app settings) plus the system tools
+(cache, health). Keep it small: reuse existing endpoints and styles, no new UI library, no new routing dependency.
+Build it in **React first**, then port 1:1 to Angular in the same phase (both frontends must stay identical).
+
+**Decisions to confirm before coding** (defaults in bold):
+- Navigation: **hash-based view switch (`#admin`)** read on load + `hashchange`, header button "Yönetim" visible only
+  to Admin. (Alternatives: React Router + Angular Router — adds a dependency to React and diverges the two apps.)
+- Cache button: **move into the admin panel "Sistem" tab** and remove it from the header, or keep both.
+- User removal: **deactivate (`IsActive=false`) as the main action**, hard delete only behind a typed confirmation.
+- Groups: **assign existing groups only**; group/role CRUD is out of scope (no group is seeded today).
+
+**8.0 Backend prerequisites**
+- [ ] `GET /api/roles` → `[{ id, name, description }]` and `GET /api/groups` → `[{ id, name, description }]` (Admin;
+      read-only). Needed because `PUT /api/users/{id}/roles|groups` take ids. New DTOs `RoleResponse`, `GroupResponse`.
+- [ ] Self-lockout guards in `UsersController` (current user = JWT `sub`): an Admin cannot remove their own Admin role,
+      deactivate themselves or delete themselves → 400 with `Lang.T(...)`. Also refuse removing the Admin role from
+      the **last** active Admin.
+- [ ] Optional: `GET /api/users?search=&page=&pageSize=` paging — skip unless the user list gets large.
+- [ ] Integration tests for all of the above (use `CreateAuthorizedClient(RoleNames.Admin)`; seed users through
+      `AppDbContext` in the in-memory DB).
+
+**8.1 Shell & navigation (both frontends)**
+- [ ] `isAdmin` already exists in `App.tsx` / `app.ts`; add `view: 'matches' | 'admin'` driven by `location.hash`.
+- [ ] Header: "Yönetim" / "Admin" button for Admin; in admin view a "Maçlara dön" button.
+- [ ] New components: `AdminPanel` (tabs: Kullanıcılar, Ayarlar, Sistem), `admin/UsersTab`, `admin/SettingsTab`,
+      `admin/SystemTab` (Angular: `components/admin/*`). Non-admins hitting `#admin` see the match view.
+- [ ] `api.ts` (+ Angular copy): `request()` currently sends no body; add an optional JSON body parameter
+      (`request<T>(url, method, body?)`) for POST/PUT. `types.ts`: `UserResponse`, `AppSettingResponse`,
+      `RoleResponse`, `GroupResponse`, request types.
+
+**8.2 Users tab** (`/api/users`)
+- [ ] Table: user name, display name, e-mail, roles (chips), active, last login; client-side search box.
+- [ ] Create user form (user name, e-mail, display name, password with the existing generator `/api/password`).
+- [ ] Edit: e-mail, display name, active toggle (`PUT /api/users/{id}`); show 409 messages from `ProblemDetails`.
+- [ ] Roles / groups: checkbox lists from 8.0 (`PUT .../roles`, `PUT .../groups`).
+- [ ] Set password (`PUT .../password`; note in UI that it signs the user out everywhere).
+- [ ] Delete with confirmation (type the user name). The guest account is recreated by `GuestUserBootstrapper` on
+      restart — show a hint on the `Guest` row.
+
+**8.3 Settings tab** (`/api/app-settings`)
+- [ ] List grouped by section (prefix before the first `:`), with description, updated at/by; encrypted values masked.
+- [ ] "Göster" per encrypted row → `GET /api/app-settings/{id}?reveal=true` (never cache revealed values in state
+      longer than needed).
+- [ ] Edit value / description / `IsEncrypted` (`PUT`; `value: null` keeps the current value).
+- [ ] "Varsayılana dön" = `DELETE` with confirmation (re-seeded from file/secrets/env on next start).
+- [ ] Persistent banner: changes take effect **after an API restart**.
+
+**8.4 System tab**
+- [ ] Health: `GET /healthz/ready` (database / redis status from `HealthResponseWriter`).
+- [ ] Cache clear (moved from the header; same rate limit, show the 429 message).
+
+**8.5 Finish**
+- [ ] i18n keys for every new text in both dictionaries (`admin.*`).
+- [ ] Angular port + `app.spec.ts` smoke test for the admin view; React `tsc -b`, Angular `ng build`.
+- [ ] Update this file (section 0 and section 1) when done.
 
 ### Follow-ups (not blocking)
 - [ ] docker-compose: `healthcheck` entries using `/healthz` and `/healthz/ready`, Redis volume, `.env.example`,
