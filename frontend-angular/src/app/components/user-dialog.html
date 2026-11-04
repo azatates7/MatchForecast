@@ -1,0 +1,187 @@
+<ng-template #status let-state>
+  @if (state.error) {
+    <p class="note-error admin-status" role="alert">{{ state.error }}</p>
+  } @else if (state.info) {
+    <p class="auth-info admin-status" role="status">{{ state.info }}</p>
+  }
+</ng-template>
+
+<ng-template #passwordTools>
+  <div class="password-tools">
+    <button type="button" class="link-btn" (click)="generate()" [disabled]="generating()">
+      {{ i18n.t(generating() ? 'auth.generating' : 'auth.generate') }}
+    </button>
+    @if (password()) {
+      <button type="button" class="link-btn" (click)="showPassword.set(!showPassword())">
+        {{ i18n.t(showPassword() ? 'auth.hide' : 'auth.show') }}
+      </button>
+    }
+  </div>
+</ng-template>
+
+<dialog #dialog class="admin-dialog" (close)="closed.emit()" aria-labelledby="user-dialog-title">
+  <div class="admin-dialog-head">
+    <h3 id="user-dialog-title">{{ user()?.userName ?? i18n.t('admin.users.new') }}</h3>
+    <button type="button" class="cache-btn" (click)="close()">{{ i18n.t('admin.close') }}</button>
+  </div>
+
+  <div class="admin-dialog-body">
+    @if (user(); as user) {
+      @if (isSelf()) {
+        <p class="admin-hint admin-note">{{ i18n.t('admin.user.self') }}</p>
+      }
+      @if (isGuest()) {
+        <p class="admin-hint admin-note">{{ i18n.t('admin.user.guest') }}</p>
+      }
+
+      <!-- Profil -->
+      <form class="admin-section" (submit)="submitProfile($event)">
+        <h4>{{ i18n.t('admin.user.profile') }}</h4>
+        <fieldset class="admin-fieldset" [disabled]="!canManage()">
+          <div class="admin-form-grid">
+            <label class="login-field">
+              <span>{{ i18n.t('auth.email') }}</span>
+              <input type="email" required maxlength="256" [value]="email()" (input)="email.set($any($event.target).value)" />
+            </label>
+            <label class="login-field">
+              <span>{{ i18n.t('auth.displayName') }}</span>
+              <input type="text" maxlength="100" [value]="displayName()" (input)="displayName.set($any($event.target).value)" />
+            </label>
+          </div>
+          <label class="admin-check">
+            <input type="checkbox" [checked]="isActive()" [disabled]="isSelf()" (change)="isActive.set($any($event.target).checked)" />
+            <span>{{ i18n.t('admin.user.isActive') }}</span>
+          </label>
+        </fieldset>
+        @if (canManage()) {
+          <div class="admin-actions">
+            <button type="submit" class="cache-btn" [disabled]="profile().busy">{{ i18n.t('admin.save') }}</button>
+            <ng-container *ngTemplateOutlet="status; context: { $implicit: profile() }" />
+          </div>
+        }
+      </form>
+
+      <!-- Roller -->
+      <section class="admin-section">
+        <h4>{{ i18n.t('admin.user.roles') }}</h4>
+        <fieldset class="admin-fieldset admin-check-list" [disabled]="!canManage()">
+          @for (r of roles(); track r.id) {
+            <label class="admin-check">
+              <input type="checkbox" [checked]="roleIds().includes(r.id)" (change)="toggle(roleIds, r.id)" />
+              <span>{{ r.name }}</span>
+              @if (r.isSystem) {
+                <span class="badge badge-off">{{ i18n.t('admin.system') }}</span>
+              }
+            </label>
+          }
+        </fieldset>
+        @if (canManage()) {
+          <div class="admin-actions">
+            <button type="button" class="cache-btn" [disabled]="roleAction().busy" (click)="saveRoles(user)">{{ i18n.t('admin.user.saveRoles') }}</button>
+            <ng-container *ngTemplateOutlet="status; context: { $implicit: roleAction() }" />
+          </div>
+        }
+      </section>
+
+      <!-- Gruplar -->
+      <section class="admin-section">
+        <h4>{{ i18n.t('admin.user.groups') }}</h4>
+        @if (groups().length === 0) {
+          <p class="admin-hint">{{ i18n.t('admin.user.noGroups') }}</p>
+        } @else {
+          <fieldset class="admin-fieldset admin-check-list" [disabled]="!canManage()">
+            @for (g of groups(); track g.id) {
+              <label class="admin-check">
+                <input type="checkbox" [checked]="groupIds().includes(g.id)" (change)="toggle(groupIds, g.id)" />
+                <span>{{ g.name }}</span>
+              </label>
+            }
+          </fieldset>
+          @if (canManage()) {
+            <div class="admin-actions">
+              <button type="button" class="cache-btn" [disabled]="groupAction().busy" (click)="saveGroups(user)">{{ i18n.t('admin.user.saveGroups') }}</button>
+              <ng-container *ngTemplateOutlet="status; context: { $implicit: groupAction() }" />
+            </div>
+          }
+        }
+      </section>
+
+      <!-- Etkin yetkiler (salt okunur) -->
+      <section class="admin-section">
+        <h4>{{ i18n.t('admin.user.permissions') }}</h4>
+        @if (user.permissions.length === 0) {
+          <p class="admin-hint">{{ i18n.t('admin.user.noPermissions') }}</p>
+        } @else {
+          <span class="chips">
+            @for (p of user.permissions; track p) { <span class="chip">{{ p }}</span> }
+          </span>
+        }
+        <p class="admin-hint">{{ i18n.t('admin.user.permissionsHint') }}</p>
+      </section>
+
+      @if (canManage()) {
+        <!-- Şifre -->
+        <form class="admin-section" (submit)="submitPassword($event)">
+          <h4>{{ i18n.t('admin.user.passwordTitle') }}</h4>
+          <label class="login-field">
+            <span>{{ i18n.t('auth.newPassword') }}</span>
+            <input [type]="showPassword() ? 'text' : 'password'" required minlength="8" maxlength="128" autocomplete="new-password" [value]="password()" (input)="password.set($any($event.target).value)" />
+          </label>
+          <ng-container *ngTemplateOutlet="passwordTools" />
+          <p class="admin-hint">{{ i18n.t('admin.user.passwordHint') }}</p>
+          <div class="admin-actions">
+            <button type="submit" class="cache-btn" [disabled]="passwordAction().busy">{{ i18n.t('admin.user.setPassword') }}</button>
+            <ng-container *ngTemplateOutlet="status; context: { $implicit: passwordAction() }" />
+          </div>
+        </form>
+
+        <!-- Silme -->
+        @if (!isSelf()) {
+          <section class="admin-section admin-danger">
+            <h4>{{ i18n.t('admin.user.delete') }}</h4>
+            <label class="login-field">
+              <span>{{ i18n.t('admin.user.deleteHint', { name: user.userName }) }}</span>
+              <input type="text" autocomplete="off" [value]="deleteConfirm()" (input)="deleteConfirm.set($any($event.target).value)" />
+            </label>
+            <div class="admin-actions">
+              <button
+                type="button"
+                class="cache-btn danger-btn"
+                [disabled]="deleteAction().busy || deleteConfirm() !== user.userName"
+                (click)="remove(user)"
+              >{{ i18n.t('admin.user.deleteConfirm') }}</button>
+              <ng-container *ngTemplateOutlet="status; context: { $implicit: deleteAction() }" />
+            </div>
+          </section>
+        }
+      }
+    } @else {
+      <form class="admin-section" (submit)="submitCreate($event)">
+        <div class="admin-form-grid">
+          <label class="login-field">
+            <span>{{ i18n.t('auth.userName') }}</span>
+            <input type="text" required minlength="3" maxlength="50" autocomplete="off" [value]="userName()" (input)="userName.set($any($event.target).value)" />
+          </label>
+          <label class="login-field">
+            <span>{{ i18n.t('auth.email') }}</span>
+            <input type="email" required maxlength="256" autocomplete="off" [value]="email()" (input)="email.set($any($event.target).value)" />
+          </label>
+          <label class="login-field">
+            <span>{{ i18n.t('auth.displayName') }}</span>
+            <input type="text" maxlength="100" autocomplete="off" [value]="displayName()" (input)="displayName.set($any($event.target).value)" />
+          </label>
+          <label class="login-field">
+            <span>{{ i18n.t('auth.password') }}</span>
+            <input [type]="showPassword() ? 'text' : 'password'" required minlength="8" maxlength="128" autocomplete="new-password" [value]="password()" (input)="password.set($any($event.target).value)" />
+          </label>
+        </div>
+        <ng-container *ngTemplateOutlet="passwordTools" />
+        <p class="admin-hint">{{ i18n.t('admin.user.createHint') }}</p>
+        <div class="admin-actions">
+          <button type="submit" class="cache-btn" [disabled]="profile().busy">{{ i18n.t('admin.user.create') }}</button>
+          <ng-container *ngTemplateOutlet="status; context: { $implicit: profile() }" />
+        </div>
+      </form>
+    }
+  </div>
+</dialog>

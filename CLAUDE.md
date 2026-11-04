@@ -60,8 +60,8 @@ never hard-code a user-facing string, add it to the dictionaries / `Lang.T(...)`
 
 Read this first when resuming work.
 
-**Next task:** Roadmap step 8 — **Admin panel, phase 8.4: Users tab** (React first, then Angular). The panel shell
-(8.3) is in place; the backend for the panel (8.0–8.2) is complete but not yet built/tested with `dotnet`.
+**Next task:** Roadmap step 8 — **Admin panel, phase 8.5: Roles tab** (React first, then Angular). Shell (8.3) and
+Users tab (8.4) are done; the backend for the panel (8.0–8.2) is complete but not yet built/tested with `dotnet`.
 The admin panel is for **users, roles, permissions and groups only** (not for matches/settings); see section 2.
 
 **⚠ Before running the API after pulling the 8.1 changes:** generate the migration (it was NOT written by hand this
@@ -95,6 +95,9 @@ catches syntax/typing errors but not EF/Moq/xUnit usage. React passed `tsc -b`, 
 8. **Roadmap step 8.3 — Admin panel shell** (2026-11-04): `#admin` view, "Yönetim" button, permission-filtered tabs,
    admin API client in both frontends. Verified in the browser (React dev server + Angular dev build) with mocked
    API responses.
+9. **Roadmap step 8.4 — Users tab** (2026-11-04): list/search, create/edit dialog, roles/groups, password, delete,
+   read-only mode. Same 17-step browser test passed on React and Angular against a stateful mock API (not against the
+   real backend).
 
 **To verify before starting step 8:**
 - [ ] `dotnet build` + `dotnet test backend/MatchForecast.Tests/MatchForecast.Tests.csproj` (new:
@@ -458,6 +461,33 @@ catches syntax/typing errors but not EF/Moq/xUnit usage. React passed `tsc -b`, 
 - Angular production build (`ng build`) inlines Google Fonts and needs internet access; offline use
   `ng build --configuration development`.
 
+### ✅ Roadmap step 8.4 — Users tab (2026-11-04)
+- **Files:** React `components/admin/UsersTab.tsx` + `components/admin/UserDialog.tsx`; Angular
+  `components/admin/users-tab.ts/.html` + `components/admin/user-dialog.ts/.html`. `AdminPanel` / `app-admin-panel`
+  renders the tab for `users`; the other tabs still show `admin.comingSoon`.
+- **List:** loads `getUsers()`, `getRoles()`, `getGroups()` in parallel (roles/groups are needed to map the names in
+  `UserResponse` to ids for the assignment endpoints). Search over user name, display name and e-mail (`tr` lower
+  case). Columns: user (+ display name), e-mail, roles, groups (chips), status badge, last login (`toLocaleString` with
+  the UI locale), "Düzenle" (with `users.manage`) or "Görüntüle" (view only).
+- **Dialog:** native `<dialog>` opened with `showModal()` (Esc / "Kapat" close it). React re-creates it with `key`,
+  Angular with a one-element `@for (...; track key)`.
+  - Create: user name, e-mail, display name, password (+ generator via `/api/password`). After `createUser` the list
+    reloads and the same dialog switches to edit mode for the new user, so roles/groups can be assigned right away.
+  - Edit: separate sections, each with its own save button and status line (`admin-status`): profile (e-mail,
+    display name, active), roles (checkboxes, "Sistem" badge), groups, effective permissions (read-only chips + hint
+    that changes apply on the next token refresh), set password (signs the user out everywhere), delete (button enabled
+    only after typing the exact user name).
+  - Without `users.manage`: everything is inside `<fieldset disabled>` and no save/password/delete controls render.
+  - Own account: note shown, "active" checkbox disabled, no delete section. Guest account: note that it is recreated on
+    restart. All other rules (last Admin, self via roles/groups, duplicates) come from the API `ProblemDetails` text.
+- **i18n:** `admin.loading`, `admin.edit`, `admin.view`, `admin.close`, `admin.save`, `admin.saved`, `admin.system`,
+  `admin.users.*`, `admin.user.*`; reuses `auth.userName`, `auth.email`, `auth.displayName`, `auth.password`,
+  `auth.newPassword`, `auth.generate`, `auth.generating`, `auth.show`, `auth.hide`.
+- **CSS** (both `styles.css`, identical): `.sr-only`, `.admin-toolbar`, `.admin-search`, `.admin-table(-wrap)`,
+  `.admin-sub`, `.admin-muted`, `.admin-nowrap`, `.chips` / `.chip`, `.badge` / `.badge-ok` / `.badge-off`,
+  `.admin-dialog(-head|-body)`, `.admin-section`, `.admin-fieldset`, `.admin-form-grid`, `.admin-check(-list)`,
+  `.admin-actions`, `.admin-status`, `.admin-hint`, `.admin-note`, `.admin-danger`, `.danger-btn`.
+
 ### Frontend (React 19 + Vite) — `frontend`
 - Vite dev server on `5173`, proxies `/api` → `http://localhost:5080`.
 - `api.ts`: access token in memory; **refresh token in `localStorage`** (`matchforecast.refreshToken`) so a page reload
@@ -518,7 +548,7 @@ catches syntax/typing errors but not EF/Moq/xUnit usage. React passed `tsc -b`, 
 [6. Auth & Users ✅] ◄── [5. EF Core ✅] ◄── [4. Supabase ✅]
         │
         ▼
-[7. Persist forecasts ✅] ──► [8. Admin panel (users/roles/permissions/groups): 8.0 ✅, 8.1 ✅, 8.2 ✅, 8.3 ✅, 8.4 ◄ next]
+[7. Persist forecasts ✅] ──► [8. Admin panel (users/roles/permissions/groups): 8.0 ✅, 8.1 ✅, 8.2 ✅, 8.3 ✅, 8.4 ✅, 8.5 ◄ next]
 ```
 
 #### 7. Persist forecasts ✅ (2026-11-04, see section 1)
@@ -592,13 +622,11 @@ missing permissions; it never removes a role ↔ permission assignment made in t
 - [x] "Yönetim" button, `#admin[/tab]` view, permission-filtered tabs, "Maçlara dön"; users without admin
       permissions stay on the match screen.
 
-**8.4 Users tab** (`users.view` to see, `users.manage` to change) ← next
-- [ ] Table: user name, display name, e-mail, roles, groups, active, last login; search box.
-- [ ] Create (with the existing password generator), edit (e-mail, display name, active), set password (signs the user
-      out everywhere), delete with typed confirmation; guard errors (self / last Admin) shown from `ProblemDetails`.
-- [ ] Role and group checkboxes per user; read-only "effective permissions" list.
+**8.4 Users tab ✅ (2026-11-04, see section 1)**
+- [x] Table with search, create (password generator), edit, set password, delete with typed confirmation, role and
+      group checkboxes, read-only effective permissions, view-only mode, own-account / guest notes.
 
-**8.5 Roles tab** (`roles.manage`)
+**8.5 Roles tab** (`roles.manage`) ← next
 - [ ] Role list (system badge, user count); create/rename/delete custom roles.
 - [ ] Permission checklist per role, grouped by area (prefix before the first `.`); `Admin` shown as "all permissions"
       and not editable.
