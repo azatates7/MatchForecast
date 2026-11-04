@@ -29,6 +29,7 @@ namespace MatchForecast.Api.Services.Security;
 public sealed partial class AuthService(
     AppDbContext db,
     JwtTokenService jwt,
+    PermissionResolver permissionResolver,
     IPasswordHasher<User> hasher,
     IOptions<JwtOptions> options,
     IOptions<AuthOptions> authOptions,
@@ -308,22 +309,13 @@ public sealed partial class AuthService(
         var roles = await db.Roles
             .Where(r => r.UserRoles.Any(ur => ur.UserId == user.Id)
                         || r.GroupRoles.Any(gr => gr.Group.UserGroups.Any(ug => ug.UserId == user.Id)))
-            .Select(r => new { r.Id, r.Name })
+            .Select(r => r.Name)
             .ToListAsync(ct);
 
-        /*
-         * Etkin yetkiler: etkin rollerin yetkileri; Admin tüm yetkilere (sonradan eklenenler dahil) sahiptir.
-         * Token'a yazılır; rol/yetki değişikliği kullanıcıya bir sonraki token yenilemesinde yansır.
-         */
-        var roleIds = roles.Select(r => r.Id).ToList();
-        var isAdmin = roles.Any(r => r.Name == RoleNames.Admin);
-        var permissions = await db.Permissions
-            .Where(p => isAdmin || p.RolePermissions.Any(rp => roleIds.Contains(rp.RoleId)))
-            .OrderBy(p => p.Key)
-            .Select(p => p.Key)
-            .ToListAsync(ct);
+        // Etkin yetkiler (Admin → tümü). Token'a yazılır; rol/yetki değişikliği bir sonraki token yenilemesinde yansır.
+        var permissions = (await permissionResolver.ForUsersAsync([user.Id], ct))[user.Id];
 
-        var access = jwt.CreateAccessToken(user.Id, user.UserName, roles.Select(r => r.Name), permissions);
+        var access = jwt.CreateAccessToken(user.Id, user.UserName, roles, permissions);
 
         var rawRefreshToken = NewToken();
         var refresh = new RefreshToken

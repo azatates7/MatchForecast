@@ -1,5 +1,4 @@
 using MatchForecast.Models.Common;
-using System.Globalization;
 using System.Linq.Expressions;
 using MatchForecast.Api.Services.Security;
 using MatchForecast.Data.Configuration;
@@ -11,7 +10,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.JsonWebTokens;
 
 namespace MatchForecast.Api.Controllers;
 
@@ -24,9 +22,15 @@ namespace MatchForecast.Api.Controllers;
 [ApiController]
 [Route("api/users")]
 [RequirePermission(PermissionKeys.UsersView)]
-public sealed class UsersController(AppDbContext db, IPasswordHasher<User> hasher, AuthService auth) : ControllerBase
+public sealed class UsersController(
+    AppDbContext db,
+    IPasswordHasher<User> hasher,
+    AuthService auth,
+    AdminGuard adminGuard,
+    PermissionResolver permissionResolver) : ControllerBase
 {
     // Tek sorguda kullanıcı + rol adları + grup adları; entity (PasswordHash dahil) hiçbir zaman dışarı çıkmaz.
+    // Etkin yetkiler ayrı hesaplanır (WithPermissionsAsync), burada boş gelir.
     private static readonly Expression<Func<User, UserResponse>> ToResponse = u => new UserResponse(
         u.Id,
         u.UserName,
@@ -38,12 +42,14 @@ public sealed class UsersController(AppDbContext db, IPasswordHasher<User> hashe
         u.UpdatedAt,
         u.LastLoginAt,
         u.UserRoles.Select(x => x.Role.Name).OrderBy(x => x).ToList(),
-        u.UserGroups.Select(x => x.Group.Name).OrderBy(x => x).ToList());
+        u.UserGroups.Select(x => x.Group.Name).OrderBy(x => x).ToList(),
+        Array.Empty<string>());
 
     [HttpGet]
     public async Task<ActionResult<List<UserResponse>>> GetAll(CancellationToken ct)
     {
-        return await db.Users.AsNoTracking().OrderBy(x => x.Id).Select(ToResponse).ToListAsync(ct);
+        var users = await db.Users.AsNoTracking().OrderBy(x => x.Id).Select(ToResponse).ToListAsync(ct);
+        return await WithPermissionsAsync(users, ct);
     }
 
     [HttpGet("{id:int}")]
@@ -53,7 +59,7 @@ public sealed class UsersController(AppDbContext db, IPasswordHasher<User> hashe
         if (user is null)
             return NotFound();
 
-        return user;
+        return (await WithPermissionsAsync([user], ct))[0];
     }
 
     [RequirePermission(PermissionKeys.UsersManage)]
@@ -75,7 +81,7 @@ public sealed class UsersController(AppDbContext db, IPasswordHasher<User> hashe
         await db.SaveChangesAsync(ct); // Id ve CreatedAt veritabanından geri okunur.
 
         var response = await db.Users.AsNoTracking().Where(x => x.Id == user.Id).Select(ToResponse).FirstAsync(ct);
-        return CreatedAtAction(nameof(Get), new { id = user.Id }, response);
+        return CreatedAtAction(nameof(Get), new { id = user.Id }, response); // Yeni kullanıcının rolü/yetkisi yok.
     }
 
     [RequirePermission(PermissionKeys.UsersManage)]
@@ -88,10 +94,10 @@ public sealed class UsersController(AppDbContext db, IPasswordHasher<User> hashe
 
         if (user.IsActive && !request.IsActive)
         {
-            if (id == CurrentUserId())
+            if (id == User.GetUserId())
                 return Refuse(Lang.T("Kendi hesabınızı pasife alamazsınız.", "You cannot deactivate your own account."));
-            if (await IsLastActiveAdminAsync(id, ct))
-                return LastAdmin();
+            if (await CheckAdminLossAsync(id, ct) is { } refused)
+                return refused;
         }
 
         var email = Normalize(request.Email);
@@ -137,10 +143,10 @@ public sealed class UsersController(AppDbContext db, IPasswordHasher<User> hashe
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id, CancellationToken ct)
     {
-        if (id == CurrentUserId())
+        if (id == User.GetUserId())
             return Refuse(Lang.T("Kendi hesabınızı silemezsiniz.", "You cannot delete your own account."));
-        if (await IsLastActiveAdminAsync(id, ct))
-            return LastAdmin();
+        if (await CheckAdminLossAsync(id, ct) is { } refused)
+            return refused;
 
         var deleted = await db.Users.Where(x => x.Id == id).ExecuteDeleteAsync(ct);
         return deleted == 0 ? NotFound() : NoContent();
@@ -160,8 +166,10 @@ public sealed class UsersController(AppDbContext db, IPasswordHasher<User> hashe
             return Problem(statusCode: StatusCodes.Status400BadRequest, detail: Lang.T("Listede bulunmayan bir rol id'si var.", "The list contains an unknown role id."));
 
         var adminRoleId = await db.Roles.Where(x => x.Name == RoleNames.Admin).Select(x => x.Id).FirstOrDefaultAsync(ct);
-        var adminAfter = roleIds.Contains(adminRoleId) || await IsAdminViaGroupsAsync(id, groupIds: null, ct);
-        if (await GuardAdminLossAsync(id, adminAfter, ct) is { } refused)
+        var adminViaGroups = await db.UserGroups
+            .Where(x => x.UserId == id)
+            .AnyAsync(x => x.Group.GroupRoles.Any(gr => gr.Role.Name == RoleNames.Admin), ct);
+        if (!roleIds.Contains(adminRoleId) && !adminViaGroups && await CheckAdminLossAsync(id, ct) is { } refused)
             return refused;
 
         // Mevcut atamalar korunur (AssignedAt değişmez); yalnızca fark uygulanır.
@@ -189,8 +197,8 @@ public sealed class UsersController(AppDbContext db, IPasswordHasher<User> hashe
 
         // Admin'liği yalnızca bir gruptan geliyorsa o gruptan çıkarmak da Admin'liği kaldırır.
         var adminAfter = await db.UserRoles.AnyAsync(x => x.UserId == id && x.Role.Name == RoleNames.Admin, ct)
-                         || await IsAdminViaGroupsAsync(id, groupIds, ct);
-        if (await GuardAdminLossAsync(id, adminAfter, ct) is { } refused)
+                         || await adminGuard.AnyGroupGrantsAdminAsync(groupIds, ct);
+        if (!adminAfter && await CheckAdminLossAsync(id, ct) is { } refused)
             return refused;
 
         user.UserGroups.RemoveAll(x => !groupIds.Contains(x.GroupId));
@@ -202,51 +210,21 @@ public sealed class UsersController(AppDbContext db, IPasswordHasher<User> hashe
         return NoContent();
     }
 
-    // İsteği yapan Admin'in kullanıcı id'si (JWT "sub").
-    private int? CurrentUserId() =>
-        int.TryParse(User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id)
-            ? id
-            : null;
-
-    // Admin = Admin rolü doğrudan verilmiş VEYA Admin rolü veren bir grubun üyesi.
-    private static readonly Expression<Func<User, bool>> IsAdmin = u =>
-        u.UserRoles.Any(r => r.Role.Name == RoleNames.Admin)
-        || u.UserGroups.Any(g => g.Group.GroupRoles.Any(gr => gr.Role.Name == RoleNames.Admin));
-
-    // groupIds null ise kullanıcının mevcut grupları, değilse (SetGroups) atanacak gruplar değerlendirilir.
-    private Task<bool> IsAdminViaGroupsAsync(int userId, IReadOnlyCollection<int>? groupIds, CancellationToken ct) =>
-        groupIds is null
-            ? db.UserGroups.AnyAsync(x => x.UserId == userId && x.Group.GroupRoles.Any(gr => gr.Role.Name == RoleNames.Admin), ct)
-            : db.Groups.AnyAsync(x => groupIds.Contains(x.Id) && x.GroupRoles.Any(gr => gr.Role.Name == RoleNames.Admin), ct);
-
-    // Değişiklik kullanıcının Admin'liğini kaldırıyorsa: kendi hesabıysa veya son aktif Admin ise reddedilir.
-    private async Task<IActionResult?> GuardAdminLossAsync(int userId, bool adminAfter, CancellationToken ct)
+    private async Task<List<UserResponse>> WithPermissionsAsync(List<UserResponse> users, CancellationToken ct)
     {
-        if (adminAfter || !await db.Users.Where(x => x.Id == userId).AnyAsync(IsAdmin, ct))
-            return null;
-        if (userId == CurrentUserId())
-            return Refuse(Lang.T("Kendi Admin yetkinizi kaldıramazsınız.", "You cannot remove your own Admin access."));
-        if (await IsLastActiveAdminAsync(userId, ct))
-            return LastAdmin();
-        return null;
+        var permissions = await permissionResolver.ForUsersAsync(users.Select(x => x.Id).ToList(), ct);
+        return users.Select(x => x with { Permissions = permissions[x.Id] }).ToList();
     }
 
-    // Kullanıcı, aktif Admin'lerin (doğrudan veya grup üzerinden) tek kalanı mı?
-    private async Task<bool> IsLastActiveAdminAsync(int userId, CancellationToken ct)
+    // Kullanıcı Admin ise ve bu değişiklikle Admin'liğini kaybedecekse: kendisi veya son aktif Admin ise reddedilir.
+    private async Task<IActionResult?> CheckAdminLossAsync(int userId, CancellationToken ct)
     {
-        var activeAdminIds = await db.Users
-            .Where(x => x.IsActive)
-            .Where(IsAdmin)
-            .Select(x => x.Id)
-            .Take(2)
-            .ToListAsync(ct);
-        return activeAdminIds.Count == 1 && activeAdminIds[0] == userId;
+        if (!await adminGuard.IsAdminAsync(userId, ct))
+            return null;
+        return await adminGuard.CheckLossAsync([userId], User.GetUserId(), ct) is { } error ? Refuse(error) : null;
     }
 
     private ObjectResult Refuse(string detail) => Problem(statusCode: StatusCodes.Status400BadRequest, detail: detail);
-
-    private ObjectResult LastAdmin() =>
-        Refuse(Lang.T("Sistemde en az bir aktif Admin kalmalı.", "At least one active Admin must remain."));
 
     // Unique index büyük/küçük harf duyarlı; "Azat@x.com" ile "azat@x.com" iki ayrı kayıt olmasın.
     private static string Normalize(string value) => value.Trim().ToLowerInvariant();

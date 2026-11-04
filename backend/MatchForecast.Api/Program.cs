@@ -119,6 +119,8 @@ try
     });
     // [RequirePermission(...)] → "perm:{anahtar}" policy'leri çalışma anında üretilir (PermissionAuthorization.cs).
     builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
+    builder.Services.AddScoped<PermissionResolver>();
+    builder.Services.AddScoped<AdminGuard>();
     builder.Services.AddProblemDetails();
 
     /*

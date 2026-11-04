@@ -1,6 +1,7 @@
 namespace MatchForecast.Models.Response;
 
 // Entity yerine DTO döner: PasswordHash gibi alanlar hiçbir zaman API yanıtına çıkmaz.
+// Roles/Groups: doğrudan atamalar (ad). Permissions: etkin yetkiler (doğrudan + grup rolleri; Admin → tümü), salt okunur.
 public sealed record UserResponse(
     int Id,
     string UserName,
@@ -12,4 +13,5 @@ public sealed record UserResponse(
     DateTime? UpdatedAt,
     DateTime? LastLoginAt,
     IReadOnlyList<string> Roles,
-    IReadOnlyList<string> Groups);
+    IReadOnlyList<string> Groups,
+    IReadOnlyList<string> Permissions);

@@ -27,7 +27,7 @@ backend/
   Dockerfile
   MatchForecast.Api/
     Controllers/                   Auth, Me, FavoriteLeagues, Password, Matches, Cache, Users, Roles, Groups,
-                                   AppSettings, SampleItems
+                                   Permissions, AppSettings, SampleItems
     Filter/                        BearerSecurityOperationFilter (Swagger)
     Options/                       Ai, Auth, Forecast, Jwt, OddsProvider, RateLimit, Redis, Smtp
     Services/
@@ -41,7 +41,9 @@ backend/
       Health/                      DatabaseHealthCheck, RedisHealthCheck, HealthResponseWriter
       Redis/                       RedisCacheService, InMemoryRedisCacheService (tests)
       Security/                    AuthService, JwtTokenService, GoogleIdTokenValidator, PasswordGenerator,
-                                   AdminUserBootstrapper, TokenCleanUpWorker
+                                   AdminUserBootstrapper, TokenCleanUpWorker,
+                                   PermissionAuthorization ([RequirePermission], PermissionPolicy, PermissionPolicyProvider),
+                                   PermissionResolver (effective permissions), AdminGuard (+ ClaimsPrincipal.GetUserId())
   MatchForecast.Models/            Common/, Request/, Response/ DTOs (records)
   MatchForecast.Data/              Configuration/AppDbContext, Entity/, Migrations/, Seed/, Security/AppSettingsCrypto
   MatchForecast.Logger/            NLog config, Middleware/ (Logging, Exception), Notifications/IErrorNotifier
@@ -58,9 +60,19 @@ never hard-code a user-facing string, add it to the dictionaries / `Lang.T(...)`
 
 Read this first when resuming work.
 
-**Next task:** Roadmap step 8 — **Admin panel, phase 8.1: permission model (backend)**. The admin panel is for
-**users, roles, permissions and groups only** (not for matches/settings); scope and decisions were revised on
-2026-11-04, see section 2.
+**Next task:** Roadmap step 8 — **Admin panel, phase 8.3: frontend shell** ("Yönetim" view, React first, then
+Angular). The backend for the panel (8.0–8.2) is complete but not yet built/tested.
+The admin panel is for **users, roles, permissions and groups only** (not for matches/settings); see section 2.
+
+**⚠ Before running the API after pulling the 8.1 changes:** generate the migration (it was NOT written by hand this
+time, and EF Core refuses `MigrateAsync` while the model has pending changes):
+```bash
+cd backend
+dotnet ef migrations add AddPermissions --project MatchForecast.Data --startup-project MatchForecast.Api
+```
+Expected content: tables `permissions` (unique `key`) and `role_permissions` (PK `role_id, permission_id`, cascade
+FKs), column `roles.is_system` (bool, default false). Seeding then adds the 8 system permissions and marks
+`Admin`/`User`/`Guest` as system roles on the next start.
 Steps 7 (persist forecasts) and 8.0 (admin backend prerequisites) are done but not yet built/tested (see below).
 
 **Changes delivered as files but NOT yet verified with `dotnet build` / `dotnet test`** (the session environment had
@@ -76,11 +88,16 @@ catches syntax/typing errors but not EF/Moq/xUnit usage. React passed `tsc -b`, 
 4. **Roadmap step 7 — Persist forecasts** (2026-11-04), including the hand-written migration `AddForecasts`.
 5. **Roadmap step 8.0 — Admin backend prerequisites** (2026-11-04): `GET /api/roles`, `GET /api/groups`,
    self-lockout / last-admin guards in `UsersController`.
+6. **Roadmap step 8.1 — Permission model** (2026-11-04): permissions in DB + JWT, `[RequirePermission]`, role checks
+   replaced; migration `AddPermissions` still has to be generated (see above).
+7. **Roadmap step 8.2 — Management API** (2026-11-04): permissions / roles / groups CRUD, group-side Admin guards,
+   effective permissions in `UserResponse`. No schema change, no migration.
 
 **To verify before starting step 8:**
 - [ ] `dotnet build` + `dotnet test backend/MatchForecast.Tests/MatchForecast.Tests.csproj` (new:
       `FavoriteLeaguesIntegrationTests`, `RateLimitingIntegrationTests.ClearCache_NonAdmin_ReturnsForbidden`,
-      `ForecastStoreTests`, two new `ForecastServiceTests`, `AdminUsersIntegrationTests`).
+      `ForecastStoreTests`, two new `ForecastServiceTests`, `AdminUsersIntegrationTests`,
+      `PermissionAuthorizationTests`, `PermissionSeedTests`, `AdminManagementIntegrationTests`).
 - [ ] Migration check: `dotnet ef migrations add Check --project MatchForecast.Data --startup-project MatchForecast.Api`
       must produce an **empty** migration (proves the hand-written snapshot matches the model); then
       `dotnet ef migrations remove ...`. If it is not empty, delete the hand-written migrations
@@ -115,11 +132,17 @@ catches syntax/typing errors but not EF/Moq/xUnit usage. React passed `tsc -b`, 
   - `PasswordController` (anonymous): `GET /api/password?length=16` (random password generator, 8–128, nothing stored)
   - `MatchesController`: `GET /api/matches`, `GET /api/matches/popular`, `GET /api/matches/popular/forecasts`,
     `GET /api/matches/{id}/forecast`
-  - `CacheController` (Admin): `DELETE /api/cache`
+  - `CacheController` (`cache.clear`): `DELETE /api/cache`
   - `FavoriteLeaguesController` (signed-in, not guest): `GET|PUT|DELETE /api/me/favorite-leagues`
-  - `RolesController` / `GroupsController` (Admin, read-only): `GET /api/roles`, `GET /api/groups`
-  - `UsersController` (Admin): CRUD on `/api/users`, plus `PUT /api/users/{id}/password|roles|groups`
-  - `AppSettingsController` (Admin): `GET /api/app-settings`, `GET|PUT|DELETE /api/app-settings/{id}`
+  - `PermissionsController`: `GET /api/permissions[/{id}]` (`permissions.manage` or `roles.manage`),
+    `POST`, `PUT /{id}`, `DELETE /{id}` (`permissions.manage`)
+  - `RolesController`: `GET /api/roles[/{id}]` (`users.view` or `roles.manage`), `POST`, `PUT /{id}`,
+    `DELETE /{id}?force=`, `PUT /{id}/permissions` (`roles.manage`)
+  - `GroupsController`: `GET /api/groups[/{id}]` (`users.view` or `groups.manage`), `POST`, `PUT /{id}`,
+    `DELETE /{id}`, `PUT /{id}/roles`, `PUT /{id}/users` (`groups.manage`)
+  - `UsersController` (`users.view`; changes also need `users.manage`): CRUD on `/api/users`, plus
+    `PUT /api/users/{id}/password|roles|groups`
+  - `AppSettingsController` (`app-settings.manage`): `GET /api/app-settings`, `GET|PUT|DELETE /api/app-settings/{id}`
   - `SampleItemsController`: demo CRUD on `/api/sample-items` (seeded table, kept as an EF Core example)
 - **Swagger / OpenAPI** (Development only): `/swagger`, `/openapi/v1.json`, with an `Authorize` button
   (`Bearer {token}`) and `BearerSecurityOperationFilter` marking protected endpoints.
@@ -208,12 +231,14 @@ catches syntax/typing errors but not EF/Moq/xUnit usage. React passed `tsc -b`, 
 ### ✅ Roadmap step 5 — EF Core
 - `AppDbContext` (`MatchForecast.Data/Configuration`) with entities: `User`, `Role`, `Group`, `UserRole`, `UserGroup`,
   `GroupRole`, `UserLogin` (external logins), `RefreshToken`, `PasswordResetToken`, `AppSetting`, `SampleItem`,
-  `UserFavoriteLeague`, `ForecastRecord` (table `forecasts`).
+  `UserFavoriteLeague`, `ForecastRecord` (table `forecasts`), `Permission`, `RolePermission`.
 - Migrations in `MatchForecast.Data/Migrations` (`InitialCreate`, `AddUserManagement`, `AddRefreshTokenReset`,
   `AddAppSettings`, `AddUserFavoriteLeagues`, `AddForecasts` — the last two were written by hand, see section 0). They are applied **automatically at startup** (`DatabaseSettings.LoadAsync` →
   `MigrateAsync`); `EF.IsDesignTime` skips this during `dotnet ef`.
-- Seeding via `UseSeeding`/`UseAsyncSeeding`: roles (`Admin`, `User` — `RoleNames`) and sample items; only missing
-  rows are added.
+- Seeding via `UseSeeding`/`UseAsyncSeeding`: sample items, system roles (`RoleSeed`: `Admin`, `User`, `Guest`,
+  marked `IsSystem`) and system permissions (`PermissionSeed`); only missing rows are added, existing rows only get
+  their `IsSystem` flag fixed (names/descriptions edited in the panel are kept; role ↔ permission assignments are
+  never touched).
 - `AdminUserBootstrapper`: if no user has the Admin role and `Admin:UserName/Email/Password` are set, the first admin
   is created at startup (or an existing user with that name gets the role). Changing the setting later does not change
   the password.
@@ -235,8 +260,9 @@ catches syntax/typing errors but not EF/Moq/xUnit usage. React passed `tsc -b`, 
 - **Password reset:** `forgot-password` always returns 204 (no account enumeration) and mails a link built from
   `Auth:PasswordResetUrl` (never from the request `Origin`) with `?resetToken=...`; token stored hashed, valid
   `Auth:PasswordResetTokenMinutes`. A successful reset revokes all refresh tokens.
-- **Authorization:** a **fallback policy** protects every endpoint without `[AllowAnonymous]`. `UsersController`,
-  `RolesController`, `GroupsController`, `AppSettingsController` and `CacheController` require `Admin`. Roles (`RoleNames`): `Admin`, `User`, `Guest`.
+- **Authorization:** a **fallback policy** protects every endpoint without `[AllowAnonymous]`. Feature access is
+  **permission-based** since step 8.1 (`[RequirePermission(...)]`, see "Permissions" below); `Admin` has every
+  permission. Guest restrictions stay role-based (`GuestAccess`, `NotGuest` policy). Roles (`RoleNames`): `Admin`, `User`, `Guest`.
 
 ### ✅ Guest access
 - **Guest user:** `GuestUserBootstrapper` creates one shared account with only the `Guest` role at startup when
@@ -270,7 +296,7 @@ catches syntax/typing errors but not EF/Moq/xUnit usage. React passed `tsc -b`, 
   file/secrets/env on the next start. To add a new key: put it in user-secrets/env and restart.
 - Without a connection string (CI tests) the step is skipped and only file/secrets/env are used.
 
-### ✅ Cache clear: Admin only (2026-11-03)
+### ✅ Cache clear: Admin only (2026-11-03) — superseded by 8.1: now the `cache.clear` permission (Admin still has it)
 - `CacheController.Clear` uses `[Authorize(Roles = RoleNames.Admin)]` (was `NotGuest`). Authorization still runs
   before the rate limiter, so 403 responses do not consume the global 2/hour quota.
 - Both frontends show the button only when `me.roles` contains `Admin` (`isAdmin`); while `/api/me` is loading it
@@ -322,7 +348,7 @@ catches syntax/typing errors but not EF/Moq/xUnit usage. React passed `tsc -b`, 
   `ForecastServiceTests` (saved once, not for cache hits; store failure still returns the forecast). Test DI setups
   that build `ForecastService` manually (`ForecastPrewarmTests`) register `Mock.Of<IForecastStore>()`.
 
-### ✅ Roadmap step 8.0 — Admin backend prerequisites (2026-11-04)
+### ✅ Roadmap step 8.0 — Admin backend prerequisites (2026-11-04) — DTOs, permissions and guards were extended in 8.1/8.2
 - `RolesController` → `GET /api/roles` → `RoleResponse(Id, Name, Description)`; `GroupsController` →
   `GET /api/groups` → `GroupResponse(Id, Name, Description)`. Admin only, read-only, ordered by name.
   Needed because `PUT /api/users/{id}/roles|groups` take ids.
@@ -333,6 +359,71 @@ catches syntax/typing errors but not EF/Moq/xUnit usage. React passed `tsc -b`, 
     user no longer exists).
   Guards only trigger on an actual change (deactivating an active user, removing an existing Admin role).
 - Tests: `AdminUsersIntegrationTests` (seeds roles/users itself — `RoleSeed` does not run on the in-memory DB).
+
+### ✅ Roadmap step 8.1 — Permissions (2026-11-04)
+- **Model:** `Permission` (`permissions`: `key` unique, max 100, lowercase `area.action`; `name` TR, `name_en`,
+  `description`, `is_system`), `RolePermission` (`role_permissions`, PK `(role_id, permission_id)`, cascade from both
+  sides), `Role.IsSystem`. Migration `AddPermissions` — generate it with `dotnet ef` (section 0).
+- **System permissions** (`PermissionKeys` in `MatchForecast.Data/Seed/PermissionSeed.cs`, seeded by `PermissionSeed`):
+  `users.view`, `users.manage`, `roles.manage`, `permissions.manage`, `groups.manage`, `cache.clear`,
+  `forecast.refresh`, `app-settings.manage`. Panel-created permissions (8.2) are `IsSystem=false`. A panel-created
+  permission with the same key as a later system permission is adopted (marked system) by the seed.
+- **Default access:** only `Admin` (implicitly **all** permissions, including ones added later). `User` and `Guest`
+  have none until roles get permissions in the panel. So after deploy, behavior equals the previous Admin-only setup.
+- **Token:** `AuthService.IssueTokensAsync` resolves effective roles (direct + via groups) and their permissions
+  (Admin → every key in the table) and `JwtTokenService.CreateAccessToken(..., permissions)` writes one `perm` claim per
+  key. Changes reach a user on the next token refresh (≤ `Jwt:ExpiryMinutes`). `GET /api/me` returns `permissions`.
+- **Enforcement:** `[RequirePermission(PermissionKeys.X)]` (`Services/Security/PermissionAuthorization.cs`) sets the
+  policy name `perm:{key}`; with several keys (`perm:a|b`) **any one** is enough. `PermissionPolicyProvider`
+  (registered in `Program.cs` as `IAuthorizationPolicyProvider`) builds these policies on demand, other names go to
+  the default provider. Check rule (`PermissionPolicy.HasPermission`): role `Admin` **or** a `perm` claim with the key.
+  Code that branches on a permission uses `PermissionPolicy.HasPermission(User, key)` (e.g.
+  `MatchesController.CanRefresh` → `forecast.refresh`).
+- **Where:** `UsersController` class `users.view` + `users.manage` on every change; `GET /api/roles` (`users.view` |
+  `roles.manage`); `GET /api/groups` (`users.view` | `groups.manage`); `AppSettingsController` `app-settings.manage`;
+  `DELETE /api/cache` `cache.clear`.
+- **Admin lock-out guards** now treat "Admin" as direct role **or** membership in a group that grants `Admin`
+  (`UsersController.IsAdmin` expression): self-removal via `PUT .../roles` or `PUT .../groups`, self deactivate/delete,
+  and last-active-Admin protection all use it. Group-side changes (group deleted / loses Admin) come with 8.2.
+- **Frontends:** `MeResponse.permissions` + `hasPermission(me, key)` in `types.ts` (Admin → true, mirrors the API);
+  the "Önbelleği Sil" button uses `hasPermission(me, 'cache.clear')`.
+- **Adding a permission check in code:** add a constant to `PermissionKeys` and a row (TR/EN name, description) to
+  `PermissionSeed.CreatePermissions`, then put `[RequirePermission(PermissionKeys.X)]` on the endpoint. No
+  `Program.cs` change, no migration (seed adds the row on next start).
+- Tests: `PermissionAuthorizationTests` (permission vs role, view vs manage, any-of, `/api/me`, effective permissions in
+  the token via direct and group roles, Admin gets all), `PermissionSeedTests` (idempotent, adopts existing rows, keeps
+  assignments), `AdminUsersIntegrationTests.AdminViaGroup_CountsAsAdmin_ForLockOutGuards`.
+  `TestAuth.CreateClientFor(userId, roles, permissions...)` creates a client with a custom token.
+
+### ✅ Roadmap step 8.2 — Management API (2026-11-04)
+- **Shared services** (`Services/Security`, scoped, registered in `Program.cs`):
+  - `PermissionResolver.ForUsersAsync(userIds)` → effective permission keys per user (direct roles + group roles via
+    joins; Admin → every key in the table; ordinal-sorted). Used by `AuthService` (token) and `UsersController`.
+  - `AdminGuard`: `IsAdmin` expression (Admin role directly or via a group), `AdminsOnlyViaGroupAsync(groupId,
+    among)` (users whose Admin access comes **only** from that group), `CheckLossAsync(losing, currentUserId)` →
+    `null` or a TR/EN message: refuses when the caller is in `losing` or when no active Admin would remain.
+    `UsersController` and `GroupsController` both use it. `ClaimsPrincipal.GetUserId()` reads JWT `sub`.
+- **Permissions API** (`PermissionsController`, DTOs `PermissionResponse(Id, Key, Name, NameEn, Description,
+  IsSystem, RoleIds)`, `CreatePermissionRequest`, `UpdatePermissionRequest`): key format
+  `PermissionKeyPattern` (`area.action`, ≥ 2 dot-separated parts of letters/digits/`-`), stored lowercase, unique
+  (409). System permissions: key change → 400, delete → 400; name/description editable. `Key: null` on PUT keeps it.
+- **Roles API** (`RolesController`, `RoleResponse(Id, Name, Description, IsSystem, HasAllPermissions,
+  PermissionIds, UserCount, GroupCount)`, `RoleRequest`, `RolePermissionsRequest`): names unique case-insensitive
+  (409); system roles cannot be renamed or deleted (400, description is editable); a role assigned to users/groups is
+  deleted only with `?force=true` (409 otherwise, assignments removed); `PUT /{id}/permissions` replaces the list
+  (diff applied), unknown id → 400, `Admin` → 400 (`HasAllPermissions`, list stays empty). Other system roles
+  (`User`, `Guest`) **can** get permissions.
+- **Groups API** (`GroupsController`, `GroupResponse(Id, Name, Description, RoleIds, MemberIds)`, `GroupRequest`,
+  `GroupRolesRequest`, `GroupUsersRequest`): names unique case-insensitive (409); `PUT /{id}/roles` and
+  `PUT /{id}/users` replace the lists (diff applied, unknown ids → 400). Admin guards: deleting a group, removing
+  `Admin` from it, or removing members → `AdminGuard` on the users whose Admin access comes only from that group.
+- **Users:** `UserResponse` gained `Permissions` (effective, read-only); `Roles`/`Groups` stay the direct assignments.
+- Deletes load dependent rows (`Include`) so the in-memory test DB removes them too (Postgres has FK cascade anyway).
+- Name comparisons use `ToLowerInvariant()` for the parameter and `ToLower()` (SQL `lower()`) for the column.
+- Tests: `AdminManagementIntegrationTests` (custom permission lifecycle, system permission protection, roles.manage
+  can read but not change permissions, role lifecycle, system role rules, delete with force, group lifecycle, Admin
+  group guards incl. self, groups.manage needed for changes, effective permissions in `/api/users`). Seeds system
+  data with the real `RoleSeed` / `PermissionSeed`.
 
 ### Frontend (React 19 + Vite) — `frontend`
 - Vite dev server on `5173`, proxies `/api` → `http://localhost:5080`.
@@ -394,7 +485,7 @@ catches syntax/typing errors but not EF/Moq/xUnit usage. React passed `tsc -b`, 
 [6. Auth & Users ✅] ◄── [5. EF Core ✅] ◄── [4. Supabase ✅]
         │
         ▼
-[7. Persist forecasts ✅] ──► [8. Admin panel (users/roles/permissions/groups): 8.0 ✅, 8.1 ◄ next]
+[7. Persist forecasts ✅] ──► [8. Admin panel (users/roles/permissions/groups): 8.0 ✅, 8.1 ✅, 8.2 ✅, 8.3 ◄ next]
 ```
 
 #### 7. Persist forecasts ✅ (2026-11-04, see section 1)
@@ -452,39 +543,18 @@ missing permissions; it never removes a role ↔ permission assignment made in t
 - [x] Self-lockout and last-active-Admin guards in `UsersController` + `AdminUsersIntegrationTests`.
       To revisit in 8.1: the guard counts only **direct** `Admin` role assignments; Admins via a group must count too.
 
-**8.1 Permission model (backend) ← next**
-- [ ] Entities `Permission`, `RolePermission`, `Role.IsSystem`; `AppDbContext` config; migration
-      `AddPermissions` (generate with `dotnet ef`, do not hand-write).
-- [ ] `PermissionKeys` (code constants for system permissions) + `PermissionSeed` (adds missing system permissions,
-      marks `Admin`/`User`/`Guest` as `IsSystem`), called from `UseSeeding`/`UseAsyncSeeding` after `RoleSeed`.
-- [ ] Token: `AuthService.IssueTokensAsync` loads effective permission keys (Admin → all keys from the table) and
-      `JwtTokenService.CreateAccessToken` adds `perm` claims. Watch token size if the list grows (Admin gets all keys).
-- [ ] Authorization: a custom `IAuthorizationPolicyProvider` for policies named `perm:{key}` (requirement: `perm` claim
-      with that key **or** role `Admin`), so new permissions need no `Program.cs` change. Usage:
-      `[Authorize(Policy = "perm:users.manage")]` (constant helper, e.g. `Perm.Policy(PermissionKeys.UsersManage)`).
-- [ ] Replace role checks: `UsersController` (view vs manage), `RolesController`, `GroupsController`,
-      `AppSettingsController`, `CacheController` (`cache.clear`), `MatchesController.CanRefresh` (`forecast.refresh`).
-      Guest rules (`GuestAccess`, `NotGuest` policy) stay role-based.
-- [ ] `MeResponse` + `permissions`; frontends: cache button checks `cache.clear` instead of `isAdmin`.
-- [ ] Last-Admin guard: count active users that are Admin directly **or via a group**; also apply it when a group
-      that grants `Admin` loses that role, is deleted, or loses its last active Admin member.
-- [ ] Tests: policy provider (claim / Admin bypass / missing), token contains effective permissions (direct + group),
-      seeding idempotent, existing Admin-role tests still pass.
+**8.1 Permission model (backend) ✅ (2026-11-04, see section 1)**
+- [x] Entities, seed, `perm` claims, `[RequirePermission]` + policy provider, role checks replaced, `/api/me`
+      permissions, frontends' cache button, group-aware Admin guards in `UsersController`, tests.
+- [ ] **Generate migration `AddPermissions`** (section 0) — could not be done in the authoring session.
+- [ ] Watch token size if the permission list grows a lot (Admin carries every key).
 
-**8.2 Management API (backend)**
-- [ ] Permissions (`permissions.manage`): `GET /api/permissions`, `POST` (custom only; key format
-      `^[a-z0-9]+(\.[a-z0-9-]+)+$`, unique), `PUT /{id}` (name/description; key only for custom), `DELETE /{id}`
-      (custom only; removes its role assignments). System permissions → 400 on key change/delete.
-- [ ] Roles (`roles.manage`): `GET /api/roles` (+ permission keys, user count), `POST`, `PUT /{id}` (name/description;
-      system roles: description only), `DELETE /{id}` (not system, 409 if still assigned unless `?force=true`),
-      `PUT /api/roles/{id}/permissions` (id list; `Admin` → 400, it always has all).
-- [ ] Groups (`groups.manage`): `GET /api/groups` (+ roles, member count), `POST`, `PUT /{id}`, `DELETE /{id}`,
-      `PUT /api/groups/{id}/roles`, `PUT /api/groups/{id}/users`.
-- [ ] Users: keep existing endpoints; `UserResponse` gains effective `permissions` (read-only, for the panel).
-- [ ] Unique names (case-insensitive) → 409 with `Lang.T` texts; all validation messages TR/EN.
-- [ ] Integration tests per controller (seed data in the in-memory DB like `AdminUsersIntegrationTests`).
+**8.2 Management API (backend) ✅ (2026-11-04, see section 1)**
+- [x] Group-side Admin guards (shared `AdminGuard`), permissions / roles / groups CRUD, role ↔ permission and
+      group ↔ role / member assignment, effective permissions in `UserResponse`, integration tests.
+- [ ] Not done (only if needed): paging/search on the list endpoints.
 
-**8.3 Frontend shell (both frontends; React first, then Angular 1:1)**
+**8.3 Frontend shell (both frontends; React first, then Angular 1:1) ← next**
 - [ ] `api.ts`: optional JSON body for `request()` (`request<T>(url, method, body?)`); `types.ts`: user, role, group,
       permission DTOs; `MeResponse.permissions`.
 - [ ] "Yönetim" button in the header when the user has any of `users.view`, `roles.manage`, `groups.manage`,

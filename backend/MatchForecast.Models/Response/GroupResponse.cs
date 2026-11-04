@@ -1,4 +1,9 @@
 namespace MatchForecast.Models.Response;
 
-// Admin panelindeki grup seçimi için (PUT /api/users/{id}/groups id listesi ister).
-public sealed record GroupResponse(int Id, string Name, string? Description);
+// Admin panelindeki grup listesi. Atama uçları id istediği için roller ve üyeler id olarak döner.
+public sealed record GroupResponse(
+    int Id,
+    string Name,
+    string? Description,
+    IReadOnlyList<int> RoleIds,
+    IReadOnlyList<int> MemberIds);

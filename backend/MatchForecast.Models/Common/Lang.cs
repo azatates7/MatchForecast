@@ -21,4 +21,8 @@ public static class ValidationMessages
     public static string UserNameFormat => Lang.T(
         "Kullanıcı adı 3-50 karakter olmalı; yalnızca harf, rakam, '.', '_' ve '-' içerebilir.",
         "User name must be 3-50 characters and may contain only letters, digits, '.', '_' and '-'.");
+
+    public static string PermissionKeyFormat => Lang.T(
+        "Yetki anahtarı 'alan.işlem' biçiminde olmalı (ör. reports.view); yalnızca harf, rakam ve '-' içeren, noktayla ayrılmış en az iki parça.",
+        "Permission key must look like 'area.action' (e.g. reports.view): at least two dot-separated parts of letters, digits and '-'.");
 }
