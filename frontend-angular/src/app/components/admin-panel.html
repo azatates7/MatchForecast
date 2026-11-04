@@ -1,0 +1,18 @@
+<main class="admin">
+  <h2 class="admin-title">{{ i18n.t('admin.title') }}</h2>
+  <nav class="admin-tabs" role="tablist" [attr.aria-label]="i18n.t('admin.tabs')">
+    @for (x of tabs(); track x.id) {
+      <a
+        [id]="'admin-tab-' + x.id"
+        class="admin-tab"
+        [href]="adminHash(x.id)"
+        role="tab"
+        [attr.aria-selected]="x.id === active().id"
+        aria-controls="admin-tabpanel"
+      >{{ i18n.t(x.label) }}</a>
+    }
+  </nav>
+  <section id="admin-tabpanel" class="admin-tabpanel" role="tabpanel" [attr.aria-labelledby]="'admin-tab-' + active().id">
+    <p class="admin-placeholder">{{ i18n.t('admin.comingSoon') }}</p>
+  </section>
+</main>

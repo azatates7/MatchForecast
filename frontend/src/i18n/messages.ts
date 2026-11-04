@@ -23,9 +23,19 @@ export const tr = {
   'cache.cleared': 'Önbellek temizlendi ({n} kayıt).',
   logout: 'Çıkış',
 
+  'admin.open': 'Yönetim',
+  'admin.back': 'Maçlara dön',
+  'admin.title': 'Yönetim',
+  'admin.tabs': 'Yönetim bölümleri',
+  'admin.tab.users': 'Kullanıcılar',
+  'admin.tab.roles': 'Roller',
+  'admin.tab.groups': 'Gruplar',
+  'admin.tab.permissions': 'Yetkiler',
+  'admin.comingSoon': 'Bu bölümün içeriği bir sonraki adımda eklenecek.',
+
   'guest.notice': 'Misafir kullanıcı olarak yalnızca bugünün Türkiye Süper Lig maçlarını görüyorsun.',
   'guest.signIn': 'Tüm ligleri görmek için giriş yap',
-  'guest.noMatches': 'Bugün Türkiye Süper Lig maçı yok.',
+  'guest.noMatches': 'Bugün Süper Lig maçı yok.',
 
   'matches.aria': 'Maçlar',
   'matches.search': 'Takım veya lig ara',
@@ -141,9 +151,19 @@ export const en: Dict = {
   'cache.cleared': 'Cache cleared ({n} entries).',
   logout: 'Log out',
 
+  'admin.open': 'Admin',
+  'admin.back': 'Back to matches',
+  'admin.title': 'Administration',
+  'admin.tabs': 'Administration sections',
+  'admin.tab.users': 'Users',
+  'admin.tab.roles': 'Roles',
+  'admin.tab.groups': 'Groups',
+  'admin.tab.permissions': 'Permissions',
+  'admin.comingSoon': 'The content of this section will be added in the next step.',
+
   'guest.notice': "As a guest you only see today's Turkish Süper Lig matches.",
   'guest.signIn': 'Sign in to see all leagues',
-  'guest.noMatches': 'No Türkiye Süper Lig matches today.',
+  'guest.noMatches': 'No Süper Lig matches today.',
 
   'matches.aria': 'Matches',
   'matches.search': 'Search team or league',

@@ -60,8 +60,8 @@ never hard-code a user-facing string, add it to the dictionaries / `Lang.T(...)`
 
 Read this first when resuming work.
 
-**Next task:** Roadmap step 8 — **Admin panel, phase 8.3: frontend shell** ("Yönetim" view, React first, then
-Angular). The backend for the panel (8.0–8.2) is complete but not yet built/tested.
+**Next task:** Roadmap step 8 — **Admin panel, phase 8.4: Users tab** (React first, then Angular). The panel shell
+(8.3) is in place; the backend for the panel (8.0–8.2) is complete but not yet built/tested with `dotnet`.
 The admin panel is for **users, roles, permissions and groups only** (not for matches/settings); see section 2.
 
 **⚠ Before running the API after pulling the 8.1 changes:** generate the migration (it was NOT written by hand this
@@ -92,6 +92,9 @@ catches syntax/typing errors but not EF/Moq/xUnit usage. React passed `tsc -b`, 
    replaced; migration `AddPermissions` still has to be generated (see above).
 7. **Roadmap step 8.2 — Management API** (2026-11-04): permissions / roles / groups CRUD, group-side Admin guards,
    effective permissions in `UserResponse`. No schema change, no migration.
+8. **Roadmap step 8.3 — Admin panel shell** (2026-11-04): `#admin` view, "Yönetim" button, permission-filtered tabs,
+   admin API client in both frontends. Verified in the browser (React dev server + Angular dev build) with mocked
+   API responses.
 
 **To verify before starting step 8:**
 - [ ] `dotnet build` + `dotnet test backend/MatchForecast.Tests/MatchForecast.Tests.csproj` (new:
@@ -425,6 +428,36 @@ catches syntax/typing errors but not EF/Moq/xUnit usage. React passed `tsc -b`, 
   group guards incl. self, groups.manage needed for changes, effective permissions in `/api/users`). Seeds system
   data with the real `RoleSeed` / `PermissionSeed`.
 
+### ✅ Roadmap step 8.3 — Admin panel shell (2026-11-04)
+- **Navigation:** hash-based, no router. `#admin` opens the panel on the first visible tab, `#admin/<tab>` (`users`,
+  `roles`, `groups`, `permissions`) a specific one. Tabs are `<a href="#admin/...">` links, so browser back/forward
+  works. The app listens to `hashchange` (React `useEffect`, Angular `host: '(window:hashchange)'`).
+  "Maçlara dön" and logout remove the hash with `history.pushState` (no stray `#` left in the URL).
+- **Shared logic:** `frontend/src/adminView.ts` = `frontend-angular/src/app/core/admin-view.ts` (**copies**, keep in
+  sync): `ADMIN_TABS` (tab → permission → i18n label: users → `users.view`, roles → `roles.manage`, groups →
+  `groups.manage`, permissions → `permissions.manage`), `parseAdminHash`, `adminHash`, `visibleAdminTabs(me)`,
+  `canOpenAdmin(me)`, `clearHash()`.
+- **Header:** "Yönetim" / "Admin" button when the user can see at least one tab (`canOpenAdmin`); in the admin view it
+  becomes "Maçlara dön" / "Back to matches", the date navigator and "Önbelleği Sil" are hidden. A user without any
+  admin permission who opens `#admin` stays on the match screen. Header buttons no longer wrap their text
+  (`.cache-btn { white-space: nowrap }`) and the action row wraps on narrow screens (`.cache-actions { flex-wrap }`).
+- **Component:** React `components/AdminPanel.tsx`, Angular `components/admin-panel.ts/.html` (`app-admin-panel`):
+  title, `role="tablist"` tabs filtered by permission, a `role="tabpanel"` that currently shows the placeholder text
+  `admin.comingSoon` (replaced by the real tabs in 8.4–8.7). The match screen state is kept while the panel is open.
+- **API client** (`api.ts`, both frontends): `request<T>(url, method, body?)` sends JSON bodies; 204 responses
+  return `undefined`. Functions for every admin endpoint: `getUsers`, `createUser`, `updateUser`, `setUserPassword`,
+  `deleteUser`, `setUserRoles`, `setUserGroups`, `getRoles`, `createRole`, `updateRole`, `deleteRole(id, force)`,
+  `setRolePermissions`, `getGroups`, `createGroup`, `updateGroup`, `deleteGroup`, `setGroupRoles`, `setGroupUsers`,
+  `getPermissions`, `createPermission`, `updatePermission`, `deletePermission`.
+- **Types** (`types.ts`): `UserResponse`, `CreateUserRequest`, `UpdateUserRequest`, `RoleResponse`, `RoleRequest`,
+  `GroupResponse`, `GroupRequest`, `PermissionResponse`, `CreatePermissionRequest`, `UpdatePermissionRequest`, and
+  `PERMISSIONS` (system permission keys, mirrors backend `PermissionKeys`).
+- **i18n:** `admin.open`, `admin.back`, `admin.title`, `admin.tabs`, `admin.tab.users|roles|groups|permissions`,
+  `admin.comingSoon`. **CSS:** `.admin`, `.admin-title`, `.admin-tabs`, `.admin-tab` (selected = `aria-selected`),
+  `.admin-tabpanel`, `.admin-placeholder`.
+- Angular production build (`ng build`) inlines Google Fonts and needs internet access; offline use
+  `ng build --configuration development`.
+
 ### Frontend (React 19 + Vite) — `frontend`
 - Vite dev server on `5173`, proxies `/api` → `http://localhost:5080`.
 - `api.ts`: access token in memory; **refresh token in `localStorage`** (`matchforecast.refreshToken`) so a page reload
@@ -485,7 +518,7 @@ catches syntax/typing errors but not EF/Moq/xUnit usage. React passed `tsc -b`, 
 [6. Auth & Users ✅] ◄── [5. EF Core ✅] ◄── [4. Supabase ✅]
         │
         ▼
-[7. Persist forecasts ✅] ──► [8. Admin panel (users/roles/permissions/groups): 8.0 ✅, 8.1 ✅, 8.2 ✅, 8.3 ◄ next]
+[7. Persist forecasts ✅] ──► [8. Admin panel (users/roles/permissions/groups): 8.0 ✅, 8.1 ✅, 8.2 ✅, 8.3 ✅, 8.4 ◄ next]
 ```
 
 #### 7. Persist forecasts ✅ (2026-11-04, see section 1)
@@ -554,15 +587,12 @@ missing permissions; it never removes a role ↔ permission assignment made in t
       group ↔ role / member assignment, effective permissions in `UserResponse`, integration tests.
 - [ ] Not done (only if needed): paging/search on the list endpoints.
 
-**8.3 Frontend shell (both frontends; React first, then Angular 1:1) ← next**
-- [ ] `api.ts`: optional JSON body for `request()` (`request<T>(url, method, body?)`); `types.ts`: user, role, group,
-      permission DTOs; `MeResponse.permissions`.
-- [ ] "Yönetim" button in the header when the user has any of `users.view`, `roles.manage`, `groups.manage`,
-      `permissions.manage` (Admin has all); `#admin` view with tabs **Kullanıcılar**, **Roller**, **Gruplar**,
-      **Yetkiler**; each tab only if the user has its permission. "Maçlara dön" button back.
-- [ ] Users without permission opening `#admin` see the match view.
+**8.3 Frontend shell ✅ (2026-11-04, see section 1)**
+- [x] `request()` with JSON body, admin API functions and DTO types in both frontends.
+- [x] "Yönetim" button, `#admin[/tab]` view, permission-filtered tabs, "Maçlara dön"; users without admin
+      permissions stay on the match screen.
 
-**8.4 Users tab** (`users.view` to see, `users.manage` to change)
+**8.4 Users tab** (`users.view` to see, `users.manage` to change) ← next
 - [ ] Table: user name, display name, e-mail, roles, groups, active, last login; search box.
 - [ ] Create (with the existing password generator), edit (e-mail, display name, active), set password (signs the user
       out everywhere), delete with typed confirmation; guard errors (self / last Admin) shown from `ProblemDetails`.

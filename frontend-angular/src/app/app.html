@@ -4,16 +4,18 @@
   <div class="app">
     <header class="topbar">
       <h1 class="brand">{{ i18n.t('brand') }}</h1>
-      @if (restricted()) {
-        <div class="date-nav">
-          <input type="date" [value]="date()" disabled [attr.aria-label]="i18n.t('date.guest')" />
-        </div>
-      } @else {
-        <div class="date-nav">
-          <button type="button" (click)="shiftDay(-1)" [attr.aria-label]="i18n.t('date.prev')">‹</button>
-          <input type="date" [value]="date()" (change)="onDateInput($any($event.target).value)" [attr.aria-label]="i18n.t('date.label')" />
-          <button type="button" (click)="shiftDay(1)" [attr.aria-label]="i18n.t('date.next')">›</button>
-        </div>
+      @if (!showAdmin()) {
+        @if (restricted()) {
+          <div class="date-nav">
+            <input type="date" [value]="date()" disabled [attr.aria-label]="i18n.t('date.guest')" />
+          </div>
+        } @else {
+          <div class="date-nav">
+            <button type="button" (click)="shiftDay(-1)" [attr.aria-label]="i18n.t('date.prev')">‹</button>
+            <input type="date" [value]="date()" (change)="onDateInput($any($event.target).value)" [attr.aria-label]="i18n.t('date.label')" />
+            <button type="button" (click)="shiftDay(1)" [attr.aria-label]="i18n.t('date.next')">›</button>
+          </div>
+        }
       }
       <div class="cache-actions">
         @if (cacheState().message) {
@@ -22,7 +24,12 @@
         @if (me(); as user) {
           <span class="user-name">{{ user.displayName || user.userName }}</span>
         }
-        @if (isAdmin()) {
+        @if (canAdmin()) {
+          <button type="button" class="cache-btn" (click)="showAdmin() ? backToMatches() : openAdmin()">
+            {{ i18n.t(showAdmin() ? 'admin.back' : 'admin.open') }}
+          </button>
+        }
+        @if (canClearCache() && !showAdmin()) {
           <button type="button" class="cache-btn" (click)="handleClearCache()" [disabled]="cacheState().clearing">
             {{ i18n.t(cacheState().clearing ? 'cache.clearing' : 'cache.clear') }}
           </button>
@@ -33,58 +40,62 @@
       </div>
     </header>
 
-    <main class="layout">
-      <section class="fixtures" [attr.aria-label]="i18n.t('matches.aria')">
-        @if (isGuest()) {
-          <div class="guest-notice" role="note">
-            <svg class="guest-notice-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5Zm-3 8V7a3 3 0 0 1 6 0v3H9Zm3 4a2 2 0 0 1 1 3.73V19h-2v-1.27A2 2 0 0 1 12 14Z"/></svg>
-            <span>{{ i18n.t('guest.notice') }}</span>
-            <button type="button" class="link-btn" (click)="handleLogout()">{{ i18n.t('guest.signIn') }}</button>
-          </div>
-        }
-        <input
-          class="search"
-          type="search"
-          [placeholder]="i18n.t('matches.search')"
-          [value]="query()"
-          (input)="query.set($any($event.target).value)"
-        />
-        <!-- Misafir: API yalnızca Süper Lig döndürdüğü için lig seçimi gösterilmez. -->
-        @if (!restricted()) {
-          <app-league-filter
-            [options]="leagueOptions()"
-            [selected]="leagues()"
-            [total]="searched().length"
-            [selectedCount]="filtered().length"
-            (selectAll)="leagues.set([])"
-            (toggle)="toggleLeague($event)"
-            [favorites]="favorites()"
-            (selectFavorites)="leagues.set($event)"
-            (toggleFavorite)="toggleFavorite($event)"
+    @if (showAdmin() && me(); as user) {
+      <app-admin-panel [me]="user" [tab]="adminRoute().tab" />
+    } @else {
+      <main class="layout">
+        <section class="fixtures" [attr.aria-label]="i18n.t('matches.aria')">
+          @if (isGuest()) {
+            <div class="guest-notice" role="note">
+              <svg class="guest-notice-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5Zm-3 8V7a3 3 0 0 1 6 0v3H9Zm3 4a2 2 0 0 1 1 3.73V19h-2v-1.27A2 2 0 0 1 12 14Z"/></svg>
+              <span>{{ i18n.t('guest.notice') }}</span>
+              <button type="button" class="link-btn" (click)="handleLogout()">{{ i18n.t('guest.signIn') }}</button>
+            </div>
+          }
+          <input
+            class="search"
+            type="search"
+            [placeholder]="i18n.t('matches.search')"
+            [value]="query()"
+            (input)="query.set($any($event.target).value)"
           />
-        }
-        <app-match-list
-          [matches]="filtered()"
-          [loading]="matchesState().loading"
-          [error]="matchesState().error"
-          [selectedId]="selectedId()"
-          [fetchedAt]="fetchedAt()"
-          [now]="now()"
-          [emptyText]="isGuest() ? i18n.t('guest.noMatches') : undefined"
-          (select)="analyze($event)"
-        />
-      </section>
+          <!-- Misafir: API yalnızca Süper Lig döndürdüğü için lig seçimi gösterilmez. -->
+          @if (!restricted()) {
+            <app-league-filter
+              [options]="leagueOptions()"
+              [selected]="leagues()"
+              [total]="searched().length"
+              [selectedCount]="filtered().length"
+              (selectAll)="leagues.set([])"
+              (toggle)="toggleLeague($event)"
+              [favorites]="favorites()"
+              (selectFavorites)="leagues.set($event)"
+              (toggleFavorite)="toggleFavorite($event)"
+            />
+          }
+          <app-match-list
+            [matches]="filtered()"
+            [loading]="matchesState().loading"
+            [error]="matchesState().error"
+            [selectedId]="selectedId()"
+            [fetchedAt]="fetchedAt()"
+            [now]="now()"
+            [emptyText]="isGuest() ? i18n.t('guest.noMatches') : undefined"
+            (select)="analyze($event)"
+          />
+        </section>
 
-      <section class="analysis" aria-live="polite">
-        <app-forecast-panel
-          [match]="selected()"
-          [forecast]="forecast()"
-          [loading]="forecastState().loading"
-          [error]="forecastState().error"
-          [canRetry]="!isGuest()"
-          (retry)="retry()"
-        />
-      </section>
-    </main>
+        <section class="analysis" aria-live="polite">
+          <app-forecast-panel
+            [match]="selected()"
+            [forecast]="forecast()"
+            [loading]="forecastState().loading"
+            [error]="forecastState().error"
+            [canRetry]="!isGuest()"
+            (retry)="retry()"
+          />
+        </section>
+      </main>
+    }
   </div>
 }

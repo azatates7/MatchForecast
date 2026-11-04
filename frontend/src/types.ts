@@ -89,6 +89,115 @@ export interface MeResponse {
   userName: string
   displayName: string | null
   roles: string[]
+  /** Etkin yetki anahtarları (ör. "cache.clear"); token yenilenince güncellenir */
+  permissions: string[]
+}
+
+/** API ile aynı kural: Admin her yetkiye sahiptir. Yalnızca görünüm içindir; asıl kontrol API'dedir. */
+export const hasPermission = (me: MeResponse | null, key: string): boolean =>
+  !!me && (me.roles.includes('Admin') || (me.permissions ?? []).includes(key))
+
+/** Sistem yetki anahtarları (backend: PermissionKeys) */
+export const PERMISSIONS = {
+  usersView: 'users.view',
+  usersManage: 'users.manage',
+  rolesManage: 'roles.manage',
+  permissionsManage: 'permissions.manage',
+  groupsManage: 'groups.manage',
+  cacheClear: 'cache.clear',
+  forecastRefresh: 'forecast.refresh',
+  appSettingsManage: 'app-settings.manage'
+} as const
+
+// ---- Admin paneli (kullanıcı / rol / grup / yetki yönetimi) ----
+
+export interface UserResponse {
+  id: number
+  userName: string
+  email: string
+  displayName: string | null
+  isActive: boolean
+  emailConfirmed: boolean
+  createdAt: string
+  updatedAt: string | null
+  lastLoginAt: string | null
+  /** Doğrudan atanmış rol adları */
+  roles: string[]
+  /** Üyesi olduğu grup adları */
+  groups: string[]
+  /** Etkin yetkiler (doğrudan + grup rolleri; Admin → tümü), salt okunur */
+  permissions: string[]
+}
+
+export interface CreateUserRequest {
+  userName: string
+  email: string
+  displayName: string | null
+  password: string
+}
+
+export interface UpdateUserRequest {
+  email: string
+  displayName: string | null
+  isActive: boolean
+}
+
+export interface RoleResponse {
+  id: number
+  name: string
+  description: string | null
+  /** Admin, User, Guest: adı değiştirilemez, silinemez */
+  isSystem: boolean
+  /** Admin: tüm yetkilere örtük olarak sahip; permissionIds boş ve düzenlenemez */
+  hasAllPermissions: boolean
+  permissionIds: number[]
+  userCount: number
+  groupCount: number
+}
+
+export interface RoleRequest {
+  name: string
+  description: string | null
+}
+
+export interface GroupResponse {
+  id: number
+  name: string
+  description: string | null
+  roleIds: number[]
+  memberIds: number[]
+}
+
+export interface GroupRequest {
+  name: string
+  description: string | null
+}
+
+export interface PermissionResponse {
+  id: number
+  /** "alan.işlem" (ör. users.view); JWT'deki perm claim'i */
+  key: string
+  name: string
+  nameEn: string
+  description: string | null
+  /** Kodun kontrol ettiği yetki: anahtarı değişmez, silinemez */
+  isSystem: boolean
+  roleIds: number[]
+}
+
+export interface CreatePermissionRequest {
+  key: string
+  name: string
+  nameEn: string
+  description: string | null
+}
+
+/** key null ise anahtar değişmez (sistem yetkilerinde değiştirilemez) */
+export interface UpdatePermissionRequest {
+  key: string | null
+  name: string
+  nameEn: string
+  description: string | null
 }
 
 export interface CacheClearResponse {

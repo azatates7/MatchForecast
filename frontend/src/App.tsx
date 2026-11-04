@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { addFavoriteLeague, clearCache, getFavoriteLeagues, getForecast, getMatches, getMe, hasSession, logout, onSessionExpired, removeFavoriteLeague } from './api'
-import type { MeResponse } from './types'
+import { hasPermission, type MeResponse } from './types'
 import type { ForecastResult, MatchSummary } from './types'
 import { isLive } from './components/MatchStatus'
 import MatchList from './components/MatchList'
@@ -9,6 +9,8 @@ import AuthPanel from './components/Auth-Panel'
 import LeagueFilter from './components/LeagueFilter'
 import ThemeToggle from './components/ThemeToggle'
 import LanguageToggle from './components/LanguageToggle'
+import AdminPanel from './components/Admin-Panel'
+import { canOpenAdmin, clearHash, parseAdminHash } from './adminView'
 import { useI18n } from './i18n/useI18n'
 
 // Canlı maç varken listenin arka planda yenilenme aralığı. API kotasını korumak için
@@ -68,8 +70,22 @@ export default function App() {
   const isGuest = me?.roles.includes('Guest') ?? false
   // Rol bilgisi gelene kadar misafire kapalı alanlar (tarih okları, cache, lig filtresi) gösterilmez; misafir onları bir an bile görmesin.
   const restricted = isGuest || (me === null && !meFailed)
-  // Önbelleği Sil yalnızca Admin'e görünür (API de yalnızca Admin'e izin verir).
-  const isAdmin = me?.roles.includes('Admin') ?? false
+  // Önbelleği Sil yalnızca cache.clear yetkisi olana görünür (Admin dahil; API de aynı yetkiyi ister).
+  const canClearCache = hasPermission(me, 'cache.clear')
+
+  // Yönetim görünümü adresteki #admin[/sekme] ile açılır; yönetim yetkisi olmayan maç ekranında kalır.
+  const [hash, setHash] = useState(() => window.location.hash)
+  useEffect(() => {
+    const onHashChange = () => setHash(window.location.hash)
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
+  const adminRoute = parseAdminHash(hash)
+  const canAdmin = canOpenAdmin(me)
+  const showAdmin = adminRoute.admin && canAdmin
+
+  const openAdmin = () => { window.location.hash = 'admin' }
+  const backToMatches = () => { clearHash(); setHash('') }
 
   // silent=true: arka plan yenilemesi; listeyi "yükleniyor" durumuna sokmaz, hata olursa eski listeyi korur.
   const loadMatches = useCallback((silent: boolean, isCancelled: () => boolean = () => false) => {
@@ -220,6 +236,7 @@ export default function App() {
   // Ekrandaki veriler temizlenir; başka bir kullanıcı giriş yaparsa önceki oturumun verisini görmesin.
   const handleLogout = async () => {
     await logout()
+    backToMatches()
     setLoggedIn(false)
     setMe(null)
     setMeFailed(false)
@@ -238,7 +255,7 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <h1 className="brand">{t('brand')}</h1>
-        {restricted ? (
+        {showAdmin ? null : restricted ? (
           <div className="date-nav">
             <input type="date" value={date} disabled aria-label={t('date.guest')} />
           </div>
@@ -254,7 +271,12 @@ export default function App() {
             <span className={cacheState.error ? 'cache-msg cache-msg-error' : 'cache-msg'} role="status">{cacheState.message}</span>
           )}
           {me && <span className="user-name">{me.displayName || me.userName}</span>}
-          {isAdmin && (
+          {canAdmin && (
+            <button type="button" className="cache-btn" onClick={showAdmin ? backToMatches : openAdmin}>
+              {t(showAdmin ? 'admin.back' : 'admin.open')}
+            </button>
+          )}
+          {canClearCache && !showAdmin && (
             <button type="button" className="cache-btn" onClick={handleClearCache} disabled={cacheState.clearing}>
               {t(cacheState.clearing ? 'cache.clearing' : 'cache.clear')}
             </button>
@@ -265,59 +287,61 @@ export default function App() {
         </div>
       </header>
 
-      <main className="layout">
-        <section className="fixtures" aria-label={t('matches.aria')}>
-          {isGuest && (
-            <div className="guest-notice" role="note">
-              <svg className="guest-notice-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5Zm-3 8V7a3 3 0 0 1 6 0v3H9Zm3 4a2 2 0 0 1 1 3.73V19h-2v-1.27A2 2 0 0 1 12 14Z"/></svg>
-              <span>{t('guest.notice')}</span>
-              <button type="button" className="link-btn" onClick={handleLogout}>{t('guest.signIn')}</button>
-            </div>
-          )}
-          <input
-            className="search"
-            type="search"
-            placeholder={t('matches.search')}
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-          />
-          {/* Misafir: API yalnızca Süper Lig döndürdüğü için lig seçimi gösterilmez. */}
-          {!restricted && (
-            <LeagueFilter
-              options={leagueOptions}
-              selected={leagues}
-              total={searched.length}
-              selectedCount={filtered.length}
-              onSelectAll={() => setLeagues([])}
-              onToggle={toggleLeague}
-              favorites={favorites}
-              onSelectFavorites={setLeagues}
-              onToggleFavorite={toggleFavorite}
+      {showAdmin && me ? <AdminPanel me={me} tab={adminRoute.tab} /> : (
+        <main className="layout">
+          <section className="fixtures" aria-label={t('matches.aria')}>
+            {isGuest && (
+              <div className="guest-notice" role="note">
+                <svg className="guest-notice-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5Zm-3 8V7a3 3 0 0 1 6 0v3H9Zm3 4a2 2 0 0 1 1 3.73V19h-2v-1.27A2 2 0 0 1 12 14Z"/></svg>
+                <span>{t('guest.notice')}</span>
+                <button type="button" className="link-btn" onClick={handleLogout}>{t('guest.signIn')}</button>
+              </div>
+            )}
+            <input
+              className="search"
+              type="search"
+              placeholder={t('matches.search')}
+              value={query}
+              onChange={e => setQuery(e.target.value)}
             />
-          )}
-          <MatchList
-            matches={filtered}
-            loading={matchesState.loading}
-            error={matchesState.error}
-            selectedId={selectedId}
-            onSelect={id => analyze(id)}
-            fetchedAt={fetchedAt}
-            now={now}
-            emptyText={isGuest ? t('guest.noMatches') : undefined}
-          />
-        </section>
-
-        <section className="analysis" aria-live="polite">
-          <ForecastPanel
-            match={selected}
-            forecast={forecast}
-            loading={forecastState.loading}
-            error={forecastState.error}
-            onRetry={() => selectedId && analyze(selectedId, true)}
-            canRetry={!isGuest}
-          />
-        </section>
-      </main>
+            {/* Misafir: API yalnızca Süper Lig döndürdüğü için lig seçimi gösterilmez. */}
+            {!restricted && (
+              <LeagueFilter
+                options={leagueOptions}
+                selected={leagues}
+                total={searched.length}
+                selectedCount={filtered.length}
+                onSelectAll={() => setLeagues([])}
+                onToggle={toggleLeague}
+                favorites={favorites}
+                onSelectFavorites={setLeagues}
+                onToggleFavorite={toggleFavorite}
+              />
+            )}
+            <MatchList
+              matches={filtered}
+              loading={matchesState.loading}
+              error={matchesState.error}
+              selectedId={selectedId}
+              onSelect={id => analyze(id)}
+              fetchedAt={fetchedAt}
+              now={now}
+              emptyText={isGuest ? t('guest.noMatches') : undefined}
+            />
+          </section>
+  
+          <section className="analysis" aria-live="polite">
+            <ForecastPanel
+              match={selected}
+              forecast={forecast}
+              loading={forecastState.loading}
+              error={forecastState.error}
+              onRetry={() => selectedId && analyze(selectedId, true)}
+              canRetry={!isGuest}
+            />
+          </section>
+        </main>
+      )}
     </div>
   )
 }

@@ -1,4 +1,8 @@
-import type { AuthConfigResponse, CacheClearResponse, ForecastResult, MatchSummary, MeResponse, PasswordResponse, TokenResponse } from './types'
+import type {
+  AuthConfigResponse, CacheClearResponse, CreatePermissionRequest, CreateUserRequest, ForecastResult, GroupRequest, GroupResponse,
+  MatchSummary, MeResponse, PasswordResponse, PermissionResponse, RoleRequest, RoleResponse, TokenResponse, UpdatePermissionRequest,
+  UpdateUserRequest, UserResponse
+} from './types'
 import { getLang, t } from './i18n/i18n'
 
 /*
@@ -48,6 +52,8 @@ async function readJson<T>(res: Response): Promise<T> {
     const validation = problem?.errors ? Object.values(problem.errors as Record<string, string[]>).flat()[0] : undefined
     throw new Error(problem?.detail ?? validation ?? t('api.failed', { status: res.status }))
   }
+  // 204 No Content (PUT/DELETE) gövde içermez
+  if (res.status === 204) return undefined as T
   return res.json() as Promise<T>
 }
 
@@ -120,21 +126,28 @@ function sessionExpired(): never {
   throw new Error(t('api.sessionExpired'))
 }
 
-const send = (url: string, token: string, method: string) =>
-  apiFetch(url, { method, headers: { Authorization: `Bearer ${token}` } })
+// body verilirse JSON olarak gönderilir (POST/PUT)
+const send = (url: string, token: string, method: string, body?: unknown) =>
+  apiFetch(url, {
+    method,
+    headers: body === undefined
+      ? { Authorization: `Bearer ${token}` }
+      : { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body)
+  })
 
-async function request<T>(url: string, method = 'GET'): Promise<T> {
+async function request<T>(url: string, method = 'GET', body?: unknown): Promise<T> {
   let token = accessToken ?? await refreshAccessToken()
   if (!token) sessionExpired()
 
-  let res = await send(url, token, method)
+  let res = await send(url, token, method, body)
 
   if (res.status === 401) {
     // Access token süresi dolmuş: bir kez yenileyip tekrar dene. Başka bir istek zaten yenilediyse onu kullan.
     if (accessToken === token) accessToken = null
     token = accessToken ?? await refreshAccessToken()
     if (!token) sessionExpired()
-    res = await send(url, token, method)
+    res = await send(url, token, method, body)
     if (res.status === 401) sessionExpired()
   }
 
@@ -164,6 +177,39 @@ export const addFavoriteLeague = (league: string) =>
 
 export const removeFavoriteLeague = (league: string) =>
   request<string[]>(favoriteLeaguesUrl(league), 'DELETE')
+
+/*
+ * Admin paneli. Yetkiler API'de kontrol edilir (users.view / users.manage / roles.manage / groups.manage /
+ * permissions.manage); yetkisiz istek 403 ve ProblemDetails mesajıyla hata fırlatır.
+ * Atama uçları (…/roles, …/groups, …/users, …/permissions) listeyi verilen id'lerle değiştirir.
+ */
+export const getUsers = () => request<UserResponse[]>('/api/users')
+export const createUser = (body: CreateUserRequest) => request<UserResponse>('/api/users', 'POST', body)
+export const updateUser = (id: number, body: UpdateUserRequest) => request<void>(`/api/users/${id}`, 'PUT', body)
+// Kullanıcının tüm açık oturumlarını kapatır
+export const setUserPassword = (id: number, password: string) => request<void>(`/api/users/${id}/password`, 'PUT', { password })
+export const deleteUser = (id: number) => request<void>(`/api/users/${id}`, 'DELETE')
+export const setUserRoles = (id: number, roleIds: number[]) => request<void>(`/api/users/${id}/roles`, 'PUT', { roleIds })
+export const setUserGroups = (id: number, groupIds: number[]) => request<void>(`/api/users/${id}/groups`, 'PUT', { groupIds })
+
+export const getRoles = () => request<RoleResponse[]>('/api/roles')
+export const createRole = (body: RoleRequest) => request<RoleResponse>('/api/roles', 'POST', body)
+export const updateRole = (id: number, body: RoleRequest) => request<void>(`/api/roles/${id}`, 'PUT', body)
+// force=false iken role atanmış kullanıcı/grup varsa API 409 döner
+export const deleteRole = (id: number, force = false) => request<void>(`/api/roles/${id}${force ? '?force=true' : ''}`, 'DELETE')
+export const setRolePermissions = (id: number, permissionIds: number[]) => request<void>(`/api/roles/${id}/permissions`, 'PUT', { permissionIds })
+
+export const getGroups = () => request<GroupResponse[]>('/api/groups')
+export const createGroup = (body: GroupRequest) => request<GroupResponse>('/api/groups', 'POST', body)
+export const updateGroup = (id: number, body: GroupRequest) => request<void>(`/api/groups/${id}`, 'PUT', body)
+export const deleteGroup = (id: number) => request<void>(`/api/groups/${id}`, 'DELETE')
+export const setGroupRoles = (id: number, roleIds: number[]) => request<void>(`/api/groups/${id}/roles`, 'PUT', { roleIds })
+export const setGroupUsers = (id: number, userIds: number[]) => request<void>(`/api/groups/${id}/users`, 'PUT', { userIds })
+
+export const getPermissions = () => request<PermissionResponse[]>('/api/permissions')
+export const createPermission = (body: CreatePermissionRequest) => request<PermissionResponse>('/api/permissions', 'POST', body)
+export const updatePermission = (id: number, body: UpdatePermissionRequest) => request<void>(`/api/permissions/${id}`, 'PUT', body)
+export const deletePermission = (id: number) => request<void>(`/api/permissions/${id}`, 'DELETE')
 
 // Kayıt ekranında, giriş yapılmadan kullanılır; token gerektirmez.
 export const generatePassword = async (length = 16): Promise<PasswordResponse> =>

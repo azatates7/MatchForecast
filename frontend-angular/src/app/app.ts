@@ -1,6 +1,6 @@
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { addFavoriteLeague, clearCache, getFavoriteLeagues, getForecast, getMatches, getMe, hasSession, logout, onSessionExpired, removeFavoriteLeague } from './core/api';
-import type { ForecastResult, MatchSummary, MeResponse } from './core/types';
+import { hasPermission, type ForecastResult, type MatchSummary, type MeResponse } from './core/types';
 import { isLive } from './core/match-status';
 import { MatchList } from './components/match-list';
 import { ForecastPanel } from './components/forecast-panel';
@@ -8,6 +8,8 @@ import { AuthPanel } from './components/auth-panel';
 import { LeagueFilter } from './components/league-filter';
 import { ThemeToggle } from './components/theme-toggle';
 import { LanguageToggle } from './components/language-toggle';
+import { AdminPanel } from './components/admin-panel';
+import { canOpenAdmin, clearHash, parseAdminHash } from './core/admin-view';
 import { I18nService } from './core/i18n/i18n.service';
 
 // Canlı maç varken listenin arka planda yenilenme aralığı. API kotasını korumak için
@@ -44,9 +46,10 @@ interface CacheState { clearing: boolean; message?: string; error?: boolean }
 
 @Component({
   selector: 'app-root',
-  imports: [MatchList, ForecastPanel, AuthPanel, LeagueFilter, ThemeToggle, LanguageToggle],
+  imports: [MatchList, ForecastPanel, AuthPanel, LeagueFilter, ThemeToggle, LanguageToggle, AdminPanel],
   templateUrl: './app.html',
   styleUrl: './app.css',
+  host: { '(window:hashchange)': 'onHashChange()' },
 })
 export class App {
   protected readonly i18n = inject(I18nService);
@@ -77,8 +80,23 @@ export class App {
   protected readonly isGuest = computed(() => this.me()?.roles.includes('Guest') ?? false);
   // Rol bilgisi gelene kadar misafire kapalı alanlar (tarih okları, cache, lig filtresi) gösterilmez; misafir onları bir an bile görmesin.
   protected readonly restricted = computed(() => this.isGuest() || (this.me() === null && !this.meFailed()));
-  // Önbelleği Sil yalnızca Admin'e görünür (API de yalnızca Admin'e izin verir).
-  protected readonly isAdmin = computed(() => this.me()?.roles.includes('Admin') ?? false);
+  // Önbelleği Sil yalnızca cache.clear yetkisi olana görünür (Admin dahil; API de aynı yetkiyi ister).
+  protected readonly canClearCache = computed(() => hasPermission(this.me(), 'cache.clear'));
+
+  // Yönetim görünümü adresteki #admin[/sekme] ile açılır; yönetim yetkisi olmayan maç ekranında kalır.
+  protected readonly hash = signal(location.hash);
+  protected readonly adminRoute = computed(() => parseAdminHash(this.hash()));
+  protected readonly canAdmin = computed(() => canOpenAdmin(this.me()));
+  protected readonly showAdmin = computed(() => this.adminRoute().admin && this.canAdmin());
+
+  protected onHashChange() { this.hash.set(location.hash); }
+
+  protected openAdmin() { location.hash = 'admin'; }
+
+  protected backToMatches() {
+    clearHash();
+    this.hash.set('');
+  }
 
   protected readonly hasLive = computed(() => this.matches().some(isLive));
 
@@ -179,6 +197,7 @@ export class App {
   // Ekrandaki veriler temizlenir; başka bir kullanıcı giriş yaparsa önceki oturumun verisini görmesin.
   protected async handleLogout() {
     await logout();
+    this.backToMatches();
     this.loggedIn.set(false);
     this.me.set(null);
     this.meFailed.set(false);
