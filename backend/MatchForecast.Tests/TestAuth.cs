@@ -89,6 +89,15 @@ internal static class TestAuth
         await db.SaveChangesAsync();
     }
 
+    // Belirli kullanıcı id'si, rol ve yetkilerle imzalanmış token taşıyan client. testFactory önceden WithTestJwt() olmalı.
+    public static HttpClient CreateClientFor(this WebApplicationFactory<Program> testFactory, int userId, string[] roles, params string[] permissions)
+    {
+        var client = testFactory.CreateClient();
+        var token = testFactory.Services.GetRequiredService<JwtTokenService>().CreateAccessToken(userId, $"user{userId}", roles, permissions);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token.Token);
+        return client;
+    }
+
     // Authorization: Bearer header'ı hazır HttpClient döner (veritabanına gitmeden, doğrudan imzalı token ile).
     public static HttpClient CreateAuthorizedClient(this WebApplicationFactory<Program> factory, params string[] roles)
     {

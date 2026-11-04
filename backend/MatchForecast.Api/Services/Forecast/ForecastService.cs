@@ -14,12 +14,14 @@ namespace MatchForecast.Api.Services.Forecast;
  * 2. Model, metriklerin beklenen değerlerini JSON olarak verir.
  * 3. ProjectionBuilder değerleri doğrular, Poisson ile aralık ve olasılıkları hesaplar.
  * 4. PredictionSelector katalogdan tahmin listesini seçer.
+ * 5. Sonuç Redis'e (okuma için) ve veritabanına (kalıcı kayıt, IForecastStore) yazılır.
  * Oran artık kullanılmaz; tahmin başına API-Football oran isteği yapılmaz.
  */
 public sealed class ForecastService(
     IOddsProvider odds,
     IForecastAiClient ai,
     IRedisCacheService cache,
+    IForecastStore store,
     IOptions<AiOptions> aiOptions,
     IOptions<ForecastOptions> forecastOptions,
     ILogger<ForecastService> logger)
@@ -113,7 +115,24 @@ public sealed class ForecastService(
 
         var result = new ForecastResult(match, LocalizedText.Of(response.Summary, response.SummaryEn), projection.Outcomes, projection.Stats, predictions, DateTimeOffset.Now);
         await cache.SetAsync(key, result, TimeSpan.FromMinutes(aiOptions.Value.CacheMinutes));
+        await SaveAsync(result);
         return result;
+    }
+
+    /*
+     * Kalıcı kayıt fail-open: veritabanı hatası kullanıcıya tahmin dönülmesini engellemez (Redis gibi).
+     * CancellationToken.None: istemci bağlantıyı kapatsa da AI'a ödenen tahmin kaydedilsin.
+     */
+    private async Task SaveAsync(ForecastResult result)
+    {
+        try
+        {
+            await store.SaveAsync(result, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Forecast for fixture {FixtureId} could not be saved to the database.", result.Match.Id);
+        }
     }
 
     private AiStatsResponse Parse(string raw)

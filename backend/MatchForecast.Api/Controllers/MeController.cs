@@ -18,12 +18,13 @@ public sealed class MeController(AppDbContext db) : ControllerBase
     {
         var userName = User.FindFirst(JwtTokenService.NameClaimType)?.Value ?? string.Empty;
         var roles = User.FindAll(JwtTokenService.RoleClaimType).Select(x => x.Value).ToList();
+        var permissions = User.FindAll(JwtTokenService.PermissionClaimType).Select(x => x.Value).ToList();
 
         // Görünen ad token'da yok; veritabanından okunur. Kullanıcı bulunamazsa kullanıcı adıyla devam edilir.
         string? displayName = null;
         if (int.TryParse(User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id))
             displayName = await db.Users.AsNoTracking().Where(x => x.Id == id).Select(x => x.DisplayName).FirstOrDefaultAsync(ct);
 
-        return new MeResponse(userName, displayName, roles);
+        return new MeResponse(userName, displayName, roles, permissions);
     }
 }

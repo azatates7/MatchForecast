@@ -28,11 +28,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<UserRole> UserRoles => Set<UserRole>();
     public DbSet<UserGroup> UserGroups => Set<UserGroup>();
     public DbSet<GroupRole> GroupRoles => Set<GroupRole>();
+    public DbSet<Permission> Permissions => Set<Permission>();
+    public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
     public DbSet<UserLogin> UserLogins => Set<UserLogin>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
     public DbSet<UserFavoriteLeague> UserFavoriteLeagues => Set<UserFavoriteLeague>();
+    public DbSet<ForecastRecord> Forecasts => Set<ForecastRecord>();
 
     // Program.cs (DI kaydı) ve açılıştaki ayar yükleyici aynı Npgsql ayarlarını kullansın.
     public static void UseDatabase(DbContextOptionsBuilder options, string? connectionString) =>
@@ -46,11 +49,13 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             {
                 SampleItemSeed.Seed(context, performed);
                 RoleSeed.Seed(context, performed);
+                PermissionSeed.Seed(context, performed);
             })
             .UseAsyncSeeding(async (context, performed, ct) =>
             {
                 await SampleItemSeed.SeedAsync(context, performed, ct);
                 await RoleSeed.SeedAsync(context, performed, ct);
+                await PermissionSeed.SeedAsync(context, performed, ct);
             });
     }
 
@@ -124,6 +129,28 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             e.HasOne(x => x.Role).WithMany(x => x.GroupRoles).HasForeignKey(x => x.RoleId).OnDelete(DeleteBehavior.Cascade);
         });
 
+        // Yetki anahtarı benzersiz; uygulama küçük harfe çevirerek yazar (unique index büyük/küçük harf duyarlı).
+        modelBuilder.Entity<Permission>(e =>
+        {
+            e.ToTable("permissions");
+            e.Property(x => x.Key).HasMaxLength(100);
+            e.Property(x => x.Name).HasMaxLength(100);
+            e.Property(x => x.NameEn).HasMaxLength(100);
+            e.Property(x => x.Description).HasMaxLength(500);
+            e.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
+            e.HasIndex(x => x.Key).IsUnique();
+        });
+
+        // Rol veya yetki silinince atamaları da silinir.
+        modelBuilder.Entity<RolePermission>(e =>
+        {
+            e.ToTable("role_permissions");
+            e.HasKey(x => new { x.RoleId, x.PermissionId });
+            e.Property(x => x.AssignedAt).HasDefaultValueSql("now()");
+            e.HasOne(x => x.Role).WithMany(x => x.RolePermissions).HasForeignKey(x => x.RoleId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Permission).WithMany(x => x.RolePermissions).HasForeignKey(x => x.PermissionId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<UserLogin>(e =>
         {
             e.ToTable("user_logins");
@@ -164,6 +191,22 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             e.Property(x => x.League).HasMaxLength(200);
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
             e.HasOne(x => x.User).WithMany(x => x.FavoriteLeagues).HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Maç başına tek tahmin (unique FixtureId); Kickoff index'i tarih bazlı sorgular (isabet oranı) için.
+        modelBuilder.Entity<ForecastRecord>(e =>
+        {
+            e.ToTable("forecasts");
+            e.Property(x => x.Country).HasMaxLength(200);
+            e.Property(x => x.League).HasMaxLength(200);
+            e.Property(x => x.HomeTeam).HasMaxLength(200);
+            e.Property(x => x.AwayTeam).HasMaxLength(200);
+            e.Property(x => x.AiProvider).HasMaxLength(50);
+            e.Property(x => x.AiModel).HasMaxLength(100);
+            e.Property(x => x.ResultJson).HasColumnType("jsonb");
+            e.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
+            e.HasIndex(x => x.FixtureId).IsUnique();
+            e.HasIndex(x => x.Kickoff);
         });
 
         modelBuilder.Entity<AppSetting>(e =>

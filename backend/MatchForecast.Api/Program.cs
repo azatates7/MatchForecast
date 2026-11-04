@@ -117,6 +117,8 @@ try
             .RequireAuthenticatedUser()
             .RequireAssertion(c => !GuestAccess.IsGuest(c.User)));
     });
+    // [RequirePermission(...)] → "perm:{anahtar}" policy'leri çalışma anında üretilir (PermissionAuthorization.cs).
+    builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
     builder.Services.AddProblemDetails();
 
     /*
@@ -262,6 +264,7 @@ try
                        && o.MinPickProbability <= o.MaxPickProbability,
             "Forecast:MinPickProbability/MaxPickProbability 0-100 arasında olmalı ve Min <= Max olmalı.")
         .ValidateOnStart();
+    builder.Services.AddScoped<IForecastStore, ForecastStore>();
     builder.Services.AddScoped<ForecastService>();
 
     // Girişte günün Süper Lig tahminlerini arka planda önceden üretir (Forecast:PrewarmOnLogin).

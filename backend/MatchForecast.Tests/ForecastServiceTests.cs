@@ -29,11 +29,13 @@ public class ForecastServiceTests
     private readonly Mock<IOddsProvider> _mockOdds = new();
     private readonly Mock<IForecastAiClient> _mockAi = new();
     private readonly IRedisCacheService _cache = new InMemoryRedisCacheService();
+    private readonly Mock<IForecastStore> _mockStore = new();
 
     private ForecastService CreateService() => new(
         _mockOdds.Object,
         _mockAi.Object,
         _cache,
+        _mockStore.Object,
         Options.Create(new AiOptions { CacheMinutes = 30 }),
         Options.Create(new ForecastOptions { PredictionCount = 5 }),
         NullLogger<ForecastService>.Instance);
@@ -119,5 +121,33 @@ public class ForecastServiceTests
         Assert.Equal(first.GeneratedAt, second.GeneratedAt);
         Assert.Equal(first.Stats.Count, second.Stats.Count);
         _mockAi.Verify(a => a.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetForecastAsync_SavesGeneratedForecastOnce_NotCachedOnes()
+    {
+        SetupMatch(7);
+        SetupAi(ValidAiJson);
+        var service = CreateService();
+
+        var result = await service.GetForecastAsync(7, false, CancellationToken.None);
+        await service.GetForecastAsync(7, false, CancellationToken.None); // Redis'ten gelir, tekrar kaydedilmez.
+
+        _mockStore.Verify(s => s.SaveAsync(It.Is<ForecastResult>(r => r.Match.Id == 7 && r.GeneratedAt == result.GeneratedAt), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetForecastAsync_ReturnsForecast_WhenStoreFails()
+    {
+        // Veritabanı hatası kullanıcıya tahmin dönülmesini engellememeli (fail-open).
+        SetupMatch(8);
+        SetupAi(ValidAiJson);
+        _mockStore.Setup(s => s.SaveAsync(It.IsAny<ForecastResult>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("db down"));
+
+        var result = await CreateService().GetForecastAsync(8, false, CancellationToken.None);
+
+        Assert.Equal(8, result.Match.Id);
+        Assert.NotEmpty(result.Predictions);
     }
 }

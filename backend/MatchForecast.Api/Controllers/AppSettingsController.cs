@@ -1,3 +1,4 @@
+using MatchForecast.Api.Services.Security;
 using MatchForecast.Data.Configuration;
 using MatchForecast.Data.Entity;
 using MatchForecast.Data.Security;
@@ -16,7 +17,7 @@ namespace MatchForecast.Api.Controllers;
  */
 [ApiController]
 [Route("api/app-settings")]
-[Authorize(Roles = RoleNames.Admin)]
+[RequirePermission(PermissionKeys.AppSettingsManage)]
 public sealed class AppSettingsController(AppDbContext db, IWebHostEnvironment hostEnvironment) : ControllerBase
 {
     private const string Mask = "********";

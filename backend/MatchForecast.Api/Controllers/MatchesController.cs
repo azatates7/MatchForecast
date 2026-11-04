@@ -2,6 +2,7 @@ using MatchForecast.Models.Common;
 using MatchForecast.Api.Options;
 using MatchForecast.Api.Services.ApiFootball;
 using MatchForecast.Api.Services.Forecast;
+using MatchForecast.Api.Services.Security;
 using MatchForecast.Api.Services.Security.Guest;
 using MatchForecast.Data.Seed;
 using MatchForecast.Models.Response;
@@ -71,11 +72,11 @@ public sealed class MatchesController(IOddsProvider odds, ForecastService foreca
     private static int ClampCount(int? count) => Math.Clamp(count ?? MaxPopularCount, 1, MaxPopularCount);
 
     /*
-     * Önbelleği atlayıp AI'ı yeniden çağırmak yalnızca Admin'e açık; diğer kullanıcılar için refresh yok sayılır.
+     * Önbelleği atlayıp AI'ı yeniden çağırmak forecast.refresh yetkisi (Admin dahil) ister; diğerleri için refresh yok sayılır.
      * Frontend'in "tekrar dene" butonu (refresh=true) yalnızca hata sonrası görünür; o durumda cache'te kayıt olmadığından
      * normal kullanıcı için de AI yeniden çağrılır, yani davranış bozulmaz.
      */
-    private bool CanRefresh(bool? refresh) => refresh == true && User.IsInRole(RoleNames.Admin);
+    private bool CanRefresh(bool? refresh) => refresh == true && PermissionPolicy.HasPermission(User, PermissionKeys.ForecastRefresh);
 
     private static DateOnly ParseDate(string? date) =>
         DateOnly.TryParse(date, out var d) ? d : GuestAccess.Today; // Tarih yoksa İstanbul'a göre bugün.

@@ -308,10 +308,22 @@ public sealed partial class AuthService(
         var roles = await db.Roles
             .Where(r => r.UserRoles.Any(ur => ur.UserId == user.Id)
                         || r.GroupRoles.Any(gr => gr.Group.UserGroups.Any(ug => ug.UserId == user.Id)))
-            .Select(r => r.Name)
+            .Select(r => new { r.Id, r.Name })
             .ToListAsync(ct);
 
-        var access = jwt.CreateAccessToken(user.Id, user.UserName, roles);
+        /*
+         * Etkin yetkiler: etkin rollerin yetkileri; Admin tüm yetkilere (sonradan eklenenler dahil) sahiptir.
+         * Token'a yazılır; rol/yetki değişikliği kullanıcıya bir sonraki token yenilemesinde yansır.
+         */
+        var roleIds = roles.Select(r => r.Id).ToList();
+        var isAdmin = roles.Any(r => r.Name == RoleNames.Admin);
+        var permissions = await db.Permissions
+            .Where(p => isAdmin || p.RolePermissions.Any(rp => roleIds.Contains(rp.RoleId)))
+            .OrderBy(p => p.Key)
+            .Select(p => p.Key)
+            .ToListAsync(ct);
+
+        var access = jwt.CreateAccessToken(user.Id, user.UserName, roles.Select(r => r.Name), permissions);
 
         var rawRefreshToken = NewToken();
         var refresh = new RefreshToken

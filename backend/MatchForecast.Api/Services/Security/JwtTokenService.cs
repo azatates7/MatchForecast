@@ -14,11 +14,14 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options)
     // Kısa claim adları kullanılır; Program.cs'te MapInboundClaims=false ve Name/RoleClaimType bu adlara ayarlı.
     public const string NameClaimType = JwtRegisteredClaimNames.UniqueName; // "unique_name"
     public const string RoleClaimType = "role";
+    // Etkin yetki anahtarları (ör. "users.manage"); her yetki için bir claim. PermissionPolicyProvider okur.
+    public const string PermissionClaimType = "perm";
 
     // JsonWebTokenHandler thread-safe; JwtBearer (.NET 8+) doğrulamada da aynı handler'ı kullanır.
     private static readonly JsonWebTokenHandler Handler = new();
 
-    public (string Token, DateTimeOffset ExpiresAt) CreateAccessToken(int userId, string userName, IEnumerable<string> roles)
+    public (string Token, DateTimeOffset ExpiresAt) CreateAccessToken(
+        int userId, string userName, IEnumerable<string> roles, IEnumerable<string>? permissions = null)
     {
         var o = options.Value;
         var expiresAt = DateTime.Now.AddMinutes(o.ExpiryMinutes);
@@ -30,6 +33,7 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options)
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
         claims.AddRange(roles.Select(role => new Claim(RoleClaimType, role)));
+        claims.AddRange((permissions ?? []).Select(permission => new Claim(PermissionClaimType, permission)));
 
         var token = Handler.CreateToken(new SecurityTokenDescriptor
         {

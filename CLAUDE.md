@@ -26,7 +26,8 @@ docker-compose.yml / .prod.yml     local stack / production stack (+ cloudflared
 backend/
   Dockerfile
   MatchForecast.Api/
-    Controllers/                   Auth, Me, FavoriteLeagues, Password, Matches, Cache, Users, AppSettings, SampleItems
+    Controllers/                   Auth, Me, FavoriteLeagues, Password, Matches, Cache, Users, Roles, Groups,
+                                   AppSettings, SampleItems
     Filter/                        BearerSecurityOperationFilter (Swagger)
     Options/                       Ai, Auth, Forecast, Jwt, OddsProvider, RateLimit, Redis, Smtp
     Services/
@@ -34,7 +35,7 @@ backend/
       ApiFootball/                 IOddsProvider, ApiFootballOddsProvider (+ unused Mock/Public providers)
       AppSetting/                  DatabaseSettings (DB-backed configuration source)
       Email/                       SMTP sender, EmailErrorNotifier, StartupNotificationService
-      Forecast/                    ForecastService, Prompt, Catalog, ProjectionBuilder, PredictionSelector,
+      Forecast/                    ForecastService, ForecastStore (IForecastStore), Prompt, Catalog, ProjectionBuilder, PredictionSelector,
                                    ForecastPrewarmQueue (+ ForecastPrewarmWorker in the same file)
       Guest/                       GuestAccess, GuestUserBootstrapper (namespace: Services.Security.Guest)
       Health/                      DatabaseHealthCheck, RedisHealthCheck, HealthResponseWriter
@@ -57,10 +58,14 @@ never hard-code a user-facing string, add it to the dictionaries / `Lang.T(...)`
 
 Read this first when resuming work.
 
-**Next task:** Roadmap step 8 — **Admin panel** (detailed plan in section 2). Start with phase 8.0 (backend prerequisites).
+**Next task:** Roadmap step 8 — **Admin panel, phase 8.1: permission model (backend)**. The admin panel is for
+**users, roles, permissions and groups only** (not for matches/settings); scope and decisions were revised on
+2026-11-04, see section 2.
+Steps 7 (persist forecasts) and 8.0 (admin backend prerequisites) are done but not yet built/tested (see below).
 
-**Changes from the last session, delivered as files but NOT yet verified with a build** (the session environment had
-no NuGet access, so the backend was neither built nor tested; React passed `tsc -b`, Angular passed `ngc` type-check):
+**Changes delivered as files but NOT yet verified with `dotnet build` / `dotnet test`** (the session environment had
+no NuGet access; the changed C# files only passed a Roslyn compile against the framework reference assemblies, which
+catches syntax/typing errors but not EF/Moq/xUnit usage. React passed `tsc -b`, Angular passed `ngc` type-check):
 1. **CI fix — `LocalizationTests`:** the theory created its client with `factory.CreateClient()` and skipped
    `WithTestJwt()`, so the host started with the real `appsettings.json` (`Smtp:Enabled=true`, empty password) and
    `ValidateOnStart` failed on the CI agent (`Smtp:Password ... boş olamaz`, 5 failures). Fix: line 25 →
@@ -68,14 +73,20 @@ no NuGet access, so the backend was neither built nor tested; React passed `tsc 
    integration tests must go through `WithTestJwt()` / `CreateAuthorizedClient()`.
 2. **Cache clear is Admin-only** (see "Cache clear" below).
 3. **Favorite leagues** (see "Favorite leagues" below), including the hand-written migration `AddUserFavoriteLeagues`.
+4. **Roadmap step 7 — Persist forecasts** (2026-11-04), including the hand-written migration `AddForecasts`.
+5. **Roadmap step 8.0 — Admin backend prerequisites** (2026-11-04): `GET /api/roles`, `GET /api/groups`,
+   self-lockout / last-admin guards in `UsersController`.
 
 **To verify before starting step 8:**
 - [ ] `dotnet build` + `dotnet test backend/MatchForecast.Tests/MatchForecast.Tests.csproj` (new:
-      `FavoriteLeaguesIntegrationTests`, `RateLimitingIntegrationTests.ClearCache_NonAdmin_ReturnsForbidden`).
+      `FavoriteLeaguesIntegrationTests`, `RateLimitingIntegrationTests.ClearCache_NonAdmin_ReturnsForbidden`,
+      `ForecastStoreTests`, two new `ForecastServiceTests`, `AdminUsersIntegrationTests`).
 - [ ] Migration check: `dotnet ef migrations add Check --project MatchForecast.Data --startup-project MatchForecast.Api`
       must produce an **empty** migration (proves the hand-written snapshot matches the model); then
-      `dotnet ef migrations remove ...`. If it is not empty, delete `20261103120000_AddUserFavoriteLeagues*` and the
-      snapshot change and regenerate with `dotnet ef migrations add AddUserFavoriteLeagues`.
+      `dotnet ef migrations remove ...`. If it is not empty, delete the hand-written migrations
+      (`20261103120000_AddUserFavoriteLeagues*`, `20261104120000_AddForecasts*`) and the snapshot changes, then
+      regenerate with `dotnet ef migrations add AddUserFavoriteLeagues` and `dotnet ef migrations add AddForecasts`.
+- [ ] After deploying: open one forecast and check that a row appears in `matchforecast.forecasts`.
 - [ ] Manual UI check in both frontends: star toggle, "Favori ligler" option, cache button only for Admin.
 - [ ] Optional: build warning `MSB3277` (EF Core Relational 10.0.0 vs 10.0.13) — align the EF package versions in
       `MatchForecast.Tests.csproj` with the Api/Data projects (10.0.13).
@@ -106,6 +117,7 @@ no NuGet access, so the backend was neither built nor tested; React passed `tsc 
     `GET /api/matches/{id}/forecast`
   - `CacheController` (Admin): `DELETE /api/cache`
   - `FavoriteLeaguesController` (signed-in, not guest): `GET|PUT|DELETE /api/me/favorite-leagues`
+  - `RolesController` / `GroupsController` (Admin, read-only): `GET /api/roles`, `GET /api/groups`
   - `UsersController` (Admin): CRUD on `/api/users`, plus `PUT /api/users/{id}/password|roles|groups`
   - `AppSettingsController` (Admin): `GET /api/app-settings`, `GET|PUT|DELETE /api/app-settings/{id}`
   - `SampleItemsController`: demo CRUD on `/api/sample-items` (seeded table, kept as an EF Core example)
@@ -196,9 +208,9 @@ no NuGet access, so the backend was neither built nor tested; React passed `tsc 
 ### ✅ Roadmap step 5 — EF Core
 - `AppDbContext` (`MatchForecast.Data/Configuration`) with entities: `User`, `Role`, `Group`, `UserRole`, `UserGroup`,
   `GroupRole`, `UserLogin` (external logins), `RefreshToken`, `PasswordResetToken`, `AppSetting`, `SampleItem`,
-  `UserFavoriteLeague`.
+  `UserFavoriteLeague`, `ForecastRecord` (table `forecasts`).
 - Migrations in `MatchForecast.Data/Migrations` (`InitialCreate`, `AddUserManagement`, `AddRefreshTokenReset`,
-  `AddAppSettings`, `AddUserFavoriteLeagues` — the last one was written by hand, see section 0). They are applied **automatically at startup** (`DatabaseSettings.LoadAsync` →
+  `AddAppSettings`, `AddUserFavoriteLeagues`, `AddForecasts` — the last two were written by hand, see section 0). They are applied **automatically at startup** (`DatabaseSettings.LoadAsync` →
   `MigrateAsync`); `EF.IsDesignTime` skips this during `dotnet ef`.
 - Seeding via `UseSeeding`/`UseAsyncSeeding`: roles (`Admin`, `User` — `RoleNames`) and sample items; only missing
   rows are added.
@@ -224,7 +236,7 @@ no NuGet access, so the backend was neither built nor tested; React passed `tsc 
   `Auth:PasswordResetUrl` (never from the request `Origin`) with `?resetToken=...`; token stored hashed, valid
   `Auth:PasswordResetTokenMinutes`. A successful reset revokes all refresh tokens.
 - **Authorization:** a **fallback policy** protects every endpoint without `[AllowAnonymous]`. `UsersController`,
-  `AppSettingsController` and `CacheController` require `Admin`. Roles (`RoleNames`): `Admin`, `User`, `Guest`.
+  `RolesController`, `GroupsController`, `AppSettingsController` and `CacheController` require `Admin`. Roles (`RoleNames`): `Admin`, `User`, `Guest`.
 
 ### ✅ Guest access
 - **Guest user:** `GuestUserBootstrapper` creates one shared account with only the `Guest` role at startup when
@@ -288,6 +300,40 @@ no NuGet access, so the backend was neither built nor tested; React passed `tsc 
   - CSS: `.league-multi-star`, `.league-multi-fav-icon` (yellow = `var(--card)`).
 - Tests: `FavoriteLeaguesIntegrationTests` (idempotency, per-user isolation, 400 on empty, 403 for guest).
 
+### ✅ Roadmap step 7 — Persist forecasts (2026-11-04)
+- Every forecast that is **generated** (AI call, i.e. Redis miss or Admin `refresh=true`, prewarm included) is also
+  written to the DB. **Reads still come only from Redis**, so freshness (`Ai:CacheMinutes`) is unchanged; the DB is a
+  permanent record for later analysis (hit rate, admin views), not a second cache layer.
+- Entity `ForecastRecord`, table `forecasts`: `fixture_id` (unique — **one row per match**, a regenerated forecast
+  updates the row and sets `updated_at`), `kickoff` (indexed, for date queries), `country`, `league`, `home_team`,
+  `away_team`, `ai_provider` / `ai_model` (from `Ai:Provider` and `Ai:{Provider}:Model`, empty provider = Gemini like
+  `Program.cs`), `result_json` (**jsonb**, the full `ForecastResult` serialized with `JsonSerializerDefaults.Web` =
+  the same shape the API returns), `generated_at`, `created_at`, `updated_at`. DateTime columns follow the global
+  Istanbul ↔ UTC converter.
+- `IForecastStore` / `ForecastStore` (scoped, `Services/Forecast/ForecastStore.cs`), registered in `Program.cs`.
+  `ForecastService.GenerateAsync` calls it after `cache.SetAsync`:
+  - **fail-open:** any exception is logged as a warning and the forecast is still returned;
+  - saves with `CancellationToken.None`, so a forecast that was already paid for is kept even if the client
+    disconnected;
+  - on a failed `SaveChanges` the store clears the change tracker, so later saves in the same scope (prewarm loop)
+    don't retry the broken entity.
+- Not stored: final scores / hit-rate fields. They belong to the follow-up below and need their own migration.
+- Tests: `ForecastStoreTests` (insert then update = single row, Istanbul times, JSON round-trip, provider/model),
+  `ForecastServiceTests` (saved once, not for cache hits; store failure still returns the forecast). Test DI setups
+  that build `ForecastService` manually (`ForecastPrewarmTests`) register `Mock.Of<IForecastStore>()`.
+
+### ✅ Roadmap step 8.0 — Admin backend prerequisites (2026-11-04)
+- `RolesController` → `GET /api/roles` → `RoleResponse(Id, Name, Description)`; `GroupsController` →
+  `GET /api/groups` → `GroupResponse(Id, Name, Description)`. Admin only, read-only, ordered by name.
+  Needed because `PUT /api/users/{id}/roles|groups` take ids.
+- `UsersController` lock-out guards (current user = JWT `sub`), all → 400 `ProblemDetails` with `Lang.T` texts:
+  - an Admin cannot deactivate (`PUT /api/users/{self}` with `isActive=false`), delete or remove the Admin role from
+    **their own** account;
+  - the **last active Admin** cannot be deactivated, deleted or lose the Admin role, whoever asks (covers a token whose
+    user no longer exists).
+  Guards only trigger on an actual change (deactivating an active user, removing an existing Admin role).
+- Tests: `AdminUsersIntegrationTests` (seeds roles/users itself — `RoleSeed` does not run on the in-memory DB).
+
 ### Frontend (React 19 + Vite) — `frontend`
 - Vite dev server on `5173`, proxies `/api` → `http://localhost:5080`.
 - `api.ts`: access token in memory; **refresh token in `localStorage`** (`matchforecast.refreshToken`) so a page reload
@@ -348,69 +394,129 @@ no NuGet access, so the backend was neither built nor tested; React passed `tsc 
 [6. Auth & Users ✅] ◄── [5. EF Core ✅] ◄── [4. Supabase ✅]
         │
         ▼
-[7. Persist forecasts] ──► [8. Admin panel ◄ next]
+[7. Persist forecasts ✅] ──► [8. Admin panel (users/roles/permissions/groups): 8.0 ✅, 8.1 ◄ next]
 ```
 
-#### 7. Persist forecasts (postponed; Admin panel comes first)
-- [ ] Store generated forecasts in the DB (today they exist only in Redis for `Ai:CacheMinutes`).
-- [ ] Later: compare stored predictions with final results to measure hit rate per market.
+#### 7. Persist forecasts ✅ (2026-11-04, see section 1)
+- [x] Store generated forecasts in the DB (`forecasts` table, one row per match).
+- [ ] Follow-up: fetch final scores for past `forecasts` rows (API-Football fixture by id, status FT), store them
+      (new columns or a `forecast_results` table) and compute hit rate per market. Could be a daily hosted service
+      like `TokenCleanUpWorker`, plus an Admin report in the admin panel.
 
-#### 8. Admin panel (next — detailed plan)
-Goal: give Admins a UI for what is API/Swagger-only today (users, roles/groups, app settings) plus the system tools
-(cache, health). Keep it small: reuse existing endpoints and styles, no new UI library, no new routing dependency.
-Build it in **React first**, then port 1:1 to Angular in the same phase (both frontends must stay identical).
+#### 8. Admin panel — users, roles, permissions, groups (revised 2026-11-04)
+Goal: an Admin UI to manage **who can do what**: users, roles, permissions and groups. The panel is **not** for
+matches, forecasts or app settings. It must stay extensible: new roles and new permissions can be added later
+without code changes to the panel.
 
-**Decisions to confirm before coding** (defaults in bold):
-- Navigation: **hash-based view switch (`#admin`)** read on load + `hashchange`, header button "Yönetim" visible only
-  to Admin. (Alternatives: React Router + Angular Router — adds a dependency to React and diverges the two apps.)
-- Cache button: **move into the admin panel "Sistem" tab** and remove it from the header, or keep both.
-- User removal: **deactivate (`IsActive=false`) as the main action**, hard delete only behind a typed confirmation.
-- Groups: **assign existing groups only**; group/role CRUD is out of scope (no group is seeded today).
+**Decisions (confirmed by the owner, 2026-11-04):**
+- **Permissions are not a fixed list.** Permissions are DB rows; Admins can add new ones from the panel. Permissions
+  that the code enforces are seeded as **system permissions** (key cannot be changed or deleted, because code checks
+  that key); panel-created ones are **custom permissions**. A custom permission has no effect until code (API policy or
+  frontend `me.permissions` check) uses its key — the panel shows this with a "Sistem" / "Özel" badge and a hint.
+- **Admins can make other users Admin** (assign the `Admin` role directly or through a group). `Admin` implicitly has
+  **every** permission, including ones added later.
+- **Changes apply when the access token is refreshed** (at most `Jwt:ExpiryMinutes`): roles and permissions are
+  written into the JWT at token issue. No per-request DB lookup.
+- **Groups are managed in the panel** (create/edit/delete, assign roles to a group, add/remove users). The token
+  already includes roles inherited through groups (`AuthService.IssueTokensAsync`).
+- Navigation: hash-based view switch (`#admin`), no new routing dependency. The "Önbelleği Sil" button stays on the
+  match screen but is gated by the `cache.clear` permission instead of the `Admin` role.
 
-**8.0 Backend prerequisites**
-- [ ] `GET /api/roles` → `[{ id, name, description }]` and `GET /api/groups` → `[{ id, name, description }]` (Admin;
-      read-only). Needed because `PUT /api/users/{id}/roles|groups` take ids. New DTOs `RoleResponse`, `GroupResponse`.
-- [ ] Self-lockout guards in `UsersController` (current user = JWT `sub`): an Admin cannot remove their own Admin role,
-      deactivate themselves or delete themselves → 400 with `Lang.T(...)`. Also refuse removing the Admin role from
-      the **last** active Admin.
-- [ ] Optional: `GET /api/users?search=&page=&pageSize=` paging — skip unless the user list gets large.
-- [ ] Integration tests for all of the above (use `CreateAuthorizedClient(RoleNames.Admin)`; seed users through
-      `AppDbContext` in the in-memory DB).
+**Model (target)**
+- `Permission`: `Id`, `Key` (unique, e.g. `users.manage`; lowercase `area.action`), `Name` (TR) / `NameEn`,
+  `Description`, `IsSystem`, `CreatedAt`, `UpdatedAt`. Table `permissions`.
+- `RolePermission`: `(RoleId, PermissionId)` PK, cascade on both sides. Table `role_permissions`.
+- `Role` gets `IsSystem` (`Admin`, `User`, `Guest` = true: cannot be deleted or renamed; their meaning is used in code).
+  New roles created in the panel are `IsSystem=false`.
+- Effective permissions of a user = union of permissions of all effective roles (direct + via groups); `Admin` = all.
+- JWT: one `perm` claim per effective permission key (next to the existing `role` claims). `GET /api/me` returns
+  `permissions` too, so the frontends can show/hide features by permission.
 
-**8.1 Shell & navigation (both frontends)**
-- [ ] `isAdmin` already exists in `App.tsx` / `app.ts`; add `view: 'matches' | 'admin'` driven by `location.hash`.
-- [ ] Header: "Yönetim" / "Admin" button for Admin; in admin view a "Maçlara dön" button.
-- [ ] New components: `AdminPanel` (tabs: Kullanıcılar, Ayarlar, Sistem), `admin/UsersTab`, `admin/SettingsTab`,
-      `admin/SystemTab` (Angular: `components/admin/*`). Non-admins hitting `#admin` see the match view.
-- [ ] `api.ts` (+ Angular copy): `request()` currently sends no body; add an optional JSON body parameter
-      (`request<T>(url, method, body?)`) for POST/PUT. `types.ts`: `UserResponse`, `AppSettingResponse`,
-      `RoleResponse`, `GroupResponse`, request types.
+**System permissions to seed (initial list, extend in code when a new check is added):**
+| Key | Used by |
+|---|---|
+| `users.view` | `GET /api/users`, `GET /api/users/{id}` |
+| `users.manage` | create/update/delete users, set password, set roles/groups of a user |
+| `roles.manage` | role CRUD, role ↔ permission assignment |
+| `permissions.manage` | permission CRUD (custom permissions) |
+| `groups.manage` | group CRUD, group roles, group members |
+| `cache.clear` | `DELETE /api/cache` |
+| `forecast.refresh` | `refresh=true` on forecast endpoints (today: `User.IsInRole(Admin)` in `MatchesController`) |
+| `app-settings.manage` | `/api/app-settings` (API only, not in the panel) |
 
-**8.2 Users tab** (`/api/users`)
-- [ ] Table: user name, display name, e-mail, roles (chips), active, last login; client-side search box.
-- [ ] Create user form (user name, e-mail, display name, password with the existing generator `/api/password`).
-- [ ] Edit: e-mail, display name, active toggle (`PUT /api/users/{id}`); show 409 messages from `ProblemDetails`.
-- [ ] Roles / groups: checkbox lists from 8.0 (`PUT .../roles`, `PUT .../groups`).
-- [ ] Set password (`PUT .../password`; note in UI that it signs the user out everywhere).
-- [ ] Delete with confirmation (type the user name). The guest account is recreated by `GuestUserBootstrapper` on
-      restart — show a hint on the `Guest` row.
+Default role mapping when seeding: `Admin` → all (implicit), `User` → none, `Guest` → none. Seeding only adds
+missing permissions; it never removes a role ↔ permission assignment made in the panel.
 
-**8.3 Settings tab** (`/api/app-settings`)
-- [ ] List grouped by section (prefix before the first `:`), with description, updated at/by; encrypted values masked.
-- [ ] "Göster" per encrypted row → `GET /api/app-settings/{id}?reveal=true` (never cache revealed values in state
-      longer than needed).
-- [ ] Edit value / description / `IsEncrypted` (`PUT`; `value: null` keeps the current value).
-- [ ] "Varsayılana dön" = `DELETE` with confirmation (re-seeded from file/secrets/env on next start).
-- [ ] Persistent banner: changes take effect **after an API restart**.
+**8.0 Backend prerequisites ✅ (2026-11-04, see section 1)**
+- [x] `GET /api/roles`, `GET /api/groups` (read-only) + `RoleResponse`, `GroupResponse` — extended in 8.2.
+- [x] Self-lockout and last-active-Admin guards in `UsersController` + `AdminUsersIntegrationTests`.
+      To revisit in 8.1: the guard counts only **direct** `Admin` role assignments; Admins via a group must count too.
 
-**8.4 System tab**
-- [ ] Health: `GET /healthz/ready` (database / redis status from `HealthResponseWriter`).
-- [ ] Cache clear (moved from the header; same rate limit, show the 429 message).
+**8.1 Permission model (backend) ← next**
+- [ ] Entities `Permission`, `RolePermission`, `Role.IsSystem`; `AppDbContext` config; migration
+      `AddPermissions` (generate with `dotnet ef`, do not hand-write).
+- [ ] `PermissionKeys` (code constants for system permissions) + `PermissionSeed` (adds missing system permissions,
+      marks `Admin`/`User`/`Guest` as `IsSystem`), called from `UseSeeding`/`UseAsyncSeeding` after `RoleSeed`.
+- [ ] Token: `AuthService.IssueTokensAsync` loads effective permission keys (Admin → all keys from the table) and
+      `JwtTokenService.CreateAccessToken` adds `perm` claims. Watch token size if the list grows (Admin gets all keys).
+- [ ] Authorization: a custom `IAuthorizationPolicyProvider` for policies named `perm:{key}` (requirement: `perm` claim
+      with that key **or** role `Admin`), so new permissions need no `Program.cs` change. Usage:
+      `[Authorize(Policy = "perm:users.manage")]` (constant helper, e.g. `Perm.Policy(PermissionKeys.UsersManage)`).
+- [ ] Replace role checks: `UsersController` (view vs manage), `RolesController`, `GroupsController`,
+      `AppSettingsController`, `CacheController` (`cache.clear`), `MatchesController.CanRefresh` (`forecast.refresh`).
+      Guest rules (`GuestAccess`, `NotGuest` policy) stay role-based.
+- [ ] `MeResponse` + `permissions`; frontends: cache button checks `cache.clear` instead of `isAdmin`.
+- [ ] Last-Admin guard: count active users that are Admin directly **or via a group**; also apply it when a group
+      that grants `Admin` loses that role, is deleted, or loses its last active Admin member.
+- [ ] Tests: policy provider (claim / Admin bypass / missing), token contains effective permissions (direct + group),
+      seeding idempotent, existing Admin-role tests still pass.
 
-**8.5 Finish**
-- [ ] i18n keys for every new text in both dictionaries (`admin.*`).
-- [ ] Angular port + `app.spec.ts` smoke test for the admin view; React `tsc -b`, Angular `ng build`.
-- [ ] Update this file (section 0 and section 1) when done.
+**8.2 Management API (backend)**
+- [ ] Permissions (`permissions.manage`): `GET /api/permissions`, `POST` (custom only; key format
+      `^[a-z0-9]+(\.[a-z0-9-]+)+$`, unique), `PUT /{id}` (name/description; key only for custom), `DELETE /{id}`
+      (custom only; removes its role assignments). System permissions → 400 on key change/delete.
+- [ ] Roles (`roles.manage`): `GET /api/roles` (+ permission keys, user count), `POST`, `PUT /{id}` (name/description;
+      system roles: description only), `DELETE /{id}` (not system, 409 if still assigned unless `?force=true`),
+      `PUT /api/roles/{id}/permissions` (id list; `Admin` → 400, it always has all).
+- [ ] Groups (`groups.manage`): `GET /api/groups` (+ roles, member count), `POST`, `PUT /{id}`, `DELETE /{id}`,
+      `PUT /api/groups/{id}/roles`, `PUT /api/groups/{id}/users`.
+- [ ] Users: keep existing endpoints; `UserResponse` gains effective `permissions` (read-only, for the panel).
+- [ ] Unique names (case-insensitive) → 409 with `Lang.T` texts; all validation messages TR/EN.
+- [ ] Integration tests per controller (seed data in the in-memory DB like `AdminUsersIntegrationTests`).
+
+**8.3 Frontend shell (both frontends; React first, then Angular 1:1)**
+- [ ] `api.ts`: optional JSON body for `request()` (`request<T>(url, method, body?)`); `types.ts`: user, role, group,
+      permission DTOs; `MeResponse.permissions`.
+- [ ] "Yönetim" button in the header when the user has any of `users.view`, `roles.manage`, `groups.manage`,
+      `permissions.manage` (Admin has all); `#admin` view with tabs **Kullanıcılar**, **Roller**, **Gruplar**,
+      **Yetkiler**; each tab only if the user has its permission. "Maçlara dön" button back.
+- [ ] Users without permission opening `#admin` see the match view.
+
+**8.4 Users tab** (`users.view` to see, `users.manage` to change)
+- [ ] Table: user name, display name, e-mail, roles, groups, active, last login; search box.
+- [ ] Create (with the existing password generator), edit (e-mail, display name, active), set password (signs the user
+      out everywhere), delete with typed confirmation; guard errors (self / last Admin) shown from `ProblemDetails`.
+- [ ] Role and group checkboxes per user; read-only "effective permissions" list.
+
+**8.5 Roles tab** (`roles.manage`)
+- [ ] Role list (system badge, user count); create/rename/delete custom roles.
+- [ ] Permission checklist per role, grouped by area (prefix before the first `.`); `Admin` shown as "all permissions"
+      and not editable.
+
+**8.6 Groups tab** (`groups.manage`)
+- [ ] Group list; create/edit/delete; roles of the group; members (add/remove users).
+
+**8.7 Permissions tab** (`permissions.manage`)
+- [ ] List with key, TR/EN name, description, "Sistem" / "Özel" badge, roles that have it.
+- [ ] Add custom permission (key + names + description); edit; delete custom only. Hint: a custom permission only works
+      after code checks its key.
+
+**8.8 Finish**
+- [ ] i18n keys (`admin.*`) in both dictionaries; React `tsc -b`, Angular `ng build` + `app.spec.ts` smoke test.
+- [ ] Update this file (sections 0, 1 and the permission table).
+
+**Out of the panel's scope (moved to follow-ups):** app settings UI (`/api/app-settings` stays API/Swagger-only,
+protected by `app-settings.manage`), health/system view, forecast reports (step 7 follow-up).
 
 ### Follow-ups (not blocking)
 - [ ] docker-compose: `healthcheck` entries using `/healthz` and `/healthz/ready`, Redis volume, `.env.example`,
@@ -419,6 +525,9 @@ Build it in **React first**, then port 1:1 to Angular in the same phase (both fr
 - [x] Token cleanup: `TokenCleanUpWorker` (hosted service, first run 1 min after start) deletes expired refresh tokens and used/expired
       password-reset tokens once a day. Revoked-but-unexpired refresh tokens are kept on purpose (reuse detection).
 - [ ] Optional: trigger a settings reload instead of requiring a restart after `PUT /api/app-settings/{id}`.
+- [ ] Optional: app settings UI and a system/health view (taken out of the admin panel scope on 2026-11-04).
+- [ ] Optional: when a user's roles/groups change, revoke their refresh tokens so the change applies immediately
+      instead of after the access token expires (trade-off: the user has to sign in again).
 
 ### Known issues
 - Real secrets (`Smtp:Password`, `Jwt:SecretKey`) are blank in `appsettings.json` now, but they are still in **git

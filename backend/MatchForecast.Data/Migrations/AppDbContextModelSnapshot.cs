@@ -97,6 +97,88 @@ namespace MatchForecast.Data.Migrations
                     b.ToTable("app_settings", "matchforecast");
                 });
 
+            modelBuilder.Entity("MatchForecast.Data.Entity.ForecastRecord", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AiModel")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("ai_model");
+
+                    b.Property<string>("AiProvider")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("ai_provider");
+
+                    b.Property<string>("AwayTeam")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("away_team");
+
+                    b.Property<string>("Country")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("country");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<int>("FixtureId")
+                        .HasColumnType("integer")
+                        .HasColumnName("fixture_id");
+
+                    b.Property<DateTime>("GeneratedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("generated_at");
+
+                    b.Property<string>("HomeTeam")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("home_team");
+
+                    b.Property<DateTime>("Kickoff")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("kickoff");
+
+                    b.Property<string>("League")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("league");
+
+                    b.Property<string>("ResultJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("result_json");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FixtureId")
+                        .IsUnique();
+
+                    b.HasIndex("Kickoff");
+
+                    b.ToTable("forecasts", "matchforecast");
+                });
+
             modelBuilder.Entity("MatchForecast.Data.Entity.Group", b =>
                 {
                     b.Property<int>("Id")
@@ -262,6 +344,60 @@ namespace MatchForecast.Data.Migrations
                     b.ToTable("password_reset_tokens", "matchforecast");
                 });
 
+            modelBuilder.Entity("MatchForecast.Data.Entity.Permission", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_system");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("key");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("NameEn")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name_en");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique();
+
+                    b.ToTable("permissions", "matchforecast");
+                });
+
             modelBuilder.Entity("MatchForecast.Data.Entity.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -358,6 +494,10 @@ namespace MatchForecast.Data.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("is_deleted");
 
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_system");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -382,6 +522,29 @@ namespace MatchForecast.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("roles", "matchforecast");
+                });
+
+            modelBuilder.Entity("MatchForecast.Data.Entity.RolePermission", b =>
+                {
+                    b.Property<int>("RoleId")
+                        .HasColumnType("integer")
+                        .HasColumnName("role_id");
+
+                    b.Property<int>("PermissionId")
+                        .HasColumnType("integer")
+                        .HasColumnName("permission_id");
+
+                    b.Property<DateTime>("AssignedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("assigned_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("RoleId", "PermissionId");
+
+                    b.HasIndex("PermissionId");
+
+                    b.ToTable("role_permissions", "matchforecast");
                 });
 
             modelBuilder.Entity("MatchForecast.Data.Entity.SampleItem", b =>
@@ -705,6 +868,25 @@ namespace MatchForecast.Data.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("MatchForecast.Data.Entity.RolePermission", b =>
+                {
+                    b.HasOne("MatchForecast.Data.Entity.Permission", "Permission")
+                        .WithMany("RolePermissions")
+                        .HasForeignKey("PermissionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MatchForecast.Data.Entity.Role", "Role")
+                        .WithMany("RolePermissions")
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Permission");
+
+                    b.Navigation("Role");
+                });
+
             modelBuilder.Entity("MatchForecast.Data.Entity.UserFavoriteLeague", b =>
                 {
                     b.HasOne("MatchForecast.Data.Entity.User", "User")
@@ -772,9 +954,16 @@ namespace MatchForecast.Data.Migrations
                     b.Navigation("UserGroups");
                 });
 
+            modelBuilder.Entity("MatchForecast.Data.Entity.Permission", b =>
+                {
+                    b.Navigation("RolePermissions");
+                });
+
             modelBuilder.Entity("MatchForecast.Data.Entity.Role", b =>
                 {
                     b.Navigation("GroupRoles");
+
+                    b.Navigation("RolePermissions");
 
                     b.Navigation("UserRoles");
                 });
