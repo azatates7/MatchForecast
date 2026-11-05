@@ -1,5 +1,5 @@
 import { useI18n } from '../i18n/useI18n'
-import { adminHash, visibleAdminTabs, type AdminTab } from '../AdminView'
+import { adminHash, visibleAdminTabs, type AdminTab } from '../AadminView'
 import type { MeResponse } from '../types'
 import UsersTab from './admin/UsersTab'
 import RolesTab from './admin/RolesTab'

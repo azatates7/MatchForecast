@@ -10,7 +10,7 @@ import LeagueFilter from './components/LeagueFilter'
 import ThemeToggle from './components/ThemeToggle'
 import LanguageToggle from './components/LanguageToggle'
 import AdminPanel from './components/AdminPanel'
-import { canOpenAdmin, clearHash, parseAdminHash } from './AdminView'
+import { canOpenAdmin, clearHash, parseAdminHash } from './AadminView'
 import { useI18n } from './i18n/useI18n'
 
 // Canlı maç varken listenin arka planda yenilenme aralığı. API kotasını korumak için
