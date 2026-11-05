@@ -128,6 +128,17 @@ public class AdminManagementIntegrationTests(WebApplicationFactory<Program> fact
             new { key = "reports.view", name = "x", nameEn = "x" })).StatusCode);
     }
 
+    [Fact]
+    public async Task PermissionsManage_CanReadRoles_ButNotChangeThem()
+    {
+        // Yetkiler sekmesi, bir yetkinin hangi rollerde olduğunu gösterir; rolü değiştirmek yine roles.manage ister.
+        var seeded = await SeedSystemAsync();
+        var permissionManager = seeded.Factory.CreateClientFor(1, [], PermissionKeys.PermissionsManage);
+
+        Assert.Equal(HttpStatusCode.OK, (await permissionManager.GetAsync("/api/roles")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await permissionManager.PostAsJsonAsync("/api/roles", new { name = "Editor" })).StatusCode);
+    }
+
     // ---------- Roller ----------
 
     [Fact]

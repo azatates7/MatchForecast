@@ -1,0 +1,73 @@
+<p class="admin-hint admin-note admin-intro">{{ i18n.t('admin.permissions.intro') }}</p>
+<div class="admin-toolbar">
+  <input
+    class="search admin-search"
+    type="search"
+    [placeholder]="i18n.t('admin.permissions.search')"
+    [attr.aria-label]="i18n.t('admin.permissions.search')"
+    [value]="query()"
+    (input)="query.set($any($event.target).value)"
+  />
+  <span class="admin-muted">{{ i18n.t('admin.permissions.count', { n: filtered().length }) }}</span>
+  <button type="button" class="cache-btn" (click)="editing.set('new')">{{ i18n.t('admin.permissions.new') }}</button>
+</div>
+
+@if (state().loading) {
+  <p class="admin-placeholder pulse">{{ i18n.t('admin.loading') }}</p>
+} @else if (state().error) {
+  <p class="note-error" role="alert">{{ state().error }}</p>
+} @else if (filtered().length === 0) {
+  <p class="admin-placeholder">{{ i18n.t('admin.permissions.empty') }}</p>
+} @else {
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>{{ i18n.t('admin.permissions.col.key') }}</th>
+          <th>{{ i18n.t('admin.permissions.col.name') }}</th>
+          <th>{{ i18n.t('admin.permissions.col.description') }}</th>
+          <th>{{ i18n.t('admin.permissions.col.roles') }}</th>
+          <th><span class="sr-only">{{ i18n.t('admin.users.col.actions') }}</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (p of filtered(); track p.id) {
+          <tr>
+            <td class="admin-nowrap">
+              <code>{{ p.key }}</code>{{ ' ' }}
+              <span class="badge badge-off">{{ i18n.t(p.isSystem ? 'admin.system' : 'admin.role.custom') }}</span>
+            </td>
+            <td>{{ label(p) }}</td>
+            <td>
+              @if (p.description) { {{ p.description }} } @else { <span class="admin-muted">—</span> }
+            </td>
+            <td>
+              @if (roleNames(p.roleIds); as names) {
+                @if (names.length === 0) {
+                  <span class="admin-muted">—</span>
+                } @else {
+                  <span class="chips">
+                    @for (x of names; track x) { <span class="chip">{{ x }}</span> }
+                  </span>
+                }
+              }
+            </td>
+            <td>
+              <button type="button" class="link-btn" (click)="editing.set(p.id)">{{ i18n.t('admin.edit') }}</button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}
+
+@for (key of dialogKeys(); track key) {
+  <app-permission-dialog
+    [permission]="editingPermission()"
+    [roleNames]="editingPermission() ? roleNames(editingPermission()!.roleIds) : []"
+    (changed)="reload()"
+    (done)="onDone()"
+    (closed)="editing.set(null)"
+  />
+}

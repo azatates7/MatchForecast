@@ -1,0 +1,103 @@
+<ng-template #status let-state>
+  @if (state.error) {
+    <p class="note-error admin-status" role="alert">{{ state.error }}</p>
+  } @else if (state.info) {
+    <p class="auth-info admin-status" role="status">{{ state.info }}</p>
+  }
+</ng-template>
+
+<dialog #dialog class="admin-dialog" (close)="closed.emit()" aria-labelledby="permission-dialog-title">
+  <div class="admin-dialog-head">
+    <h3 id="permission-dialog-title">{{ permission()?.key ?? i18n.t('admin.permissions.new') }}</h3>
+    <button type="button" class="cache-btn" (click)="close()">{{ i18n.t('admin.close') }}</button>
+  </div>
+
+  <div class="admin-dialog-body">
+    @if (permission()?.isSystem) {
+      <p class="admin-hint admin-note">{{ i18n.t('admin.permission.systemNote') }}</p>
+    } @else if (permission()) {
+      <p class="admin-hint admin-note">{{ i18n.t('admin.role.customHint') }}</p>
+    }
+
+    <form class="admin-section" (submit)="submit($event)">
+      @if (permission()) {
+        <h4>{{ i18n.t('admin.role.info') }}</h4>
+      }
+      <label class="login-field">
+        <span>{{ i18n.t('admin.permission.key') }}</span>
+        <input
+          type="text"
+          required
+          maxlength="100"
+          [pattern]="keyPattern"
+          [title]="i18n.t('admin.permission.keyHint')"
+          autocomplete="off"
+          spellcheck="false"
+          [disabled]="!!permission()?.isSystem"
+          [value]="key()"
+          (input)="key.set($any($event.target).value)"
+        />
+      </label>
+      @if (!permission()?.isSystem) {
+        <p class="admin-hint">{{ i18n.t('admin.permission.keyHint') }}</p>
+      }
+      <div class="admin-form-grid">
+        <label class="login-field">
+          <span>{{ i18n.t('admin.permission.name') }}</span>
+          <input type="text" required maxlength="100" autocomplete="off" [value]="name()" (input)="name.set($any($event.target).value)" />
+        </label>
+        <label class="login-field">
+          <span>{{ i18n.t('admin.permission.nameEn') }}</span>
+          <input type="text" required maxlength="100" autocomplete="off" [value]="nameEn()" (input)="nameEn.set($any($event.target).value)" />
+        </label>
+      </div>
+      <label class="login-field">
+        <span>{{ i18n.t('admin.role.description') }}</span>
+        <input type="text" maxlength="500" autocomplete="off" [value]="description()" (input)="description.set($any($event.target).value)" />
+      </label>
+      @if (!permission()) {
+        <p class="admin-hint">{{ i18n.t('admin.permission.createHint') }}</p>
+      }
+      <div class="admin-actions">
+        <button type="submit" class="cache-btn" [disabled]="info().busy">{{ i18n.t(permission() ? 'admin.save' : 'admin.create') }}</button>
+        <ng-container *ngTemplateOutlet="status; context: { $implicit: info() }" />
+      </div>
+    </form>
+
+    @if (permission(); as permission) {
+      <section class="admin-section">
+        <h4>{{ i18n.t('admin.permission.roles') }}</h4>
+        @if (roleNames().length === 0) {
+          <span class="admin-muted">—</span>
+        } @else {
+          <span class="chips">
+            @for (x of roleNames(); track x) { <span class="chip">{{ x }}</span> }
+          </span>
+        }
+        <p class="admin-hint">{{ i18n.t('admin.permission.rolesHint') }}</p>
+      </section>
+
+      @if (!permission.isSystem) {
+        <section class="admin-section admin-danger">
+          <h4>{{ i18n.t('admin.permission.delete') }}</h4>
+          @if (roleNames().length > 0) {
+            <p class="admin-hint admin-note">{{ i18n.t('admin.permission.deleteWarning', { n: roleNames().length }) }}</p>
+          }
+          <label class="login-field">
+            <span>{{ i18n.t('admin.permission.deleteHint', { key: permission.key }) }}</span>
+            <input type="text" autocomplete="off" spellcheck="false" [value]="deleteConfirm()" (input)="deleteConfirm.set($any($event.target).value)" />
+          </label>
+          <div class="admin-actions">
+            <button
+              type="button"
+              class="cache-btn danger-btn"
+              [disabled]="deleteAction().busy || deleteConfirm() !== permission.key"
+              (click)="remove(permission)"
+            >{{ i18n.t('admin.user.deleteConfirm') }}</button>
+            <ng-container *ngTemplateOutlet="status; context: { $implicit: deleteAction() }" />
+          </div>
+        </section>
+      }
+    }
+  </div>
+</dialog>

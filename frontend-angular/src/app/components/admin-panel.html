@@ -20,7 +20,7 @@
     } @else if (active().id === 'groups') {
       <app-groups-tab [me]="me()" />
     } @else {
-      <p class="admin-placeholder">{{ i18n.t('admin.comingSoon') }}</p>
+      <app-permissions-tab />
     }
   </section>
 </main>

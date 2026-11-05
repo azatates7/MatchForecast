@@ -487,6 +487,9 @@ button, input { font: inherit; color: inherit; }
 }
 .admin-member-list .admin-check span { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.5rem; }
 
+/* Yetkiler sekmesi */
+.admin-intro { margin-bottom: 1rem; }
+
 /* Canlı maç dakikası */
 .match-live {
   display: inline-flex;

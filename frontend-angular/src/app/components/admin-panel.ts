@@ -5,15 +5,16 @@ import type { MeResponse } from '../core/types';
 import { UsersTab } from './admin-users-tab';
 import { RolesTab } from './admin-roles-tab';
 import { GroupsTab } from './admin-groups-tab';
+import { PermissionsTab } from './admin-permissions-tab';
 
 /*
  * Yönetim paneli iskeleti: yetkiye göre filtrelenmiş sekmeler (Kullanıcılar, Roller, Gruplar, Yetkiler).
  * Sekmeler bağlantıdır (#admin/<sekme>); tarayıcının geri/ileri düğmeleri sekmeler arasında çalışır.
- * Kullanıcılar (8.4), Roller (8.5) ve Gruplar (8.6) hazır; Yetkiler bir sonraki adımda (8.7) eklenecek.
+ * Sekmeler: Kullanıcılar, Roller, Gruplar, Yetkiler (her biri kendi bileşeninde, components/admin-*).
  */
 @Component({
   selector: 'app-admin-panel',
-  imports: [UsersTab, RolesTab, GroupsTab],
+  imports: [UsersTab, RolesTab, GroupsTab, PermissionsTab],
   templateUrl: './admin-panel.html',
 })
 export class AdminPanel {

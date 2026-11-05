@@ -56,13 +56,14 @@ never hard-code a user-facing string, add it to the dictionaries / `Lang.T(...)`
 
 ---
 
-## 0. Current Status / Handoff (last updated 2026-11-04)
+## 0. Current Status / Handoff (last updated 2026-11-05)
 
 Read this first when resuming work.
 
-**Next task:** Roadmap step 8 — **Admin panel, phase 8.7: Permissions tab** (React first, then Angular), then 8.8.
-Shell (8.3), Users (8.4), Roles (8.5) and Groups (8.6) tabs are done; the backend for the panel (8.0–8.2, plus a
-small read-permission change in 8.6) is complete but not yet built/tested with `dotnet`.
+**Next task:** Roadmap step 8 (admin panel) is **complete** on the authoring side. Next: the user-side verification
+below (generate `AddPermissions`, `dotnet build` / `dotnet test`, migration check, manual UI check against the real
+API), then pick a follow-up (section 2). The backend for the panel (8.0–8.2, plus small read-permission changes in
+8.6 and 8.7) is complete but not yet built/tested with `dotnet`.
 The admin panel is for **users, roles, permissions and groups only** (not for matches/settings); see section 2.
 
 **⚠ Before running the API after pulling the 8.1 changes:** generate the migration (it was NOT written by hand this
@@ -105,6 +106,13 @@ catches syntax/typing errors but not EF/Moq/xUnit usage. React passed `tsc -b`, 
     members, delete with member warning; backend: `GET /api/roles` and `GET /api/users` also allowed with
     `groups.manage` (+ test `GroupsManage_CanReadRolesAndUsers_ButNotChangeUsers`). 17-step browser test passed on
     both frontends; Users (17/17) and Roles (16/16) re-run on both.
+12. **Roadmap step 8.7 — Permissions tab** (2026-11-05): permission list (key, TR/EN name, description, Sistem/Özel,
+    roles), create / edit / delete custom permissions; backend: `GET /api/roles` also allowed with `permissions.manage`
+    (+ test `PermissionsManage_CanReadRoles_ButNotChangeThem`). 15-step browser test passed on both frontends; Users,
+    Roles and Groups re-run on both (17/16/17).
+13. **Roadmap step 8.8 — Finish** (2026-11-06): i18n check (both dictionaries identical, no unused keys; `lang.tr` /
+    `lang.en` are used via a template string in React), Angular unit test `components/admin-panel.spec.ts`
+    (`ng test`: 7/7), React `tsc -b` + `vite build`, Angular `ng build` (development and production), docs.
 
 **To verify before starting step 8:**
 - [ ] `dotnet build` + `dotnet test backend/MatchForecast.Tests/MatchForecast.Tests.csproj` (new:
@@ -118,6 +126,9 @@ catches syntax/typing errors but not EF/Moq/xUnit usage. React passed `tsc -b`, 
       regenerate with `dotnet ef migrations add AddUserFavoriteLeagues` and `dotnet ef migrations add AddForecasts`.
 - [ ] After deploying: open one forecast and check that a row appears in `matchforecast.forecasts`.
 - [ ] Manual UI check in both frontends: star toggle, "Favori ligler" option, cache button only for Admin.
+- [ ] Manual admin panel check against the real API (all browser tests so far ran against a mock API): sign in as
+      Admin → `#admin`; create a role, give it a permission, put a user in a group with that role, sign in as that user
+      (or wait for the token refresh) and check that only the matching tab is visible.
 - [ ] Optional: build warning `MSB3277` (EF Core Relational 10.0.0 vs 10.0.13) — align the EF package versions in
       `MatchForecast.Tests.csproj` with the Api/Data projects (10.0.13).
 
@@ -452,8 +463,8 @@ catches syntax/typing errors but not EF/Moq/xUnit usage. React passed `tsc -b`, 
   admin permission who opens `#admin` stays on the match screen. Header buttons no longer wrap their text
   (`.cache-btn { white-space: nowrap }`) and the action row wraps on narrow screens (`.cache-actions { flex-wrap }`).
 - **Component:** React `components/AdminPanel.tsx`, Angular `components/admin-panel.ts/.html` (`app-admin-panel`):
-  title, `role="tablist"` tabs filtered by permission, a `role="tabpanel"` that currently shows the placeholder text
-  `admin.comingSoon` (replaced by the real tabs in 8.4–8.7). The match screen state is kept while the panel is open.
+  title, `role="tablist"` tabs filtered by permission, a `role="tabpanel"` that shows the active tab (Users, Roles,
+  Groups, Permissions; the placeholder text `admin.comingSoon` was removed in 8.7). The match screen state is kept while the panel is open.
 - **API client** (`api.ts`, both frontends): `request<T>(url, method, body?)` sends JSON bodies; 204 responses
   return `undefined`. Functions for every admin endpoint: `getUsers`, `createUser`, `updateUser`, `setUserPassword`,
   `deleteUser`, `setUserRoles`, `setUserGroups`, `getRoles`, `createRole`, `updateRole`, `deleteRole(id, force)`,
@@ -469,8 +480,12 @@ catches syntax/typing errors but not EF/Moq/xUnit usage. React passed `tsc -b`, 
   `ng build --configuration development`.
 
 ### ✅ Roadmap step 8.4 — Users tab (2026-11-04)
+- **File layout:** React admin components live in `frontend/src/components/admin/` (PascalCase, e.g. `UserDialog.tsx`);
+  Angular admin components live **flat** in `frontend-angular/src/app/components/` with an `admin-` prefix
+  (`admin-action.ts`, `admin-users-tab.*`, `admin-user-dialog.*`, `admin-roles-tab.*`, `admin-role-dialog.*`,
+  `admin-groups-tab.*`, `admin-group-dialog.*`, `admin-panel.*`), like the other Angular components.
 - **Files:** React `components/admin/UsersTab.tsx` + `components/admin/UserDialog.tsx`; Angular
-  `components/admin/users-tab.ts/.html` + `components/admin/user-dialog.ts/.html`. `AdminPanel` / `app-admin-panel`
+  `components/admin-users-tab.ts/.html` + `components/admin-user-dialog.ts/.html`. `AdminPanel` / `app-admin-panel`
   renders the tab for `users`; the other tabs still show `admin.comingSoon`.
 - **List:** loads `getUsers()`, `getRoles()`, `getGroups()` in parallel (roles/groups are needed to map the names in
   `UserResponse` to ids for the assignment endpoints). Search over user name, display name and e-mail (`tr` lower
@@ -497,11 +512,11 @@ catches syntax/typing errors but not EF/Moq/xUnit usage. React passed `tsc -b`, 
 
 ### ✅ Roadmap step 8.5 — Roles tab (2026-11-05)
 - **Shared admin helpers** (extracted in this step, used by all tabs): React `components/admin/adminUi.tsx`
-  (`Chips`, `useAction`, `ActionStatus`); Angular `components/admin/admin-action.ts` (`ActionState`, `idle()`,
+  (`Chips`, `useAction`, `ActionStatus`); Angular `components/admin-action.ts` (`ActionState`, `idle()`,
   `runAction(signal, action, info)`; templates render the status with an `ng-template #status` +
   `NgTemplateOutlet`). Users tab files now import these instead of their own copies.
-- **Files:** React `components/admin/RolesTab.tsx` + `RoleDialog.tsx`; Angular `components/admin/roles-tab.ts/.html` +
-  `role-dialog.ts/.html`. The tab requires `roles.manage` (no separate view-only mode, the tab is hidden otherwise).
+- **Files:** React `components/admin/RolesTab.tsx` + `RoleDialog.tsx`; Angular `components/admin-roles-tab.ts/.html` +
+  `admin-role-dialog.ts/.html`. The tab requires `roles.manage` (no separate view-only mode, the tab is hidden otherwise).
 - **List:** `getRoles()` + `getPermissions()` in parallel. Columns: role (+ "Sistem" badge), description,
   permissions ("Tüm yetkiler" for Admin, otherwise "{n} yetki"), direct user count, group count, "Düzenle".
 - **Dialog:**
@@ -521,8 +536,8 @@ catches syntax/typing errors but not EF/Moq/xUnit usage. React passed `tsc -b`, 
   `RolesController` (class) is `[RequirePermission(UsersView, RolesManage, GroupsManage)]` and `UsersController`
   (class) is `[RequirePermission(UsersView, GroupsManage)]`. User changes still need `users.manage` (method-level
   attribute; both policies must pass). Test: `AdminManagementIntegrationTests.GroupsManage_CanReadRolesAndUsers_ButNotChangeUsers`.
-- **Files:** React `components/admin/GroupsTab.tsx` + `GroupDialog.tsx`; Angular `components/admin/groups-tab.ts/.html`
-  + `group-dialog.ts/.html`. Tab requires `groups.manage`.
+- **Files:** React `components/admin/GroupsTab.tsx` + `GroupDialog.tsx`; Angular `components/admin-groups-tab.ts/.html`
+  + `admin-group-dialog.ts/.html`. Tab requires `groups.manage`.
 - **List:** `getGroups()`, `getRoles()`, `getUsers()` in parallel. Columns: group, description, roles (chips, ids mapped
   to names), member count, "Düzenle". Empty state explains what groups are for.
 - **Dialog:** create (name + description, then switches to edit mode); details; roles (checkboxes, "Sistem" badge;
@@ -533,6 +548,34 @@ catches syntax/typing errors but not EF/Moq/xUnit usage. React passed `tsc -b`, 
 - **i18n:** `admin.groups.*`, `admin.group.*`. **CSS:** `.admin-toolbar-tight`, `.admin-member-list`.
 - **Testing note:** zoneless Angular re-renders on the next frame after an input event; browser tests that read the
   DOM right after a click must poll (see `eventually()` in the session's test scripts), React updates synchronously.
+
+### ✅ Roadmap step 8.7 — Permissions tab (2026-11-05)
+- **Backend change:** role names must be shown next to each permission, so `RolesController` (class) is
+  `[RequirePermission(UsersView, RolesManage, GroupsManage, PermissionsManage)]`. Role changes still need
+  `roles.manage`. Test: `AdminManagementIntegrationTests.PermissionsManage_CanReadRoles_ButNotChangeThem`.
+- **Files:** React `components/admin/PermissionsTab.tsx` + `PermissionDialog.tsx`; Angular
+  `components/admin-permissions-tab.ts/.html` + `admin-permission-dialog.ts/.html`. Tab requires `permissions.manage`.
+- **List:** intro note (system keys are checked by code; a custom key does nothing until code checks it; assign to roles
+  in the Roles tab), search over key / TR name / EN name / description, count, "Yeni yetki". Columns: key (`<code>`) +
+  "Sistem"/"Özel" badge, name in the current language, description, roles (chips), "Düzenle". Sorted by key.
+- **Dialog:** create (key with the API's pattern `area.action`, TR name, EN name, description → dialog closes); edit
+  (system: key locked + note; custom: key editable); roles that have it (read-only chips + hint); delete custom only
+  (typed key; warning with the role count — assignments are removed, roles stay).
+- HTML `pattern` is compiled with the `v` flag, so `-` inside a character class must be escaped
+  (`[a-zA-Z0-9\-]`), otherwise the browser ignores the pattern.
+- **i18n:** `admin.permissions.*`, `admin.permission.*`; `admin.comingSoon` removed. **CSS:** `.admin-intro`.
+
+### ✅ Roadmap step 8.8 — Finish (2026-11-06)
+- **i18n:** both dictionaries identical (TR/EN, 215 keys), no unused keys.
+- **Angular unit test** `frontend-angular/src/app/components/admin-panel.spec.ts` (Vitest via `ng test`, next to the
+  existing `app.spec.ts`): `parseAdminHash`, `visibleAdminTabs` / `canOpenAdmin` by permission; `AdminPanel` with a
+  mocked `fetch` (refresh token in `localStorage` → `/api/auth/refresh`, `/api/permissions`, `/api/roles`): Admin sees
+  4 tabs and the permissions list (sorted by key, role ids mapped to names); a `permissions.manage`-only user who asks
+  for `tab='users'` gets only the Permissions tab. Zoneless rendering → the test polls (`eventually()`).
+- **Builds:** React `tsc -b` + `vite build`; Angular `ng build` (dev + production). Note: the production build inlines
+  Google Fonts and fails without access to `fonts.googleapis.com` (`Inlining of fonts failed ... 403`); that is the
+  network, not the code. On a machine without that access build with `"fonts": false` under
+  `configurations.production.optimization` (not committed).
 
 ### Frontend (React 19 + Vite) — `frontend`
 - Vite dev server on `5173`, proxies `/api` → `http://localhost:5080`.
@@ -594,7 +637,7 @@ catches syntax/typing errors but not EF/Moq/xUnit usage. React passed `tsc -b`, 
 [6. Auth & Users ✅] ◄── [5. EF Core ✅] ◄── [4. Supabase ✅]
         │
         ▼
-[7. Persist forecasts ✅] ──► [8. Admin panel (users/roles/permissions/groups): 8.0 ✅, 8.1 ✅, 8.2 ✅, 8.3 ✅, 8.4 ✅, 8.5 ✅, 8.6 ✅, 8.7 ◄ next]
+[7. Persist forecasts ✅] ──► [8. Admin panel (users/roles/permissions/groups): 8.0 ✅, 8.1 ✅, 8.2 ✅, 8.3 ✅, 8.4 ✅, 8.5 ✅, 8.6 ✅, 8.7 ✅, 8.8 ✅]
 ```
 
 #### 7. Persist forecasts ✅ (2026-11-04, see section 1)
@@ -632,17 +675,18 @@ without code changes to the panel.
 - JWT: one `perm` claim per effective permission key (next to the existing `role` claims). `GET /api/me` returns
   `permissions` too, so the frontends can show/hide features by permission.
 
-**System permissions to seed (initial list, extend in code when a new check is added):**
-| Key | Used by |
-|---|---|
-| `users.view` | `GET /api/users`, `GET /api/users/{id}` |
-| `users.manage` | create/update/delete users, set password, set roles/groups of a user |
-| `roles.manage` | role CRUD, role ↔ permission assignment |
-| `permissions.manage` | permission CRUD (custom permissions) |
-| `groups.manage` | group CRUD, group roles, group members |
-| `cache.clear` | `DELETE /api/cache` |
-| `forecast.refresh` | `refresh=true` on forecast endpoints (today: `User.IsInRole(Admin)` in `MatchesController`) |
-| `app-settings.manage` | `/api/app-settings` (API only, not in the panel) |
+**System permissions (seeded; extend in code when a new check is added).** Reads are "any of" (one of the listed
+permissions is enough) so each tab can show the names it needs; every change needs the specific `*.manage` key.
+| Key | Panel tab | Grants |
+|---|---|---|
+| `users.view` | Kullanıcılar (read-only) | `GET /api/users[/{id}]`, `GET /api/roles`, `GET /api/groups` |
+| `users.manage` | Kullanıcılar (edit) | create/update/delete users, set password, set roles/groups of a user |
+| `roles.manage` | Roller | role CRUD, role ↔ permission; also `GET /api/roles`, `GET /api/permissions` |
+| `groups.manage` | Gruplar | group CRUD, group roles/members; also `GET /api/groups`, `GET /api/roles`, `GET /api/users` |
+| `permissions.manage` | Yetkiler | permission CRUD (custom only deletable); also `GET /api/permissions`, `GET /api/roles` |
+| `cache.clear` | — | `DELETE /api/cache` ("Önbelleği Sil" button) |
+| `forecast.refresh` | — | `refresh=true` on forecast endpoints (`MatchesController.CanRefresh`) |
+| `app-settings.manage` | — | `/api/app-settings` (API only, not in the panel) |
 
 Default role mapping when seeding: `Admin` → all (implicit), `User` → none, `Guest` → none. Seeding only adds
 missing permissions; it never removes a role ↔ permission assignment made in the panel.
@@ -680,14 +724,14 @@ missing permissions; it never removes a role ↔ permission assignment made in t
 - [x] Group list; create / rename / delete; roles of the group (Admin warning); searchable member list; API guard
       messages shown. Backend: roles/users lists readable with `groups.manage`.
 
-**8.7 Permissions tab** (`permissions.manage`) ← next
-- [ ] List with key, TR/EN name, description, "Sistem" / "Özel" badge, roles that have it.
-- [ ] Add custom permission (key + names + description); edit; delete custom only. Hint: a custom permission only works
-      after code checks its key.
+**8.7 Permissions tab ✅ (2026-11-05, see section 1)**
+- [x] List with key, TR/EN name, description, "Sistem" / "Özel" badge, roles that have it.
+- [x] Add custom permission (key + names + description); edit; delete custom only. Hint: a custom permission only works
+      after code checks its key. Backend: roles list readable with `permissions.manage`.
 
-**8.8 Finish**
-- [ ] i18n keys (`admin.*`) in both dictionaries; React `tsc -b`, Angular `ng build` + `app.spec.ts` smoke test.
-- [ ] Update this file (sections 0, 1 and the permission table).
+**8.8 Finish ✅ (2026-11-06, see section 1)**
+- [x] i18n keys (`admin.*`) in both dictionaries; React `tsc -b`, Angular `ng build` + unit test (`admin-panel.spec.ts`).
+- [x] Update this file (sections 0, 1 and the permission table).
 
 **Out of the panel's scope (moved to follow-ups):** app settings UI (`/api/app-settings` stays API/Swagger-only,
 protected by `app-settings.manage`), health/system view, forecast reports (step 7 follow-up).
