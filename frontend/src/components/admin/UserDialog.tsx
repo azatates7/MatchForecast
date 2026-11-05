@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useI18n } from '../../i18n/useI18n'
 import { createUser, deleteUser, generatePassword, setUserGroups, setUserPassword, setUserRoles, updateUser } from '../../api'
 import type { GroupResponse, MeResponse, RoleResponse, UserResponse } from '../../types'
-import { Chips } from './UsersTab'
+import { ActionStatus, Chips, useAction } from './adminUi'
 
 interface Props {
   me: MeResponse
@@ -15,29 +15,6 @@ interface Props {
   onCreated: (id: number) => Promise<void>
   onDeleted: () => Promise<void>
   onClose: () => void
-}
-
-interface ActionState { busy: boolean; error?: string; info?: string }
-
-// Her bölümün kendi durum satırı olsun diye (profil kaydedilirken rol bölümündeki mesaj silinmesin).
-function useAction() {
-  const [state, setState] = useState<ActionState>({ busy: false })
-  const run = async (action: () => Promise<unknown>, info?: string) => {
-    setState({ busy: true })
-    try {
-      await action()
-      setState({ busy: false, info })
-    } catch (e) {
-      setState({ busy: false, error: (e as Error).message })
-    }
-  }
-  return { ...state, run }
-}
-
-function ActionStatus({ state }: { state: ActionState }) {
-  if (state.error) return <p className="note-error admin-status" role="alert">{state.error}</p>
-  if (state.info) return <p className="auth-info admin-status" role="status">{state.info}</p>
-  return null
 }
 
 const idsOf = <T extends { id: number; name: string }>(all: T[], names: string[]) =>

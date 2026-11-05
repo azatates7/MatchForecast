@@ -1,0 +1,59 @@
+<div class="admin-toolbar">
+  <span class="admin-muted admin-grow">{{ i18n.t('admin.roles.count', { n: roles().length }) }}</span>
+  <button type="button" class="cache-btn" (click)="editing.set('new')">{{ i18n.t('admin.roles.new') }}</button>
+</div>
+
+@if (state().loading) {
+  <p class="admin-placeholder pulse">{{ i18n.t('admin.loading') }}</p>
+} @else if (state().error) {
+  <p class="note-error" role="alert">{{ state().error }}</p>
+} @else {
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>{{ i18n.t('admin.roles.col.name') }}</th>
+          <th>{{ i18n.t('admin.roles.col.description') }}</th>
+          <th>{{ i18n.t('admin.roles.col.permissions') }}</th>
+          <th>{{ i18n.t('admin.roles.col.users') }}</th>
+          <th>{{ i18n.t('admin.roles.col.groups') }}</th>
+          <th><span class="sr-only">{{ i18n.t('admin.users.col.actions') }}</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (r of roles(); track r.id) {
+          <tr>
+            <td>
+              <strong>{{ r.name }}</strong>{{ ' ' }}
+              @if (r.isSystem) {
+                <span class="badge badge-off">{{ i18n.t('admin.system') }}</span>
+              }
+            </td>
+            <td>
+              @if (r.description) { {{ r.description }} } @else { <span class="admin-muted">—</span> }
+            </td>
+            <td class="admin-nowrap">
+              {{ r.hasAllPermissions ? i18n.t('admin.roles.allPermissions') : i18n.t('admin.roles.permissionCount', { n: r.permissionIds.length }) }}
+            </td>
+            <td>{{ r.userCount }}</td>
+            <td>{{ r.groupCount }}</td>
+            <td>
+              <button type="button" class="link-btn" (click)="editing.set(r.id)">{{ i18n.t('admin.edit') }}</button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}
+
+@for (key of dialogKeys(); track key) {
+  <app-role-dialog
+    [role]="editingRole()"
+    [permissions]="permissions()"
+    (changed)="reload()"
+    (created)="onCreated($event)"
+    (deleted)="onDeleted()"
+    (closed)="editing.set(null)"
+  />
+}

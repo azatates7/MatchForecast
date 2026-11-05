@@ -250,6 +250,19 @@ public class AdminManagementIntegrationTests(WebApplicationFactory<Program> fact
         Assert.Equal(HttpStatusCode.Forbidden, (await viewer.PostAsJsonAsync("/api/groups", new { name = "Ekip" })).StatusCode);
     }
 
+    [Fact]
+    public async Task GroupsManage_CanReadRolesAndUsers_ButNotChangeUsers()
+    {
+        // Gruba rol ve üye seçebilmek için listeler gerekir; kullanıcıyı değiştirmek yine users.manage ister.
+        var seeded = await SeedSystemAsync();
+        var groupManager = seeded.Factory.CreateClientFor(1, [], PermissionKeys.GroupsManage);
+
+        Assert.Equal(HttpStatusCode.OK, (await groupManager.GetAsync("/api/roles")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await groupManager.GetAsync("/api/users")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await groupManager.PostAsJsonAsync("/api/users",
+            new { userName = "yeni.kullanici", email = "yeni@test.local", password = "Test-Password-123" })).StatusCode);
+    }
+
     // ---------- Kullanıcıların etkin yetkileri ----------
 
     [Fact]

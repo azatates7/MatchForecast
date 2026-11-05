@@ -1,0 +1,130 @@
+<ng-template #status let-state>
+  @if (state.error) {
+    <p class="note-error admin-status" role="alert">{{ state.error }}</p>
+  } @else if (state.info) {
+    <p class="auth-info admin-status" role="status">{{ state.info }}</p>
+  }
+</ng-template>
+
+<dialog #dialog class="admin-dialog" (close)="closed.emit()" aria-labelledby="group-dialog-title">
+  <div class="admin-dialog-head">
+    <h3 id="group-dialog-title">{{ group()?.name ?? i18n.t('admin.groups.new') }}</h3>
+    <button type="button" class="cache-btn" (click)="close()">{{ i18n.t('admin.close') }}</button>
+  </div>
+
+  <div class="admin-dialog-body">
+    <!-- Bilgiler -->
+    <form class="admin-section" (submit)="submitInfo($event)">
+      @if (group()) {
+        <h4>{{ i18n.t('admin.group.info') }}</h4>
+      }
+      <div class="admin-form-grid">
+        <label class="login-field">
+          <span>{{ i18n.t('admin.group.name') }}</span>
+          <input type="text" required maxlength="100" autocomplete="off" [value]="name()" (input)="name.set($any($event.target).value)" />
+        </label>
+        <label class="login-field">
+          <span>{{ i18n.t('admin.group.description') }}</span>
+          <input type="text" maxlength="250" autocomplete="off" [value]="description()" (input)="description.set($any($event.target).value)" />
+        </label>
+      </div>
+      @if (!group()) {
+        <p class="admin-hint">{{ i18n.t('admin.group.createHint') }}</p>
+      }
+      <div class="admin-actions">
+        <button type="submit" class="cache-btn" [disabled]="info().busy">{{ i18n.t(group() ? 'admin.save' : 'admin.create') }}</button>
+        <ng-container *ngTemplateOutlet="status; context: { $implicit: info() }" />
+      </div>
+    </form>
+
+    @if (group(); as group) {
+      <!-- Roller -->
+      <section class="admin-section">
+        <h4>{{ i18n.t('admin.group.roles') }}</h4>
+        <div class="admin-fieldset admin-check-list">
+          @for (r of roles(); track r.id) {
+            <label class="admin-check">
+              <input type="checkbox" [checked]="roleIds().includes(r.id)" (change)="toggle(roleIds, r.id)" />
+              <span>{{ r.name }}</span>
+              @if (r.isSystem) {
+                <span class="badge badge-off">{{ i18n.t('admin.system') }}</span>
+              }
+            </label>
+          }
+        </div>
+        @if (grantsAdmin()) {
+          <p class="admin-hint admin-note">{{ i18n.t('admin.group.adminWarning') }}</p>
+        }
+        <p class="admin-hint">{{ i18n.t('admin.group.rolesHint') }}</p>
+        <div class="admin-actions">
+          <button type="button" class="cache-btn" [disabled]="roleAction().busy" (click)="saveRoles(group)">{{ i18n.t('admin.group.saveRoles') }}</button>
+          <ng-container *ngTemplateOutlet="status; context: { $implicit: roleAction() }" />
+        </div>
+      </section>
+
+      <!-- Üyeler -->
+      <section class="admin-section">
+        <h4>{{ i18n.t('admin.group.members') }}</h4>
+        @if (users().length === 0) {
+          <p class="admin-hint">{{ i18n.t('admin.group.noUsers') }}</p>
+        } @else {
+          <div class="admin-toolbar admin-toolbar-tight">
+            <input
+              class="search admin-search"
+              type="search"
+              [placeholder]="i18n.t('admin.group.membersSearch')"
+              [attr.aria-label]="i18n.t('admin.group.membersSearch')"
+              [value]="memberQuery()"
+              (input)="memberQuery.set($any($event.target).value)"
+            />
+            <span class="admin-muted">{{ i18n.t('admin.group.membersSelected', { n: memberIds().length }) }}</span>
+          </div>
+          <div class="admin-member-list">
+            @for (u of memberOptions(); track u.id) {
+              <label class="admin-check">
+                <input type="checkbox" [checked]="memberIds().includes(u.id)" (change)="toggle(memberIds, u.id)" />
+                <span>
+                  {{ u.userName }}
+                  @if (u.displayName) {
+                    <span class="admin-muted"> · {{ u.displayName }}</span>
+                  }
+                  @if (isMe(u)) {
+                    <span class="badge badge-off">{{ i18n.t('admin.group.you') }}</span>
+                  }
+                  @if (!u.isActive) {
+                    <span class="badge badge-off">{{ i18n.t('admin.users.inactive') }}</span>
+                  }
+                </span>
+              </label>
+            }
+          </div>
+          <div class="admin-actions">
+            <button type="button" class="cache-btn" [disabled]="memberAction().busy" (click)="saveMembers(group)">{{ i18n.t('admin.group.saveMembers') }}</button>
+            <ng-container *ngTemplateOutlet="status; context: { $implicit: memberAction() }" />
+          </div>
+        }
+      </section>
+
+      <!-- Silme -->
+      <section class="admin-section admin-danger">
+        <h4>{{ i18n.t('admin.group.delete') }}</h4>
+        @if (group.memberIds.length > 0) {
+          <p class="admin-hint admin-note">{{ i18n.t('admin.group.deleteWarning', { n: group.memberIds.length }) }}</p>
+        }
+        <label class="login-field">
+          <span>{{ i18n.t('admin.group.deleteHint', { name: group.name }) }}</span>
+          <input type="text" autocomplete="off" [value]="deleteConfirm()" (input)="deleteConfirm.set($any($event.target).value)" />
+        </label>
+        <div class="admin-actions">
+          <button
+            type="button"
+            class="cache-btn danger-btn"
+            [disabled]="deleteAction().busy || deleteConfirm() !== group.name"
+            (click)="remove(group)"
+          >{{ i18n.t('admin.user.deleteConfirm') }}</button>
+          <ng-container *ngTemplateOutlet="status; context: { $implicit: deleteAction() }" />
+        </div>
+      </section>
+    }
+  </div>
+</dialog>

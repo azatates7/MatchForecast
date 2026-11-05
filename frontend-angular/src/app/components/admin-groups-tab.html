@@ -1,0 +1,64 @@
+<div class="admin-toolbar">
+  <span class="admin-muted admin-grow">{{ i18n.t('admin.groups.count', { n: groups().length }) }}</span>
+  <button type="button" class="cache-btn" (click)="editing.set('new')">{{ i18n.t('admin.groups.new') }}</button>
+</div>
+
+@if (state().loading) {
+  <p class="admin-placeholder pulse">{{ i18n.t('admin.loading') }}</p>
+} @else if (state().error) {
+  <p class="note-error" role="alert">{{ state().error }}</p>
+} @else if (groups().length === 0) {
+  <p class="admin-placeholder">{{ i18n.t('admin.groups.empty') }}</p>
+} @else {
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>{{ i18n.t('admin.groups.col.name') }}</th>
+          <th>{{ i18n.t('admin.groups.col.description') }}</th>
+          <th>{{ i18n.t('admin.groups.col.roles') }}</th>
+          <th>{{ i18n.t('admin.groups.col.members') }}</th>
+          <th><span class="sr-only">{{ i18n.t('admin.users.col.actions') }}</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (g of groups(); track g.id) {
+          <tr>
+            <td><strong>{{ g.name }}</strong></td>
+            <td>
+              @if (g.description) { {{ g.description }} } @else { <span class="admin-muted">—</span> }
+            </td>
+            <td>
+              @if (roleNames(g.roleIds); as names) {
+                @if (names.length === 0) {
+                  <span class="admin-muted">—</span>
+                } @else {
+                  <span class="chips">
+                    @for (x of names; track x) { <span class="chip">{{ x }}</span> }
+                  </span>
+                }
+              }
+            </td>
+            <td>{{ g.memberIds.length }}</td>
+            <td>
+              <button type="button" class="link-btn" (click)="editing.set(g.id)">{{ i18n.t('admin.edit') }}</button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}
+
+@for (key of dialogKeys(); track key) {
+  <app-group-dialog
+    [me]="me()"
+    [group]="editingGroup()"
+    [roles]="roles()"
+    [users]="users()"
+    (changed)="reload()"
+    (created)="onCreated($event)"
+    (deleted)="onDeleted()"
+    (closed)="editing.set(null)"
+  />
+}

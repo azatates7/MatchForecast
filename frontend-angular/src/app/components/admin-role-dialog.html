@@ -1,0 +1,102 @@
+<ng-template #status let-state>
+  @if (state.error) {
+    <p class="note-error admin-status" role="alert">{{ state.error }}</p>
+  } @else if (state.info) {
+    <p class="auth-info admin-status" role="status">{{ state.info }}</p>
+  }
+</ng-template>
+
+<dialog #dialog class="admin-dialog" (close)="closed.emit()" aria-labelledby="role-dialog-title">
+  <div class="admin-dialog-head">
+    <h3 id="role-dialog-title">{{ role()?.name ?? i18n.t('admin.roles.new') }}</h3>
+    <button type="button" class="cache-btn" (click)="close()">{{ i18n.t('admin.close') }}</button>
+  </div>
+
+  <div class="admin-dialog-body">
+    @if (role()?.isSystem) {
+      <p class="admin-hint admin-note">{{ i18n.t('admin.role.systemNote') }}</p>
+    }
+
+    <!-- Bilgiler -->
+    <form class="admin-section" (submit)="submitInfo($event)">
+      @if (role()) {
+        <h4>{{ i18n.t('admin.role.info') }}</h4>
+      }
+      <div class="admin-form-grid">
+        <label class="login-field">
+          <span>{{ i18n.t('admin.role.name') }}</span>
+          <input type="text" required maxlength="50" autocomplete="off" [disabled]="!!role()?.isSystem" [value]="name()" (input)="name.set($any($event.target).value)" />
+        </label>
+        <label class="login-field">
+          <span>{{ i18n.t('admin.role.description') }}</span>
+          <input type="text" maxlength="250" autocomplete="off" [value]="description()" (input)="description.set($any($event.target).value)" />
+        </label>
+      </div>
+      @if (!role()) {
+        <p class="admin-hint">{{ i18n.t('admin.role.createHint') }}</p>
+      }
+      <div class="admin-actions">
+        <button type="submit" class="cache-btn" [disabled]="info().busy">{{ i18n.t(role() ? 'admin.save' : 'admin.create') }}</button>
+        <ng-container *ngTemplateOutlet="status; context: { $implicit: info() }" />
+      </div>
+    </form>
+
+    @if (role(); as role) {
+      <!-- Yetkiler -->
+      <section class="admin-section">
+        <h4>{{ i18n.t('admin.role.permissions') }}</h4>
+        @if (role.hasAllPermissions) {
+          <p class="admin-hint admin-note">{{ i18n.t('admin.role.allPermissionsNote') }}</p>
+        } @else if (permissions().length === 0) {
+          <p class="admin-hint">{{ i18n.t('admin.role.noPermissions') }}</p>
+        } @else {
+          @for (area of areas(); track area[0]) {
+            <fieldset class="admin-fieldset admin-area">
+              <legend class="admin-area-title">{{ area[0] }}</legend>
+              @for (p of area[1]; track p.id) {
+                <label class="admin-check admin-permission">
+                  <input type="checkbox" [checked]="permissionIds().includes(p.id)" (change)="toggle(p.id)" />
+                  <span>
+                    {{ label(p) }}
+                    <code class="admin-key">{{ p.key }}</code>
+                    @if (!p.isSystem) {
+                      <span class="badge badge-off" [title]="i18n.t('admin.role.customHint')">{{ i18n.t('admin.role.custom') }}</span>
+                    }
+                  </span>
+                </label>
+              }
+            </fieldset>
+          }
+          <p class="admin-hint">{{ i18n.t('admin.role.permissionsHint') }}</p>
+          <div class="admin-actions">
+            <button type="button" class="cache-btn" [disabled]="permissionAction().busy" (click)="savePermissions(role)">{{ i18n.t('admin.role.savePermissions') }}</button>
+            <ng-container *ngTemplateOutlet="status; context: { $implicit: permissionAction() }" />
+          </div>
+        }
+      </section>
+
+      <!-- Silme -->
+      @if (!role.isSystem) {
+        <section class="admin-section admin-danger">
+          <h4>{{ i18n.t('admin.role.delete') }}</h4>
+          @if (assigned() > 0) {
+            <p class="admin-hint admin-note">{{ i18n.t('admin.role.assignedWarning', { users: role.userCount, groups: role.groupCount }) }}</p>
+          }
+          <label class="login-field">
+            <span>{{ i18n.t('admin.role.deleteHint', { name: role.name }) }}</span>
+            <input type="text" autocomplete="off" [value]="deleteConfirm()" (input)="deleteConfirm.set($any($event.target).value)" />
+          </label>
+          <div class="admin-actions">
+            <button
+              type="button"
+              class="cache-btn danger-btn"
+              [disabled]="deleteAction().busy || deleteConfirm() !== role.name"
+              (click)="remove(role)"
+            >{{ i18n.t('admin.user.deleteConfirm') }}</button>
+            <ng-container *ngTemplateOutlet="status; context: { $implicit: deleteAction() }" />
+          </div>
+        </section>
+      }
+    }
+  </div>
+</dialog>

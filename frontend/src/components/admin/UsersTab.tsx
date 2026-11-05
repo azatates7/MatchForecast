@@ -4,15 +4,10 @@ import { locale } from '../../i18n/i18n'
 import { getGroups, getRoles, getUsers } from '../../api'
 import { hasPermission, PERMISSIONS, type GroupResponse, type MeResponse, type RoleResponse, type UserResponse } from '../../types'
 import UserDialog from './UserDialog'
+import { Chips } from './adminUi'
 
 interface Props {
   me: MeResponse
-}
-
-// Rol/grup adları gibi kısa listeler; boşsa tire gösterilir.
-export function Chips({ items }: { items: string[] }) {
-  if (items.length === 0) return <span className="admin-muted">—</span>
-  return <span className="chips">{items.map(x => <span key={x} className="chip">{x}</span>)}</span>
 }
 
 /*

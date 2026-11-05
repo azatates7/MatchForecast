@@ -2,6 +2,8 @@ import { useI18n } from '../i18n/useI18n'
 import { adminHash, visibleAdminTabs, type AdminTab } from '../adminView'
 import type { MeResponse } from '../types'
 import UsersTab from './admin/UsersTab'
+import RolesTab from './admin/RolesTab'
+import GroupsTab from './admin/GroupsTab'
 
 interface Props {
   me: MeResponse
@@ -12,7 +14,7 @@ interface Props {
 /*
  * Yönetim paneli iskeleti: yetkiye göre filtrelenmiş sekmeler (Kullanıcılar, Roller, Gruplar, Yetkiler).
  * Sekmeler bağlantıdır (#admin/<sekme>); tarayıcının geri/ileri düğmeleri sekmeler arasında çalışır.
- * Kullanıcılar sekmesi hazır (8.4); Roller, Gruplar ve Yetkiler sonraki adımlarda (8.5–8.7) eklenecek.
+ * Kullanıcılar (8.4), Roller (8.5) ve Gruplar (8.6) hazır; Yetkiler bir sonraki adımda (8.7) eklenecek.
  */
 export default function AdminPanel({ me, tab }: Props) {
   const { t } = useI18n()
@@ -38,7 +40,10 @@ export default function AdminPanel({ me, tab }: Props) {
         ))}
       </nav>
       <section id="admin-tabpanel" className="admin-tabpanel" role="tabpanel" aria-labelledby={`admin-tab-${active.id}`}>
-        {active.id === 'users' ? <UsersTab me={me} /> : <p className="admin-placeholder">{t('admin.comingSoon')}</p>}
+        {active.id === 'users' ? <UsersTab me={me} />
+          : active.id === 'roles' ? <RolesTab />
+          : active.id === 'groups' ? <GroupsTab me={me} />
+          : <p className="admin-placeholder">{t('admin.comingSoon')}</p>}
       </section>
     </main>
   )

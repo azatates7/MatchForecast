@@ -1,0 +1,94 @@
+<div class="admin-toolbar">
+  <input
+    class="search admin-search"
+    type="search"
+    [placeholder]="i18n.t('admin.users.search')"
+    [attr.aria-label]="i18n.t('admin.users.search')"
+    [value]="query()"
+    (input)="query.set($any($event.target).value)"
+  />
+  <span class="admin-muted">{{ i18n.t('admin.users.count', { n: filtered().length }) }}</span>
+  @if (canManage()) {
+    <button type="button" class="cache-btn" (click)="editing.set('new')">{{ i18n.t('admin.users.new') }}</button>
+  }
+</div>
+
+@if (state().loading) {
+  <p class="admin-placeholder pulse">{{ i18n.t('admin.loading') }}</p>
+} @else if (state().error) {
+  <p class="note-error" role="alert">{{ state().error }}</p>
+} @else if (filtered().length === 0) {
+  <p class="admin-placeholder">{{ i18n.t('admin.users.empty') }}</p>
+} @else {
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>{{ i18n.t('admin.users.col.user') }}</th>
+          <th>{{ i18n.t('admin.users.col.email') }}</th>
+          <th>{{ i18n.t('admin.users.col.roles') }}</th>
+          <th>{{ i18n.t('admin.users.col.groups') }}</th>
+          <th>{{ i18n.t('admin.users.col.status') }}</th>
+          <th>{{ i18n.t('admin.users.col.lastLogin') }}</th>
+          <th><span class="sr-only">{{ i18n.t('admin.users.col.actions') }}</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (u of filtered(); track u.id) {
+          <tr>
+            <td>
+              <strong>{{ u.userName }}</strong>
+              @if (u.displayName) {
+                <div class="admin-sub">{{ u.displayName }}</div>
+              }
+            </td>
+            <td>{{ u.email }}</td>
+            <td>
+              @if (u.roles.length === 0) {
+                <span class="admin-muted">—</span>
+              } @else {
+                <span class="chips">
+                  @for (x of u.roles; track x) { <span class="chip">{{ x }}</span> }
+                </span>
+              }
+            </td>
+            <td>
+              @if (u.groups.length === 0) {
+                <span class="admin-muted">—</span>
+              } @else {
+                <span class="chips">
+                  @for (x of u.groups; track x) { <span class="chip">{{ x }}</span> }
+                </span>
+              }
+            </td>
+            <td>
+              <span [class]="u.isActive ? 'badge badge-ok' : 'badge badge-off'">
+                {{ i18n.t(u.isActive ? 'admin.users.active' : 'admin.users.inactive') }}
+              </span>
+            </td>
+            <td class="admin-nowrap">{{ formatDate(u.lastLoginAt) }}</td>
+            <td>
+              <button type="button" class="link-btn" (click)="editing.set(u.id)">
+                {{ i18n.t(canManage() ? 'admin.edit' : 'admin.view') }}
+              </button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}
+
+@for (key of dialogKeys(); track key) {
+  <app-user-dialog
+    [me]="me()"
+    [user]="editingUser()"
+    [roles]="roles()"
+    [groups]="groups()"
+    [canManage]="canManage()"
+    (changed)="reload()"
+    (created)="onCreated($event)"
+    (deleted)="onDeleted()"
+    (closed)="editing.set(null)"
+  />
+}

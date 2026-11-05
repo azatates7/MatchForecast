@@ -12,14 +12,15 @@ using Microsoft.EntityFrameworkCore;
 namespace MatchForecast.Api.Controllers;
 
 /*
- * Roller. Liste kullanıcıya rol atarken de gerekir: users.view VEYA roles.manage yeterli; değişiklikler roles.manage ister.
+ * Roller. Liste kullanıcıya veya gruba rol atarken de gerekir: users.view, roles.manage VEYA groups.manage yeterli;
+ * değişiklikler roles.manage ister.
  * Sistem rolleri (Admin, User, Guest) kodda adıyla kullanıldığı için yeniden adlandırılamaz ve silinemez.
  * Admin tüm yetkilere örtük olarak sahiptir; yetki listesi düzenlenemez. Yetki değişiklikleri kullanıcılara bir sonraki
  * token yenilemesinde yansır.
  */
 [ApiController]
 [Route("api/roles")]
-[RequirePermission(PermissionKeys.UsersView, PermissionKeys.RolesManage)]
+[RequirePermission(PermissionKeys.UsersView, PermissionKeys.RolesManage, PermissionKeys.GroupsManage)]
 public sealed class RolesController(AppDbContext db) : ControllerBase
 {
     private static readonly Expression<Func<Role, RoleResponse>> ToResponse = r => new RoleResponse(

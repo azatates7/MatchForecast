@@ -13,6 +13,14 @@
     }
   </nav>
   <section id="admin-tabpanel" class="admin-tabpanel" role="tabpanel" [attr.aria-labelledby]="'admin-tab-' + active().id">
-    <p class="admin-placeholder">{{ i18n.t('admin.comingSoon') }}</p>
+    @if (active().id === 'users') {
+      <app-users-tab [me]="me()" />
+    } @else if (active().id === 'roles') {
+      <app-roles-tab />
+    } @else if (active().id === 'groups') {
+      <app-groups-tab [me]="me()" />
+    } @else {
+      <p class="admin-placeholder">{{ i18n.t('admin.comingSoon') }}</p>
+    }
   </section>
 </main>

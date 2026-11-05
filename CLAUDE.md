@@ -60,8 +60,9 @@ never hard-code a user-facing string, add it to the dictionaries / `Lang.T(...)`
 
 Read this first when resuming work.
 
-**Next task:** Roadmap step 8 — **Admin panel, phase 8.5: Roles tab** (React first, then Angular). Shell (8.3) and
-Users tab (8.4) are done; the backend for the panel (8.0–8.2) is complete but not yet built/tested with `dotnet`.
+**Next task:** Roadmap step 8 — **Admin panel, phase 8.7: Permissions tab** (React first, then Angular), then 8.8.
+Shell (8.3), Users (8.4), Roles (8.5) and Groups (8.6) tabs are done; the backend for the panel (8.0–8.2, plus a
+small read-permission change in 8.6) is complete but not yet built/tested with `dotnet`.
 The admin panel is for **users, roles, permissions and groups only** (not for matches/settings); see section 2.
 
 **⚠ Before running the API after pulling the 8.1 changes:** generate the migration (it was NOT written by hand this
@@ -98,6 +99,12 @@ catches syntax/typing errors but not EF/Moq/xUnit usage. React passed `tsc -b`, 
 9. **Roadmap step 8.4 — Users tab** (2026-11-04): list/search, create/edit dialog, roles/groups, password, delete,
    read-only mode. Same 17-step browser test passed on React and Angular against a stateful mock API (not against the
    real backend).
+10. **Roadmap step 8.5 — Roles tab** (2026-11-05): role list, create/rename, permission checklist grouped by area,
+    delete with assignment warning. 16-step browser test passed on both frontends (Users test re-run: still 17/17).
+11. **Roadmap step 8.6 — Groups tab** (2026-11-05): group list, create/rename, roles (Admin warning), searchable
+    members, delete with member warning; backend: `GET /api/roles` and `GET /api/users` also allowed with
+    `groups.manage` (+ test `GroupsManage_CanReadRolesAndUsers_ButNotChangeUsers`). 17-step browser test passed on
+    both frontends; Users (17/17) and Roles (16/16) re-run on both.
 
 **To verify before starting step 8:**
 - [ ] `dotnet build` + `dotnet test backend/MatchForecast.Tests/MatchForecast.Tests.csproj` (new:
@@ -142,11 +149,11 @@ catches syntax/typing errors but not EF/Moq/xUnit usage. React passed `tsc -b`, 
   - `FavoriteLeaguesController` (signed-in, not guest): `GET|PUT|DELETE /api/me/favorite-leagues`
   - `PermissionsController`: `GET /api/permissions[/{id}]` (`permissions.manage` or `roles.manage`),
     `POST`, `PUT /{id}`, `DELETE /{id}` (`permissions.manage`)
-  - `RolesController`: `GET /api/roles[/{id}]` (`users.view` or `roles.manage`), `POST`, `PUT /{id}`,
+  - `RolesController`: `GET /api/roles[/{id}]` (`users.view`, `roles.manage` or `groups.manage`), `POST`, `PUT /{id}`,
     `DELETE /{id}?force=`, `PUT /{id}/permissions` (`roles.manage`)
   - `GroupsController`: `GET /api/groups[/{id}]` (`users.view` or `groups.manage`), `POST`, `PUT /{id}`,
     `DELETE /{id}`, `PUT /{id}/roles`, `PUT /{id}/users` (`groups.manage`)
-  - `UsersController` (`users.view`; changes also need `users.manage`): CRUD on `/api/users`, plus
+  - `UsersController` (`users.view` or `groups.manage` to read; changes need `users.manage`): CRUD on `/api/users`, plus
     `PUT /api/users/{id}/password|roles|groups`
   - `AppSettingsController` (`app-settings.manage`): `GET /api/app-settings`, `GET|PUT|DELETE /api/app-settings/{id}`
   - `SampleItemsController`: demo CRUD on `/api/sample-items` (seeded table, kept as an EF Core example)
@@ -488,6 +495,45 @@ catches syntax/typing errors but not EF/Moq/xUnit usage. React passed `tsc -b`, 
   `.admin-dialog(-head|-body)`, `.admin-section`, `.admin-fieldset`, `.admin-form-grid`, `.admin-check(-list)`,
   `.admin-actions`, `.admin-status`, `.admin-hint`, `.admin-note`, `.admin-danger`, `.danger-btn`.
 
+### ✅ Roadmap step 8.5 — Roles tab (2026-11-05)
+- **Shared admin helpers** (extracted in this step, used by all tabs): React `components/admin/adminUi.tsx`
+  (`Chips`, `useAction`, `ActionStatus`); Angular `components/admin/admin-action.ts` (`ActionState`, `idle()`,
+  `runAction(signal, action, info)`; templates render the status with an `ng-template #status` +
+  `NgTemplateOutlet`). Users tab files now import these instead of their own copies.
+- **Files:** React `components/admin/RolesTab.tsx` + `RoleDialog.tsx`; Angular `components/admin/roles-tab.ts/.html` +
+  `role-dialog.ts/.html`. The tab requires `roles.manage` (no separate view-only mode, the tab is hidden otherwise).
+- **List:** `getRoles()` + `getPermissions()` in parallel. Columns: role (+ "Sistem" badge), description,
+  permissions ("Tüm yetkiler" for Admin, otherwise "{n} yetki"), direct user count, group count, "Düzenle".
+- **Dialog:**
+  - Create: name + description; afterwards the same dialog switches to edit mode (like users).
+  - Details: name is disabled for system roles (note shown), description is always editable.
+  - Permissions: grouped by **area** = key prefix before the first `.` (`users`, `roles`, `cache`, …), areas and
+    permissions sorted by key; each row shows the TR/EN name (by UI language), the key in `<code>` and an "Özel" badge
+    (tooltip: no effect until code checks the key) for custom permissions. Admin shows a note instead of checkboxes.
+    Hint: changes reach users on their next token refresh.
+  - Delete (custom roles only): if the role is assigned, a warning shows the user/group counts and the delete is sent
+    with `force=true`; the button is enabled only after typing the exact role name.
+- **i18n:** `admin.create`, `admin.roles.*`, `admin.role.*` (delete button reuses `admin.user.deleteConfirm`).
+  **CSS:** `.admin-grow`, `.admin-area`, `.admin-area-title`, `.admin-permission`, `.admin-key`.
+
+### ✅ Roadmap step 8.6 — Groups tab (2026-11-05)
+- **Backend change:** a `groups.manage`-only user must be able to pick roles and members, so
+  `RolesController` (class) is `[RequirePermission(UsersView, RolesManage, GroupsManage)]` and `UsersController`
+  (class) is `[RequirePermission(UsersView, GroupsManage)]`. User changes still need `users.manage` (method-level
+  attribute; both policies must pass). Test: `AdminManagementIntegrationTests.GroupsManage_CanReadRolesAndUsers_ButNotChangeUsers`.
+- **Files:** React `components/admin/GroupsTab.tsx` + `GroupDialog.tsx`; Angular `components/admin/groups-tab.ts/.html`
+  + `group-dialog.ts/.html`. Tab requires `groups.manage`.
+- **List:** `getGroups()`, `getRoles()`, `getUsers()` in parallel. Columns: group, description, roles (chips, ids mapped
+  to names), member count, "Düzenle". Empty state explains what groups are for.
+- **Dialog:** create (name + description, then switches to edit mode); details; roles (checkboxes, "Sistem" badge;
+  a note appears while the Admin role is selected: every member gets all permissions); members (search over user name
+  and display name, current members first, "Siz" badge on the caller, "Pasif" badge for inactive users, "{n} üye
+  seçili" counter); delete (typed group name; warning with the member count — users are not deleted). Admin-guard
+  errors from the API (self loss, last Admin) are shown in the section that triggered them.
+- **i18n:** `admin.groups.*`, `admin.group.*`. **CSS:** `.admin-toolbar-tight`, `.admin-member-list`.
+- **Testing note:** zoneless Angular re-renders on the next frame after an input event; browser tests that read the
+  DOM right after a click must poll (see `eventually()` in the session's test scripts), React updates synchronously.
+
 ### Frontend (React 19 + Vite) — `frontend`
 - Vite dev server on `5173`, proxies `/api` → `http://localhost:5080`.
 - `api.ts`: access token in memory; **refresh token in `localStorage`** (`matchforecast.refreshToken`) so a page reload
@@ -548,7 +594,7 @@ catches syntax/typing errors but not EF/Moq/xUnit usage. React passed `tsc -b`, 
 [6. Auth & Users ✅] ◄── [5. EF Core ✅] ◄── [4. Supabase ✅]
         │
         ▼
-[7. Persist forecasts ✅] ──► [8. Admin panel (users/roles/permissions/groups): 8.0 ✅, 8.1 ✅, 8.2 ✅, 8.3 ✅, 8.4 ✅, 8.5 ◄ next]
+[7. Persist forecasts ✅] ──► [8. Admin panel (users/roles/permissions/groups): 8.0 ✅, 8.1 ✅, 8.2 ✅, 8.3 ✅, 8.4 ✅, 8.5 ✅, 8.6 ✅, 8.7 ◄ next]
 ```
 
 #### 7. Persist forecasts ✅ (2026-11-04, see section 1)
@@ -626,15 +672,15 @@ missing permissions; it never removes a role ↔ permission assignment made in t
 - [x] Table with search, create (password generator), edit, set password, delete with typed confirmation, role and
       group checkboxes, read-only effective permissions, view-only mode, own-account / guest notes.
 
-**8.5 Roles tab** (`roles.manage`) ← next
-- [ ] Role list (system badge, user count); create/rename/delete custom roles.
-- [ ] Permission checklist per role, grouped by area (prefix before the first `.`); `Admin` shown as "all permissions"
-      and not editable.
+**8.5 Roles tab ✅ (2026-11-05, see section 1)**
+- [x] Role list with system badge and counts; create / rename (system: description only) / delete with typed
+      confirmation and assignment warning; permission checklist grouped by area; Admin = all, not editable.
 
-**8.6 Groups tab** (`groups.manage`)
-- [ ] Group list; create/edit/delete; roles of the group; members (add/remove users).
+**8.6 Groups tab ✅ (2026-11-05, see section 1)**
+- [x] Group list; create / rename / delete; roles of the group (Admin warning); searchable member list; API guard
+      messages shown. Backend: roles/users lists readable with `groups.manage`.
 
-**8.7 Permissions tab** (`permissions.manage`)
+**8.7 Permissions tab** (`permissions.manage`) ← next
 - [ ] List with key, TR/EN name, description, "Sistem" / "Özel" badge, roles that have it.
 - [ ] Add custom permission (key + names + description); edit; delete custom only. Hint: a custom permission only works
       after code checks its key.
