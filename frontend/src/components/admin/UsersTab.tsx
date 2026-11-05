@@ -4,7 +4,7 @@ import { locale } from '../../i18n/i18n'
 import { getGroups, getRoles, getUsers } from '../../api'
 import { hasPermission, PERMISSIONS, type GroupResponse, type MeResponse, type RoleResponse, type UserResponse } from '../../types'
 import UserDialog from './UserDialog'
-import { Chips } from './adminUi'
+import { Chips } from './AdminUI'
 
 interface Props {
   me: MeResponse

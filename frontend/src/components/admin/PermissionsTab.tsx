@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useI18n } from '../../i18n/useI18n'
 import { getPermissions, getRoles } from '../../api'
 import type { PermissionResponse, RoleResponse } from '../../types'
-import PermissionDialog from './PermissionDialog.tsx'
-import { Chips } from './adminUi'
+import PermissionDialog from './PermissionDialog'
+import { Chips } from './AdminUI'
 
 /*
  * Yetkiler sekmesi (permissions.manage). Sistem yetkileri kodun kontrol ettiği anahtarlardır (adı/açıklaması

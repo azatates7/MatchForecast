@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useI18n } from '../../i18n/useI18n'
 import { createRole, deleteRole, setRolePermissions, updateRole } from '../../api'
 import type { PermissionResponse, RoleResponse } from '../../types'
-import { ActionStatus, useAction } from './adminUi'
+import { ActionStatus, useAction } from './AdminUI'
 
 interface Props {
   /** null = yeni rol */

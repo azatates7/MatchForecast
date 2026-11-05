@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useI18n } from '../../i18n/useI18n'
 import { createPermission, deletePermission, updatePermission } from '../../api'
 import type { PermissionResponse } from '../../types'
-import { ActionStatus, Chips, useAction } from './adminUi'
+import { ActionStatus, Chips, useAction } from './AdminUI'
 
 interface Props {
   /** null = yeni yetki */

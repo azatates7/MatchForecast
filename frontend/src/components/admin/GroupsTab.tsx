@@ -3,7 +3,7 @@ import { useI18n } from '../../i18n/useI18n'
 import { getGroups, getRoles, getUsers } from '../../api'
 import type { GroupResponse, MeResponse, RoleResponse, UserResponse } from '../../types'
 import GroupDialog from '../admin/GroupDialog'
-import { Chips } from './adminUi'
+import { Chips } from './AdminUI'
 
 interface Props {
   me: MeResponse

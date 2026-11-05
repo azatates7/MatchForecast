@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useI18n } from '../../i18n/useI18n'
 import { createUser, deleteUser, generatePassword, setUserGroups, setUserPassword, setUserRoles, updateUser } from '../../api'
 import type { GroupResponse, MeResponse, RoleResponse, UserResponse } from '../../types'
-import { ActionStatus, Chips, useAction } from './adminUi'
+import { ActionStatus, Chips, useAction } from './AdminUI'
 
 interface Props {
   me: MeResponse
