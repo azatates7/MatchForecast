@@ -32,6 +32,7 @@ using MatchForecast.Data.Entity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using MatchForecast.Api.Services.Security.Guest;
+using MatchForecast.Api.Services.Kafka;
 
 var logger = LogManager.Setup().LoadConfigurationFromAppSettings().GetCurrentClassLogger();
 logger.Debug("Initializing MatchForecast API host...");
@@ -266,7 +267,40 @@ try
                        && o.MinPickProbability <= o.MaxPickProbability,
             "Forecast:MinPickProbability/MaxPickProbability 0-100 arasında olmalı ve Min <= Max olmalı.")
         .ValidateOnStart();
-    builder.Services.AddScoped<IForecastStore, ForecastStore>();
+    /*
+     * Tahminlerin kalıcı kaydı. Kafka kapalıyken (varsayılan) ForecastService doğrudan ForecastStore'a yazar.
+     * Kafka açıkken IForecastStore = KafkaForecastPublisher: tahmin "forecast.generated" topic'ine gider, DB'ye
+     * ForecastPersistenceConsumer yazar. Kafka'ya ulaşılamazsa publisher yine ForecastStore'a düşer (fallback).
+     */
+    builder.Services.AddOptions<KafkaOptions>()
+        .Bind(builder.Configuration.GetSection(KafkaOptions.Section))
+        .Validate(o => !o.Enabled || !string.IsNullOrWhiteSpace(o.BootstrapServers), "Kafka:BootstrapServers boş olamaz.")
+        .Validate(o => !o.Enabled || (!string.IsNullOrWhiteSpace(o.ForecastGeneratedTopic) && !string.IsNullOrWhiteSpace(o.ForecastGeneratedDlqTopic)
+                                      && o.ForecastGeneratedTopic != o.ForecastGeneratedDlqTopic),
+            "Kafka:ForecastGeneratedTopic ve Kafka:ForecastGeneratedDlqTopic dolu ve birbirinden farklı olmalı.")
+        .Validate(o => !o.Enabled || !string.IsNullOrWhiteSpace(o.PersistenceGroupId), "Kafka:PersistenceGroupId boş olamaz.")
+        .Validate(o => !o.Enabled || (o.TopicPartitions >= 1 && o.TopicReplicationFactor >= 1 && o.MessageTimeoutMs > 0 && o.MaxPersistAttempts >= 1),
+            "Kafka:TopicPartitions, TopicReplicationFactor, MessageTimeoutMs ve MaxPersistAttempts pozitif olmalı.")
+        .ValidateOnStart();
+    builder.Services.AddScoped<ForecastStore>();
+
+    var kafkaEnabled = builder.Configuration.GetValue<bool>($"{KafkaOptions.Section}:{nameof(KafkaOptions.Enabled)}");
+    if (kafkaEnabled)
+    {
+        // Producer thread-safe ve pahalı; uygulama boyunca tek instance. Container kapanırken dispose edilir.
+        builder.Services.AddSingleton<Confluent.Kafka.IProducer<int, string>>(sp => KafkaClientFactory.CreateProducer(
+            sp.GetRequiredService<IOptions<KafkaOptions>>().Value,
+            sp.GetRequiredService<ILoggerFactory>().CreateLogger("Kafka")));
+        builder.Services.AddScoped<IForecastStore, KafkaForecastPublisher>();
+        builder.Services.AddHostedService<ForecastPersistenceConsumer>();
+        builder.Services.AddHealthChecks()
+            .AddCheck<KafkaHealthCheck>("kafka", tags: ["ready"], timeout: TimeSpan.FromSeconds(3));
+    }
+    else
+    {
+        builder.Services.AddScoped<IForecastStore>(sp => sp.GetRequiredService<ForecastStore>());
+    }
+
     builder.Services.AddScoped<ForecastService>();
 
     // Girişte günün Süper Lig tahminlerini arka planda önceden üretir (Forecast:PrewarmOnLogin).

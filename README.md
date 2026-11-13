@@ -12,6 +12,7 @@ Yapay zeka bahis seçmez; olasılıklar ve tahmin listesi kodda hesaplanır. Hi�
 | Frontend | React 19 + TypeScript + Vite (`frontend`) **veya** Angular 22, signals + standalone (`frontend-angular`); arayüz birebir aynı |
 | Veritabanı | Supabase (PostgreSQL), EF Core + Npgsql, tablolar `matchforecast` şemasında |
 | Önbellek | Redis (`StackExchange.Redis`); kapalıyken API çalışmaya devam eder, yalnızca önbellek devre dışı kalır |
+| Mesajlaşma | Kafka (`Confluent.Kafka`, isteğe bağlı, `Kafka:Enabled`); tahmin kayıtları `forecast.generated` topic'i üzerinden DB'ye yazılır |
 | Veri | API-Football (api-sports.io v3), yalnızca `/fixtures` |
 | Yapay zeka | `Ai:Provider` ile seçilir: Gemini, Claude veya Ollama (yerel ya da Ollama Cloud) |
 | Kimlik / yetki | JWT + dönen refresh token; veritabanındaki roller, gruplar ve yetkiler; yönetim paneli |
@@ -115,7 +116,7 @@ MatchForecast/
 │   │   ├── Controllers/             Auth, Me, FavoriteLeagues, Password, Matches, Cache,
 │   │   │                            Users, Roles, Groups, Permissions, AppSettings, SampleItems
 │   │   ├── Filter/                  BearerSecurityOperationFilter (Swagger)
-│   │   ├── Options/                 Ai, Auth, Forecast, Jwt, OddsProvider, RateLimit, Redis, Smtp
+│   │   ├── Options/                 Ai, Auth, Forecast, Jwt, Kafka, OddsProvider, RateLimit, Redis, Smtp
 │   │   ├── Services/
 │   │   │   ├── AI/                  Claude/, Gemini/, Ollama/ istemcileri + PoissonMath
 │   │   │   ├── ApiFootball/         IOddsProvider, ApiFootballOddsProvider
@@ -124,7 +125,8 @@ MatchForecast/
 │   │   │   ├── Forecast/            ForecastService, ForecastStore, ForecastPrompt, ForecastCatalog,
 │   │   │   │                        ProjectionBuilder, PredictionSelector, ForecastPrewarmQueue (+ Worker)
 │   │   │   ├── Guest/               GuestAccess, GuestUserBootstrapper
-│   │   │   ├── Health/              DatabaseHealthCheck, RedisHealthCheck, HealthResponseWriter
+│   │   │   ├── Health/              DatabaseHealthCheck, RedisHealthCheck, KafkaHealthCheck, HealthResponseWriter
+│   │   │   ├── Kafka/               KafkaClientFactory, KafkaForecastPublisher, ForecastPersistenceConsumer
 │   │   │   ├── Redis/               RedisCacheService, InMemoryRedisCacheService (testler)
 │   │   │   └── Security/            AuthService, JwtTokenService, GoogleIdTokenValidator, PasswordGenerator,
 │   │   │                            AdminUserBootstrapper, TokenCleanUpWorker, PermissionAuthorization,
@@ -207,6 +209,18 @@ sırayla üretilir (Redis kilidi ile tek seferde bir kez). `Forecast:PrewarmOnLo
 **Tahminlerin kaydı:** Üretilen her tahmin (önbellekte yoksa veya `refresh=true`) `forecasts` tablosuna da yazılır;
 maç başına tek satır, yeniden üretilirse güncellenir (`result_json` jsonb = API yanıtıyla aynı biçim, sağlayıcı ve
 model adı). **Okuma hâlâ Redis'ten yapılır**; tablo sonradan analiz içindir. Kayıt hatası tahmini engellemez.
+
+**Kafka ile kayıt (`Kafka:Enabled=true`):** `ForecastService` değişmez, `IForecastStore` yerine `KafkaForecastPublisher`
+kaydedilir. Tahmin `matchforecast.forecast.generated` topic'ine yazılır (key = fixtureId, gövde = `result_json` ile aynı
+JSON, başlıklar `event-type`/`schema-version`); `ForecastPersistenceConsumer` (grup `matchforecast-forecast-persistence`)
+okuyup `ForecastStore` ile tabloya yazar ve ancak ondan sonra offset'i commit eder (at-least-once; kayıt idempotent).
+- Kafka'ya `Kafka:MessageTimeoutMs` (5 sn) içinde ulaşılamazsa publisher tahmini doğrudan DB'ye yazar (fallback).
+- DB hatası `Kafka:MaxPersistAttempts` kez denenir; olmazsa ya da mesaj bozuksa `...generated.dlq` topic'ine taşınır
+  (hata nedeni `error` başlığında). DLQ'ya da yazılamazsa mesaj commit edilmez ve yeniden işlenir.
+- Topic'leri consumer açılışta oluşturur (3 partition); broker'da otomatik topic oluşturma kapalıdır.
+- Kontrol: `docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092
+  --topic matchforecast.forecast.generated --from-beginning --property print.key=true`; grup gecikmesi için
+  `kafka-consumer-groups.sh --bootstrap-server localhost:9092 --describe --group matchforecast-forecast-persistence`.
 
 ---
 
@@ -308,7 +322,7 @@ API'nin koruma mesajları (son Admin, kendi Admin'liği, tekrarlanan ad) ilgili 
 | * | `/api/permissions` | Yetki yönetimi |
 | * | `/api/app-settings[/{id}]` | Veritabanındaki ayarlar — `app-settings.manage` |
 | GET | `/healthz` | Liveness (hiçbir şeyi kontrol etmez) |
-| GET | `/healthz/ready` | Veritabanı ve Redis (DB yoksa 503, Redis yoksa 200 + Degraded) |
+| GET | `/healthz/ready` | Veritabanı, Redis ve (açıksa) Kafka (DB yoksa 503, Redis/Kafka yoksa 200 + Degraded) |
 
 Yönetim uçlarının yetkileri için yukarıdaki tabloya bakın. Swagger UI ve OpenAPI dokümanı (yalnızca Development):
 `/swagger`, `/openapi/v1.json` (`Authorize` düğmesiyle).
