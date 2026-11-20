@@ -43,7 +43,7 @@
               @for (p of b.parts; track p.key) {
                 <span class="result-seg" [class]="p.className" [style.flex-grow]="p.value">
                   @if (p.value >= 12) {
-                    {{ p.key }} {{ i18n.pct(p.value) }}
+                    {{ b.prefix }} {{ p.key }} {{ i18n.pct(p.value) }}
                   }
                 </span>
               }

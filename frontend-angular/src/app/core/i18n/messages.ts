@@ -182,6 +182,8 @@ export const tr = {
 
   'outcome.fullTime': 'Maç sonucu',
   'outcome.firstHalf': 'İlk yarı',
+  'outcome.fullTimeShort': 'MS',
+  'outcome.firstHalfShort': 'İY',
   'outcome.home': 'Ev',
   'outcome.draw': 'Beraberlik',
   'outcome.away': 'Deplasman',
@@ -419,6 +421,8 @@ export const en: Dict = {
 
   'outcome.fullTime': 'Full time',
   'outcome.firstHalf': 'First half',
+  'outcome.fullTimeShort': 'FT',
+  'outcome.firstHalfShort': 'HT',
   'outcome.home': 'Home',
   'outcome.draw': 'Draw',
   'outcome.away': 'Away',

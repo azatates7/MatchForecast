@@ -16,7 +16,7 @@ interface Props {
  * 1 / X / 2 olasılıkları tek çubukta; parçalar toplamı 100 olduğu için yan yana dizilir.
  * Dar parçaya yazı sığmadığı için (%12 altı) çubuğun altında üç değeri de gösteren bir satır her zaman bulunur.
  */
-function ResultBar({ title, home, draw, away }: { title: string; home: number; draw: number; away: number }) {
+function ResultBar({ title, prefix, home, draw, away }: { title: string; prefix: string; home: number; draw: number; away: number }) {
   const { t, pct } = useI18n()
   const parts = [
     { key: '1', name: t('outcome.home'), value: home, className: 'seg-home' },
@@ -26,10 +26,10 @@ function ResultBar({ title, home, draw, away }: { title: string; home: number; d
   return (
     <div className="result">
       <p className="result-title">{title}</p>
-      <div className="result-bar" role="img" aria-label={`${title}: 1 ${pct(home)}, X ${pct(draw)}, 2 ${pct(away)}`}>
+      <div className="result-bar" role="img" aria-label={`${title}: ${prefix} 1 ${pct(home)}, ${prefix} X ${pct(draw)}, ${prefix} 2 ${pct(away)}`}>
         {parts.map(p => (
           <span key={p.key} className={`result-seg ${p.className}`} style={{ flexGrow: p.value }}>
-            {p.value >= 12 && `${p.key} ${pct(p.value)}`}
+            {p.value >= 12 && `${prefix} ${p.key} ${pct(p.value)}`}
           </span>
         ))}
       </div>
@@ -49,9 +49,9 @@ function Outcomes({ o }: { o: OutcomeProbabilities }) {
   const { t, pct } = useI18n()
   return (
     <section className="outcomes">
-      <ResultBar title={t('outcome.fullTime')} home={o.home} draw={o.draw} away={o.away} />
+      <ResultBar title={t('outcome.fullTime')} prefix={t('outcome.fullTimeShort')} home={o.home} draw={o.draw} away={o.away} />
       {o.firstHalfHome != null && o.firstHalfDraw != null && o.firstHalfAway != null && (
-        <ResultBar title={t('outcome.firstHalf')} home={o.firstHalfHome} draw={o.firstHalfDraw} away={o.firstHalfAway} />
+        <ResultBar title={t('outcome.firstHalf')} prefix={t('outcome.firstHalfShort')} home={o.firstHalfHome} draw={o.firstHalfDraw} away={o.firstHalfAway} />
       )}
       <p className="btts">
         {t('outcome.btts')} <strong>{t('outcome.yes')} {pct(o.bttsYes)}</strong> · {t('outcome.no')} {pct(100 - o.bttsYes)}

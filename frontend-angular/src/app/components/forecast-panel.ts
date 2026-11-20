@@ -5,6 +5,7 @@ import { StatsTable } from './stats-table';
 
 interface ResultBar {
   title: string;
+  prefix: string;
   label: string;
   parts: { key: string; name: string; value: number; className: string }[];
 }
@@ -33,9 +34,10 @@ export class ForecastPanel {
   protected resultBars(f: ForecastResult): ResultBar[] {
     const o = f.outcomes;
     const i18n = this.i18n;
-    const bar = (title: string, home: number, draw: number, away: number): ResultBar => ({
+    const bar = (title: string, prefix: string, home: number, draw: number, away: number): ResultBar => ({
       title,
-      label: `${title}: 1 ${i18n.pct(home)}, X ${i18n.pct(draw)}, 2 ${i18n.pct(away)}`,
+      prefix,
+      label: `${title}: ${prefix} 1 ${i18n.pct(home)}, ${prefix} X ${i18n.pct(draw)}, ${prefix} 2 ${i18n.pct(away)}`,
       parts: [
         { key: '1', name: i18n.t('outcome.home'), value: home, className: 'seg-home' },
         { key: 'X', name: i18n.t('outcome.draw'), value: draw, className: 'seg-draw' },
@@ -43,9 +45,9 @@ export class ForecastPanel {
       ],
     });
 
-    const bars = [bar(i18n.t('outcome.fullTime'), o.home, o.draw, o.away)];
+    const bars = [bar(i18n.t('outcome.fullTime'), i18n.t('outcome.fullTimeShort'), o.home, o.draw, o.away)];
     if (o.firstHalfHome != null && o.firstHalfDraw != null && o.firstHalfAway != null)
-      bars.push(bar(i18n.t('outcome.firstHalf'), o.firstHalfHome, o.firstHalfDraw, o.firstHalfAway));
+      bars.push(bar(i18n.t('outcome.firstHalf'), i18n.t('outcome.firstHalfShort'), o.firstHalfHome, o.firstHalfDraw, o.firstHalfAway));
     return bars;
   }
 }
