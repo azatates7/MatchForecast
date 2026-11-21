@@ -144,7 +144,7 @@ export const tr = {
 
   'guest.notice': 'Misafir kullanıcı olarak yalnızca bugünün Türkiye Süper Lig maçlarını görüyorsun.',
   'guest.signIn': 'Tüm ligleri görmek için giriş yap',
-  'guest.noMatches': 'Bugün Süper Lig maçı yok.',
+  'guest.noMatches': 'Şu an gösterilecek Türkiye Süper Lig maçı yok. Bugün maç oynanmıyor ya da günün maçları tamamlanmış olabilir.',
 
   'matches.aria': 'Maçlar',
   'matches.search': 'Takım veya lig ara',
@@ -383,7 +383,7 @@ export const en: Dict = {
 
   'guest.notice': "As a guest you only see today's Turkish Süper Lig matches.",
   'guest.signIn': 'Sign in to see all leagues',
-  'guest.noMatches': 'No Süper Lig matches today.',
+  'guest.noMatches': "No Türkiye Süper Lig matches to show right now. There may be no games today, or today's matches have already finished.",
 
   'matches.aria': 'Matches',
   'matches.search': 'Search team or league',
