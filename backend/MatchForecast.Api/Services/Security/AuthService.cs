@@ -181,7 +181,11 @@ public sealed partial class AuthService(
                 return null;
 
             var email = google.Email.Trim().ToLowerInvariant();
-            user = await db.Users.FirstOrDefaultAsync(x => x.Email == email, ct) ?? await CreateGoogleUserAsync(google, email, ct);
+            var existing = await db.Users.FirstOrDefaultAsync(x => x.Email == email, ct);
+            if (existing is { EmailConfirmed: false })
+                await DetachUnverifiedCredentialsAsync(existing, ct);
+
+            user = existing ?? await CreateGoogleUserAsync(google, email, ct);
             user.EmailConfirmed = true;
             user.Logins.Add(new UserLogin
             {
@@ -273,6 +277,22 @@ public sealed partial class AuthService(
         await db.SaveChangesAsync(ct);
         await RevokeAllAsync(reset.UserId, ct);
         return true;
+    }
+
+    /*
+     * Kayıtta e-posta doğrulanmadığı için başkası, kurbanın e-postasıyla şifresini kendi belirlediği bir hesap açabilir.
+     * Kurban sonra Google ile girince hesap ona bağlanır ama saldırgan şifreyle girmeye devam ederdi (pre-account hijacking).
+     * Google e-postanın sahibini doğruladığı için bu noktada doğrulanmamış şifre ve eski oturumlar geçersiz sayılır.
+     * Refresh token'lar iptal edilmez, SİLİNİR: iptal edilmiş bir token tekrar gelince reuse detection kullanıcının tüm oturumlarını kapatır; saldırgan elindeki eski token'la gerçek sahibin yeni oturumunu tekrar tekrar düşürebilirdi.
+     * Silinen token ise bilinmeyen token gibi yalnızca 401 alır. Hesabın sahibi şifreyle de girmek isterse
+     * "Şifremi unuttum" ile yeni şifre belirler. Değişiklikler çağıranın SaveChanges'ında (giriş kaydıyla aynı transaction'da) yazılır; kullanıcı pasifse hiçbiri kaydedilmez.
+     */
+    private async Task DetachUnverifiedCredentialsAsync(User user, CancellationToken ct)
+    {
+        logger.LogWarning("Doğrulanmamış e-postalı hesap Google girişine bağlanıyor; şifre ve eski oturumlar silindi. UserId: {UserId}", user.Id);
+
+        user.PasswordHash = null;
+        db.RefreshTokens.RemoveRange(await db.RefreshTokens.Where(x => x.UserId == user.Id).ToListAsync(ct));
     }
 
     // Kullanıcı adı e-postanın @ öncesinden türetilir; doluysa sonuna rastgele sayı eklenir.

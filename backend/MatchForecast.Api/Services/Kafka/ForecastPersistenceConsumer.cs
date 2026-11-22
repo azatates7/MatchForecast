@@ -129,9 +129,19 @@ public sealed class ForecastPersistenceConsumer(
         }
     }
 
-    public static ForecastResult Deserialize(string json) =>
-        JsonSerializer.Deserialize<ForecastResult>(json, KafkaClientFactory.JsonOptions)
-        ?? throw new JsonException("Empty forecast message.");
+    /*
+     * JSON geçerli olsa da maç bilgisi yoksa (ör. "{}") mesaj bozuk sayılır ve JsonException ile DLQ'ya gider.
+     * Bu kontrol olmazsa kayıt sırasında NullReferenceException oluşur; catch bloğundaki log da Match.Id'ye eriştiği için ikinci hata yeniden deneme/DLQ akışını atlar ve aynı mesaj sonsuza kadar tekrar işlenip partition'ı kilitlerdi.
+     */
+    public static ForecastResult Deserialize(string json)
+    {
+        var forecast = JsonSerializer.Deserialize<ForecastResult>(json, KafkaClientFactory.JsonOptions)
+                       ?? throw new JsonException("Empty forecast message.");
+
+        return forecast.Match is null
+            ? throw new JsonException("Forecast message has no match.")
+            : forecast;
+    }
 
     // ForecastStore ve AppDbContext scoped; singleton consumer her mesaj için kendi scope'unu açar.
     public async Task PersistAsync(ForecastResult forecast, CancellationToken ct)

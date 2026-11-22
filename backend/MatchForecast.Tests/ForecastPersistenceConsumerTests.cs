@@ -64,6 +64,16 @@ public class ForecastPersistenceConsumerTests
     }
 
     [Fact]
+    public void Deserialize_Throws_WhenMatchIsMissing()
+    {
+        // Geçerli ama maçsız JSON da bozuk mesajdır: DLQ'ya gitmeli, kayıtta NullReferenceException ile partition'ı kilitlememeli.
+        Assert.ThrowsAny<JsonException>(() => ForecastPersistenceConsumer.Deserialize("{}"));
+
+        var json = JsonSerializer.Serialize(KafkaForecastPublisherTests.Forecast(5) with { Match = null! }, KafkaClientFactory.JsonOptions);
+        Assert.ThrowsAny<JsonException>(() => ForecastPersistenceConsumer.Deserialize(json));
+    }
+
+    [Fact]
     public async Task PersistAsync_IsIdempotent_SingleRowPerFixture()
     {
         // At-least-once teslimde aynı mesaj iki kez gelebilir; sonuç yine tek satır olmalı.

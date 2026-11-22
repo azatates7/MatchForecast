@@ -100,6 +100,62 @@ public class AuthFlowsIntegrationTests(WebApplicationFactory<Program> factory) :
     }
 
     [Fact]
+    public async Task GoogleLogin_LinkingUnverifiedAccount_RemovesPasswordAndSessions()
+    {
+        // Saldırgan, kurbanın e-postasıyla (doğrulanmadan) şifreli hesap açar ve bir oturumu açık kalır.
+        var testFactory = factory.WithTestJwt();
+        var client = testFactory.CreateClient();
+        var register = await client.PostAsJsonAsync("/api/auth/register",
+            new RegisterRequest("attacker", FakeGoogleIdTokenValidator.User.Email, "Attacker-Pass-123", null));
+        Assert.Equal(HttpStatusCode.OK, register.StatusCode);
+        var attackerToken = (await register.Content.ReadFromJsonAsync<TokenResponse>())!;
+
+        // E-postanın gerçek sahibi Google ile girer; hesap ona bağlanır.
+        var google = await client.PostAsJsonAsync("/api/auth/google", new GoogleLoginRequest(FakeGoogleIdTokenValidator.ValidToken));
+        Assert.Equal(HttpStatusCode.OK, google.StatusCode);
+        var ownerToken = (await google.Content.ReadFromJsonAsync<TokenResponse>())!;
+
+        // Saldırganın şifresi ve refresh token'ı artık çalışmaz.
+        Assert.Equal(HttpStatusCode.Unauthorized,
+            (await client.PostAsJsonAsync("/api/auth/token", new GetTokenRequest("attacker", "Attacker-Pass-123"))).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized,
+            (await client.PostAsJsonAsync("/api/auth/refresh", new RefreshTokenRequest(attackerToken.RefreshToken))).StatusCode);
+
+        // Saldırganın eski token denemesi, gerçek sahibin oturumunu düşürmemeli (reuse detection tetiklenmez).
+        Assert.Equal(HttpStatusCode.OK,
+            (await client.PostAsJsonAsync("/api/auth/refresh", new RefreshTokenRequest(ownerToken.RefreshToken))).StatusCode);
+
+        using var scope = testFactory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var user = await db.Users.Include(x => x.Logins).SingleAsync();
+        Assert.Null(user.PasswordHash);
+        Assert.True(user.EmailConfirmed);
+        Assert.Single(user.Logins);
+    }
+
+    [Fact]
+    public async Task GoogleLogin_LinkingVerifiedAccount_KeepsPassword()
+    {
+        // Doğrulanmış e-postalı hesapta (ör. admin) Google bağlantısı şifreyi silmez.
+        var testFactory = factory.WithTestJwt();
+        await testFactory.SeedUserAsync();
+        using (var scope = testFactory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var seeded = await db.Users.SingleAsync(x => x.UserName == TestAuth.UserName);
+            seeded.Email = FakeGoogleIdTokenValidator.User.Email;
+            seeded.EmailConfirmed = true;
+            await db.SaveChangesAsync();
+        }
+
+        var client = testFactory.CreateClient();
+        Assert.Equal(HttpStatusCode.OK,
+            (await client.PostAsJsonAsync("/api/auth/google", new GoogleLoginRequest(FakeGoogleIdTokenValidator.ValidToken))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK,
+            (await client.PostAsJsonAsync("/api/auth/token", new GetTokenRequest(TestAuth.UserName, TestAuth.Password))).StatusCode);
+    }
+
+    [Fact]
     public async Task GoogleLogin_ReturnsUnauthorized_ForInvalidToken()
     {
         var client = factory.WithTestJwt().CreateClient();
