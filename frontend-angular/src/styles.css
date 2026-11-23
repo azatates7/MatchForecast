@@ -16,8 +16,7 @@
 }
 
 /*
- * Karanlık tema <html data-theme="dark"> ile açılır. İlk değeri index.html'deki betik atar (kayıtlı seçim, yoksa sistem
- * tercihi); üst bardaki tema düğmesi değiştirir ve localStorage'a kaydeder.
+ * Karanlık tema <html data-theme="dark"> ile açılır. İlk değeri index.html'deki betik atar (kayıtlı seçim, yoksa sistem tercihi); üst bardaki tema düğmesi değiştirir ve localStorage'a kaydeder.
  */
 :root[data-theme="dark"] {
   --paper: #0f1a22;

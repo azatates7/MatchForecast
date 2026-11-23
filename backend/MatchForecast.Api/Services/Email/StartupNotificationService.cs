@@ -10,8 +10,7 @@ namespace MatchForecast.Api.Services.Email;
 /*
  * Uygulama her başladığında yöneticiye "uygulama başlatıldı" maili gönderir.
  *
- * Neden ApplicationStarted beklenir? Hosted service'ler Kestrel portu dinlemeye başlamadan önce çalışır. Mail hemen
- * atılsaydı, port çakışması gibi bir nedenle uygulama başlarken çökse bile "başlatıldı" maili gitmiş olurdu.
+ * Neden ApplicationStarted beklenir? Hosted service'ler Kestrel portu dinlemeye başlamadan önce çalışır. Mail hemen satılsaydı, port çakışması gibi bir nedenle uygulama başlarken çökse bile "başlatıldı" maili gitmiş olurdu.
  * ApplicationStarted, sunucu istek kabul etmeye hazır olduğunda tetiklenir; ayrıca dinlenen adresler (URL) o anda bellidir.
  *
  * Gönderim hatası uygulamayı durdurmaz, sadece loglanır: SMTP sorunu yüzünden API'nin kapanması istenmez.

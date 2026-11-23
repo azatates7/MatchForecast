@@ -21,8 +21,7 @@ export const isLive = (m: MatchSummary) => LIVE.has(m.status)
 
 /**
  * Canlı maçın dakika etiketi, ör. "37'", "45+2'", "İY" / "HT".
- * API verisi en fazla birkaç dakikada bir tazelendiği için, son çekimden bu yana geçen süre
- * dakikaya eklenir; böylece yenilemeler arasında da dakika ilerler.
+ * API verisi en fazla birkaç dakikada bir tazelendiği için, son çekimden bu yana geçen süre dakikaya eklenir; böylece yenilemeler arasında da dakika ilerler.
  */
 export function minuteLabel(m: MatchSummary, fetchedAt: number, now: number): string {
   if (PAUSED[m.status]) return t(PAUSED[m.status])

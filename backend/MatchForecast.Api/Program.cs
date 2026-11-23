@@ -46,8 +46,7 @@ try
     builder.Host.UseNLog();
 
     /*
-     * Ayarlar veritabanından (app_settings) yüklenir; servis kayıtlarından ÖNCE olmalı ki aşağıdaki bütün
-     * builder.Configuration okumaları ve IOptions bağlamaları DB değerlerini görsün. Migration da burada uygulanır.
+     * Ayarlar veritabanından (app_settings) yüklenir; servis kayıtlarından ÖNCE olmalı ki aşağıdaki bütün builder.Configuration okumaları ve IOptions bağlamaları DB değerlerini görsün. Migration da burada uygulanır.
      * Ortamdan yalnızca ConnectionStrings:Supabase ve AppSettings:EncryptionKey okunur (bkz. DatabaseSettings).
      */
     var settingsCrypto = await DatabaseSettings.LoadAsync(builder, logger);

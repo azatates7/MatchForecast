@@ -1,6 +1,5 @@
 /*
- * Google Identity Services (GIS) butonu. Kullanıcı Google ile giriş yapınca GIS bir ID token ("credential") verir;
- * bu token backend'e (/api/auth/google) gönderilir ve orada Google'ın imza anahtarlarıyla doğrulanır.
+ * Google Identity Services (GIS) butonu. Kullanıcı Google ile giriş yapınca GIS bir ID token ("credential") verir; bu token backend'e (/api/auth/google) gönderilir ve orada Google'ın imza anahtarlarıyla doğrulanır.
  * Script yalnızca Google girişi açıksa (Client ID ayarlıysa) ve ilk kez gerektiğinde yüklenir.
  */
 import { getLang, t } from './i18n/i18n'

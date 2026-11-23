@@ -11,10 +11,7 @@ namespace MatchForecast.Api.Services.Email;
  * API hatalarını yöneticiye e-posta ile bildirir. Hem IErrorNotifier (kuyruğa yazan taraf) hem de BackgroundService
  * (kuyruktan okuyup gönderen taraf) olarak aynı singleton instance kullanılır.
  *
- * Neden kuyruk (Channel)? SMTP gönderimi 1-5 sn sürebilir ve başarısız olabilir. Middleware içinde await edilseydi
- * hata alan kullanıcı cevabı geç alırdı; her hata için Task.Run ile ayrı gönderim yapılsaydı bir hata dalgasında aynı anda
- * onlarca SMTP bağlantısı açılır, throttle kontrolü yarışa girer ve Gmail gönderim limitlerine takılınırdı. Kuyrukta
- * istek hiç beklemez, mailler tek okuyucu tarafından sırayla gönderilir; kuyruk dolarsa yeni bildirimler düşürülür
+ * Neden kuyruk (Channel)? SMTP gönderimi 1-5 sn sürebilir ve başarısız olabilir. Middleware içinde await edilseydi hata alan kullanıcı cevabı geç alırdı; her hata için Task.Run ile ayrı gönderim yapılsaydı bir hata dalgasında aynı anda onlarca SMTP bağlantısı açılır, throttle kontrolü yarışa girer ve Gmail gönderim limitlerine takılınırdı. Kuyrukta istek hiç beklemez, mailler tek okuyucu tarafından sırayla gönderilir; kuyruk dolarsa yeni bildirimler düşürülür
  * (SMTP çökse bile bellek şişmez). Uygulama kapanırken kuyrukta kalan bildirimler gönderilmez; hepsi zaten loglanmıştır.
  */
 public sealed class EmailErrorNotifier(
@@ -79,8 +76,7 @@ public sealed class EmailErrorNotifier(
     }
 
     /*
-     * Path anahtara bilerek dahil edilmez: /api/matches/1/forecast ile /api/matches/2/forecast aynı Gemini 503 hatasını
-     * alıyorsa tek mail yeterli. Mesaj 200 karakterle sınırlanır; ham AI yanıtı içeren uzun mesajlar anahtarı şişirmesin.
+     * Path anahtara bilerek dahil edilmez: /api/matches/1/forecast ile /api/matches/2/forecast aynı Gemini 503 hatasını alıyorsa tek mail yeterli. Mesaj 200 karakterle sınırlanır; ham AI yanıtı içeren uzun mesajlar anahtarı şişirmesin.
      */
     private static string ThrottleKey(ErrorNotification n) =>
         $"{n.StatusCode}|{n.ExceptionType}|{(n.Message.Length <= 200 ? n.Message : n.Message[..200])}";

@@ -4,8 +4,7 @@ import type { MessageKey } from './messages';
 
 /*
  * i18n.ts'teki dil durumunun Angular sarmalayıcısı. Şablonlarda: {{ i18n.t('key') }}.
- * Metotlar lang() sinyalini okuduğu için dil değişince onları kullanan şablonlar ve computed'lar yeniden hesaplanır
- * (zoneless change detection sinyal değişikliğiyle tetiklenir).
+ * Metotlar lang() sinyalini okuduğu için dil değişince onları kullanan şablonlar ve computed'lar yeniden hesaplanır (zoneless change detection sinyal değişikliğiyle tetiklenir).
  */
 @Injectable({ providedIn: 'root' })
 export class I18nService {

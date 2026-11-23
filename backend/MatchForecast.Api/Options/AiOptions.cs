@@ -7,7 +7,7 @@ public sealed class AiOptions
     // Kullanılacak sağlayıcı: "Gemini", "Claude" veya "Ollama"; değiştirince API yeniden başlatılmalı.
     public string Provider { get; set; } = string.Empty;
     public int MaxTokens { get; set; } = 8000;
-    public int CacheMinutes { get; set; } = 30;
+    public int CacheMinutes { get; set; } = 1440; // 1440 == 24 saat
 
     // Sondaki "/" zorunlu: HttpClient göreli yolu bu adrese ekler.
     public AiProviderOptions Gemini { get; set; } = new()

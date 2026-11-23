@@ -10,8 +10,7 @@ import { getLang, t } from './i18n/i18n'
  * - Access token yalnızca bellekte tutulur (kısa ömürlü; XSS ile kalıcı olarak ele geçirilemez).
  * - Refresh token localStorage'da tutulur ki sayfa yenilenince tekrar giriş gerekmesin. Bedeli: XSS olursa okunabilir.
  *   Daha güvenli seçenek httpOnly cookie'dir (backend değişikliği gerekir).
- * - Access token yoksa veya 401 alınırsa refresh token ile yenisi alınır; o da başarısız olursa oturum kapanır
- *   ve onSessionExpired ile uygulamaya haber verilir (login ekranı gösterilir).
+ * - Access token yoksa veya 401 alınırsa refresh token ile yenisi alınır; o da başarısız olursa oturum kapanır ve onSessionExpired ile uygulamaya haber verilir (login ekranı gösterilir).
  */
 const REFRESH_KEY = 'matchforecast.refreshToken'
 
@@ -20,8 +19,7 @@ const apiFetch = (url: string, init: RequestInit = {}) =>
   fetch(url, { ...init, headers: { ...(init.headers as Record<string, string> | undefined), 'Accept-Language': getLang() } })
 
 let accessToken: string | null = null
-// Aynı anda 401 alan istekler TEK bir refresh çağrısını paylaşır. Refresh token tek kullanımlık olduğu için iki kez
-// gönderilirse backend bunu "çalınmış token" sayar ve kullanıcının tüm oturumlarını kapatır.
+// Aynı anda 401 alan istekler tek bir refresh çağrısını paylaşır. Refresh token tek kullanımlık olduğu için iki kez gönderilirse backend bunu "çalınmış token" sayar ve kullanıcının tüm oturumlarını kapatır.
 let refreshing: Promise<string | null> | null = null
 let sessionExpiredHandler: (() => void) | null = null
 
