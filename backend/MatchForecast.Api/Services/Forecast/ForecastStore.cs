@@ -41,7 +41,7 @@ public sealed class ForecastStore(AppDbContext db, IOptions<AiOptions> aiOptions
         record.League = match.League;
         record.HomeTeam = match.HomeTeam;
         record.AwayTeam = match.AwayTeam;
-        (record.AiProvider, record.AiModel) = CurrentModel(aiOptions.Value);
+        (record.AiProvider, record.AiModel) = aiOptions.Value.CurrentModel();
         record.ResultJson = JsonSerializer.Serialize(result, JsonOpts);
         record.GeneratedAt = TimeZoneInfo.ConvertTime(result.GeneratedAt, Istanbul).DateTime;
 
@@ -55,19 +55,5 @@ public sealed class ForecastStore(AppDbContext db, IOptions<AiOptions> aiOptions
             db.ChangeTracker.Clear();
             throw;
         }
-    }
-
-    // Program.cs ile aynı kural: Ai:Provider boşsa Gemini.
-    private static (string Provider, string Model) CurrentModel(AiOptions ai)
-    {
-        var provider = string.IsNullOrWhiteSpace(ai.Provider) ? "Gemini" : ai.Provider.Trim();
-        var model = provider.ToLowerInvariant() switch
-        {
-            "gemini" => ai.Gemini.Model,
-            "claude" => ai.Claude.Model,
-            "ollama" => ai.Ollama.Model,
-            _ => string.Empty
-        };
-        return (provider, model);
     }
 }

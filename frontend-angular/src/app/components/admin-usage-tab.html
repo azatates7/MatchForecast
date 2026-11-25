@@ -1,0 +1,62 @@
+<p class="admin-hint admin-note admin-intro">{{ i18n.t('admin.usage.intro') }}</p>
+<div class="admin-toolbar">
+  <label class="admin-muted">
+    {{ i18n.t('admin.usage.range') }}
+    <select [value]="days()" (change)="setDays($any($event.target).value)">
+      @for (n of ranges; track n) {
+        <option [value]="n" [selected]="n === days()">{{ i18n.t('admin.usage.days', { n }) }}</option>
+      }
+    </select>
+  </label>
+  <button type="button" class="cache-btn" (click)="reload()" [disabled]="state().loading">{{ i18n.t('admin.usage.refresh') }}</button>
+</div>
+
+@if (state().loading) {
+  <p class="admin-placeholder pulse">{{ i18n.t('admin.loading') }}</p>
+} @else if (state().error) {
+  <p class="note-error" role="alert">{{ state().error }}</p>
+} @else if (report(); as r) {
+  <dl class="usage-stats">
+    <div><dt>{{ i18n.t('admin.usage.calls') }}</dt><dd>{{ num(r.totals.calls) }}</dd></div>
+    <div><dt>{{ i18n.t('admin.usage.failures') }}</dt><dd>{{ num(r.totals.failures) }}</dd></div>
+    <div><dt>{{ i18n.t('admin.usage.inputTokens') }}</dt><dd>{{ num(r.totals.inputTokens) }}</dd></div>
+    <div><dt>{{ i18n.t('admin.usage.outputTokens') }}</dt><dd>{{ num(r.totals.outputTokens) }}</dd></div>
+    <div><dt>{{ i18n.t('admin.usage.cost') }}</dt><dd>{{ usd(r.totals.estimatedCostUsd) }}</dd></div>
+    <div><dt>{{ i18n.t('admin.usage.avgDuration') }}</dt><dd>{{ seconds(r.totals.averageDurationMs) }} s</dd></div>
+  </dl>
+
+  @if (r.daily.length === 0) {
+    <p class="admin-placeholder">{{ i18n.t('admin.usage.empty') }}</p>
+  } @else {
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>{{ i18n.t('admin.usage.col.date') }}</th>
+            <th>{{ i18n.t('admin.usage.col.provider') }}</th>
+            <th>{{ i18n.t('admin.usage.col.model') }}</th>
+            <th class="usage-num">{{ i18n.t('admin.usage.calls') }}</th>
+            <th class="usage-num">{{ i18n.t('admin.usage.failures') }}</th>
+            <th class="usage-num">{{ i18n.t('admin.usage.inputTokens') }}</th>
+            <th class="usage-num">{{ i18n.t('admin.usage.outputTokens') }}</th>
+            <th class="usage-num">{{ i18n.t('admin.usage.cost') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (d of r.daily; track d.date + '|' + d.provider + '|' + d.model) {
+            <tr>
+              <td class="admin-nowrap">{{ date(d.date) }}</td>
+              <td>{{ d.provider }}</td>
+              <td>{{ d.model }}</td>
+              <td class="usage-num">{{ num(d.calls) }}</td>
+              <td class="usage-num">{{ num(d.failures) }}</td>
+              <td class="usage-num">{{ num(d.inputTokens) }}</td>
+              <td class="usage-num">{{ num(d.outputTokens) }}</td>
+              <td class="usage-num">{{ usd(d.estimatedCostUsd) }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+}

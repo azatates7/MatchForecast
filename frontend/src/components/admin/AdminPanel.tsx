@@ -1,10 +1,11 @@
-import { useI18n } from '../i18n/useI18n'
-import { adminHash, visibleAdminTabs, type AdminTab } from '../AdminView'
-import type { MeResponse } from '../types'
-import UsersTab from './admin/UsersTab'
-import RolesTab from './admin/RolesTab'
-import GroupsTab from './admin/GroupsTab'
-import PermissionsTab from './admin/PermissionsTab'
+import { useI18n } from '../../i18n/useI18n'
+import { adminHash, visibleAdminTabs, type AdminTab } from '../../AdminView'
+import type { MeResponse } from '../../types'
+import UsersTab from './UsersTab'
+import RolesTab from './RolesTab'
+import GroupsTab from './GroupsTab'
+import PermissionsTab from './PermissionsTab'
+import UsageTab from './UsageTab'
 
 interface Props {
   me: MeResponse
@@ -13,7 +14,7 @@ interface Props {
 }
 
 /*
- * Yönetim paneli iskeleti: yetkiye göre filtrelenmiş sekmeler (Kullanıcılar, Roller, Gruplar, Yetkiler).
+ * Yönetim paneli iskeleti: yetkiye göre filtrelenmiş sekmeler (Kullanıcılar, Roller, Gruplar, Yetkiler, AI kullanımı).
  * Sekmeler bağlantıdır (#admin/<sekme>); tarayıcının geri/ileri düğmeleri sekmeler arasında çalışır.
  * Sekmeler: Kullanıcılar, Roller, Gruplar, Yetkiler (her biri kendi bileşeninde, components/admin/).
  */
@@ -44,6 +45,7 @@ export default function AdminPanel({ me, tab }: Props) {
         {active.id === 'users' ? <UsersTab me={me} />
           : active.id === 'roles' ? <RolesTab />
           : active.id === 'groups' ? <GroupsTab me={me} />
+          : active.id === 'usage' ? <UsageTab />
           : <PermissionsTab />}
       </section>
     </main>

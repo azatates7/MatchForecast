@@ -26,12 +26,14 @@ public class OllamaForecastClientTests
     {
         string? sentBody = null;
         var client = CreateClient(
-            _ => Json(HttpStatusCode.OK, """{"message":{"role":"assistant","content":"{\"summary\":\"ok\"}"},"done":true,"done_reason":"stop"}"""),
+            _ => Json(HttpStatusCode.OK, """{"message":{"role":"assistant","content":"{\"summary\":\"ok\"}"},"done":true,"done_reason":"stop","prompt_eval_count":812,"eval_count":640}"""),
             b => sentBody = b);
 
-        var text = await client.CompleteAsync("sys", "user", CancellationToken.None);
+        var completion = await client.CompleteAsync("sys", "user", CancellationToken.None);
 
-        Assert.Equal("""{"summary":"ok"}""", text);
+        Assert.Equal("""{"summary":"ok"}""", completion.Text);
+        Assert.Equal(812, completion.InputTokens);
+        Assert.Equal(640, completion.OutputTokens);
         using var doc = JsonDocument.Parse(sentBody!);
         var root = doc.RootElement;
         Assert.Equal("test-model", root.GetProperty("model").GetString());

@@ -22,6 +22,7 @@ public sealed class ForecastService(
     IForecastAiClient ai,
     IRedisCacheService cache,
     IForecastStore store,
+    IAiUsageStore usageStore,
     IOptions<AiOptions> aiOptions,
     IOptions<ForecastOptions> forecastOptions,
     ILogger<ForecastService> logger)
@@ -100,7 +101,7 @@ public sealed class ForecastService(
             throw new ForecastException(Lang.T("Maç bulunamadı.", "Match not found."), StatusCodes.Status404NotFound);
         }
 
-        var raw = await ai.CompleteAsync(ForecastPrompt.System, ForecastPrompt.BuildUser(match), ct);
+        var raw = (await CallAiAsync(fixtureId, ForecastPrompt.BuildUser(match), ct)).Text;
         var response = Parse(raw);
 
         var opt = forecastOptions.Value;
@@ -117,6 +118,40 @@ public sealed class ForecastService(
         await cache.SetAsync(key, result, TimeSpan.FromMinutes(aiOptions.Value.CacheMinutes));
         await SaveAsync(result);
         return result;
+    }
+
+    /*
+     * AI çağrısı ölçülür ve başarılı/başarısız her çağrı ai_usages'a yazılır (admin maliyet raporu).
+     * İstemci iptali (OperationCanceledException) sağlayıcı hatası değildir, kaydedilmez.
+     */
+    private async Task<AiCompletion> CallAiAsync(int fixtureId, string userPrompt, CancellationToken ct)
+    {
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        try
+        {
+            var completion = await ai.CompleteAsync(ForecastPrompt.System, userPrompt, ct);
+            await RecordUsageAsync(fixtureId, completion, null, started);
+            return completion;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            await RecordUsageAsync(fixtureId, null, (ex as ForecastException)?.StatusCode, started);
+            throw;
+        }
+    }
+
+    // Fail-open: kullanım kaydı yazılamazsa tahmin akışı etkilenmez. CancellationToken.None: istemci kapansa da kayıt yazılsın.
+    private async Task RecordUsageAsync(int fixtureId, AiCompletion? completion, int? failedStatusCode, long started)
+    {
+        try
+        {
+            await usageStore.RecordAsync(fixtureId, completion, failedStatusCode,
+                System.Diagnostics.Stopwatch.GetElapsedTime(started), CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "AI usage for fixture {FixtureId} could not be recorded.", fixtureId);
+        }
     }
 
     /*

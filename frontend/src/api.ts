@@ -1,4 +1,5 @@
 import type {
+  AiUsageReport,
   AuthConfigResponse, CacheClearResponse, CreatePermissionRequest, CreateUserRequest, ForecastResult, GroupRequest, GroupResponse,
   MatchSummary, MeResponse, PasswordResponse, PermissionResponse, RoleRequest, RoleResponse, TokenResponse, UpdatePermissionRequest,
   UpdateUserRequest, UserResponse
@@ -214,3 +215,6 @@ export const deletePermission = (id: number) => request<void>(`/api/permissions/
 // Kayıt ekranında, giriş yapılmadan kullanılır; token gerektirmez.
 export const generatePassword = async (length = 16): Promise<PasswordResponse> =>
   readJson<PasswordResponse>(await apiFetch(`/api/password?length=${length}`))
+
+// AI kullanım raporu (yalnızca ai-usage.view; Admin örtük olarak sahip)
+export const getAiUsage = (days: number) => request<AiUsageReport>(`/api/ai-usage?days=${days}`)

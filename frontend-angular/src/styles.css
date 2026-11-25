@@ -739,3 +739,10 @@ button, input { font: inherit; color: inherit; }
   .pulse, .match-live::before { animation: none; }
   .meter-fill { transition: none; }
 }
+
+/* AI kullanımı sekmesi: özet kartları ve sağa yaslı sayı kolonları */
+.usage-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin: 0 0 1rem; }
+.usage-stats > div { padding: 0.75rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.usage-stats dt { color: var(--muted); font-size: 0.8rem; }
+.usage-stats dd { margin: 0.25rem 0 0; font-size: 1.15rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.admin-table .usage-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }

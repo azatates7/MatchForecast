@@ -104,7 +104,7 @@ public class MatchesApiIntegrationTests : IClassFixture<WebApplicationFactory<Pr
         """;
 
         mockAi.Setup(a => a.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(jsonAiResponse);
+            .ReturnsAsync(new AiCompletion(jsonAiResponse));
 
         var client = _factory.WithWebHostBuilder(builder =>
         {

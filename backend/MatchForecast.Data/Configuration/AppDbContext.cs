@@ -36,6 +36,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
     public DbSet<UserFavoriteLeague> UserFavoriteLeagues => Set<UserFavoriteLeague>();
     public DbSet<ForecastRecord> Forecasts => Set<ForecastRecord>();
+    public DbSet<AiUsage> AiUsages => Set<AiUsage>();
 
     // Program.cs (DI kaydı) ve açılıştaki ayar yükleyici aynı Npgsql ayarlarını kullansın.
     public static void UseDatabase(DbContextOptionsBuilder options, string? connectionString) =>
@@ -207,6 +208,17 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
             e.HasIndex(x => x.FixtureId).IsUnique();
             e.HasIndex(x => x.Kickoff);
+        });
+
+        // AI çağrı kaydı; rapor tarih aralığıyla sorgulandığı için CreatedAt index'li.
+        modelBuilder.Entity<AiUsage>(e =>
+        {
+            e.ToTable("ai_usages");
+            e.Property(x => x.Provider).HasMaxLength(50);
+            e.Property(x => x.Model).HasMaxLength(100);
+            e.Property(x => x.EstimatedCostUsd).HasPrecision(12, 6);
+            e.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
+            e.HasIndex(x => x.CreatedAt);
         });
 
         modelBuilder.Entity<AppSetting>(e =>

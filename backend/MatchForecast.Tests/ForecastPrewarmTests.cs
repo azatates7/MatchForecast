@@ -47,7 +47,7 @@ public class ForecastPrewarmTests
         foreach (var m in all)
             _odds.Setup(o => o.GetMatchAsync(m.Id, It.IsAny<CancellationToken>())).ReturnsAsync(m);
         _ai.Setup(a => a.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(ValidAiJson);
+            .ReturnsAsync(new AiCompletion(ValidAiJson));
     }
 
     private ForecastPrewarmWorker CreateWorker()
@@ -58,6 +58,7 @@ public class ForecastPrewarmTests
             .AddSingleton(_ai.Object)
             .AddSingleton<IRedisCacheService>(_cache)
             .AddSingleton(Mock.Of<IForecastStore>())
+            .AddSingleton(Mock.Of<IAiUsageStore>())
             .AddSingleton(Options.Create(new AiOptions { CacheMinutes = 30 }))
             .AddSingleton(Options.Create(new ForecastOptions { PredictionCount = 5 }))
             .AddScoped<ForecastService>()
@@ -121,7 +122,7 @@ public class ForecastPrewarmTests
     [Fact]
     public async Task ConcurrentRequestsForSameMatch_CallAiOnce()
     {
-        var gate = new TaskCompletionSource<string>();
+        var gate = new TaskCompletionSource<AiCompletion>();
         _ai.Setup(a => a.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .Returns(gate.Task);
 
@@ -131,6 +132,7 @@ public class ForecastPrewarmTests
             .AddSingleton(_ai.Object)
             .AddSingleton<IRedisCacheService>(_cache)
             .AddSingleton(Mock.Of<IForecastStore>())
+            .AddSingleton(Mock.Of<IAiUsageStore>())
             .AddSingleton(Options.Create(new AiOptions { CacheMinutes = 30 }))
             .AddSingleton(Options.Create(new ForecastOptions { PredictionCount = 5 }))
             .AddScoped<ForecastService>()
@@ -142,7 +144,7 @@ public class ForecastPrewarmTests
         var first = s1.ServiceProvider.GetRequiredService<ForecastService>().GetForecastAsync(SuperLig1.Id, false, CancellationToken.None);
         var second = s2.ServiceProvider.GetRequiredService<ForecastService>().GetForecastAsync(SuperLig1.Id, false, CancellationToken.None);
 
-        gate.SetResult(ValidAiJson);
+        gate.SetResult(new AiCompletion(ValidAiJson));
         var results = await Task.WhenAll(first, second);
 
         Assert.Equal(1, AiCalls());

@@ -24,6 +24,30 @@ public sealed class AiOptions
 
     // Yerel (veya uzak) Ollama sunucusu; bulut sağlayıcılarından farklı ayarları olduğu için ayrı sınıf.
     public OllamaOptions Ollama { get; set; } = new();
+
+    // Program.cs ile aynı kural: Ai:Provider boşsa Gemini. Tahmin kaydı ve AI kullanım kaydı bu adları yazar.
+    public (string Provider, string Model) CurrentModel()
+    {
+        var provider = string.IsNullOrWhiteSpace(Provider) ? "Gemini" : Provider.Trim();
+        var model = provider.ToLowerInvariant() switch
+        {
+            "gemini" => Gemini.Model,
+            "claude" => Claude.Model,
+            "ollama" => Ollama.Model,
+            _ => string.Empty
+        };
+        return (provider, model);
+    }
+
+    // Etkin sağlayıcının 1M token fiyatları (USD); tanımsızsa 0 (ör. ücretsiz katman, yerel Ollama).
+    public (decimal InputPer1M, decimal OutputPer1M) CurrentPrices() =>
+        CurrentModel().Provider.ToLowerInvariant() switch
+        {
+            "gemini" => (Gemini.InputPricePer1M, Gemini.OutputPricePer1M),
+            "claude" => (Claude.InputPricePer1M, Claude.OutputPricePer1M),
+            "ollama" => (Ollama.InputPricePer1M, Ollama.OutputPricePer1M),
+            _ => (0m, 0m)
+        };
 }
 
 public sealed class AiProviderOptions
@@ -31,6 +55,10 @@ public sealed class AiProviderOptions
     public string BaseUrl { get; set; } = "";
     public string ApiKey { get; set; } = "";
     public string Model { get; set; } = "";
+
+    // 1M token başına USD fiyatı; yalnızca AI kullanım raporundaki tahmini maliyet için. Ücretsiz katmanda 0 bırakılır.
+    public decimal InputPricePer1M { get; set; }
+    public decimal OutputPricePer1M { get; set; }
 
     // Hata mesajlarında hangi anahtarın kullanıldığını göstermek için ilk 4 ve son 4 karakter (ör. "AIza…x9Kf").
     public string MaskedApiKey() =>
@@ -58,4 +86,8 @@ public sealed class OllamaOptions
     public string ApiKey { get; set; } = "";
     public int TimeoutSeconds { get; set; } = 300;
     public int ContextLength { get; set; } = 16384;
+
+    // Yerel Ollama ücretsizdir; Ollama Cloud kullanılıyorsa doldurulur (1M token başına USD).
+    public decimal InputPricePer1M { get; set; }
+    public decimal OutputPricePer1M { get; set; }
 }

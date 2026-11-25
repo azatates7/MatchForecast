@@ -20,6 +20,7 @@ public static class PermissionKeys
     public const string CacheClear = "cache.clear";
     public const string ForecastRefresh = "forecast.refresh";
     public const string AppSettingsManage = "app-settings.manage";
+    public const string AiUsageView = "ai-usage.view";
 }
 
 /*
@@ -38,7 +39,8 @@ public static class PermissionSeed
         Define(PermissionKeys.GroupsManage, "Grupları yönetme", "Manage groups", "Grup oluşturur, düzenler, siler; gruba rol ve üye atar."),
         Define(PermissionKeys.CacheClear, "Önbelleği silme", "Clear cache", "Maç ekranındaki Önbelleği Sil işlemi."),
         Define(PermissionKeys.ForecastRefresh, "Tahmini yeniden üretme", "Regenerate forecasts", "Tahmin isteklerinde refresh=true ile önbelleği atlar."),
-        Define(PermissionKeys.AppSettingsManage, "Uygulama ayarlarını yönetme", "Manage app settings", "/api/app-settings uçları (yalnızca API).")
+        Define(PermissionKeys.AppSettingsManage, "Uygulama ayarlarını yönetme", "Manage app settings", "/api/app-settings uçları (yalnızca API)."),
+        Define(PermissionKeys.AiUsageView, "AI kullanımını görüntüleme", "View AI usage", "Yönetim panelindeki AI kullanım ve tahmini maliyet raporu.")
     ];
 
     private static Permission Define(string key, string name, string nameEn, string description) =>

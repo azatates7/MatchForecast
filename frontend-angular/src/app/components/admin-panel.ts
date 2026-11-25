@@ -6,15 +6,16 @@ import { UsersTab } from './admin-users-tab';
 import { RolesTab } from './admin-roles-tab';
 import { GroupsTab } from './admin-groups-tab';
 import { PermissionsTab } from './admin-permissions-tab';
+import { UsageTab } from './admin-usage-tab';
 
 /*
- * Yönetim paneli iskeleti: yetkiye göre filtrelenmiş sekmeler (Kullanıcılar, Roller, Gruplar, Yetkiler).
+ * Yönetim paneli iskeleti: yetkiye göre filtrelenmiş sekmeler (Kullanıcılar, Roller, Gruplar, Yetkiler, AI kullanımı).
  * Sekmeler bağlantıdır (#admin/<sekme>); tarayıcının geri/ileri düğmeleri sekmeler arasında çalışır.
  * Sekmeler: Kullanıcılar, Roller, Gruplar, Yetkiler (her biri kendi bileşeninde, components/admin-*).
  */
 @Component({
   selector: 'app-admin-panel',
-  imports: [UsersTab, RolesTab, GroupsTab, PermissionsTab],
+  imports: [UsersTab, RolesTab, GroupsTab, PermissionsTab, UsageTab],
   templateUrl: './admin-panel.html',
 })
 export class AdminPanel {

@@ -1,4 +1,5 @@
 import type {
+  AiUsageReport,
   AuthConfigResponse, CacheClearResponse, CreatePermissionRequest, CreateUserRequest, ForecastResult, GroupRequest, GroupResponse,
   MatchSummary, MeResponse, PasswordResponse, PermissionResponse, RoleRequest, RoleResponse, TokenResponse, UpdatePermissionRequest,
   UpdateUserRequest, UserResponse
@@ -19,7 +20,7 @@ const apiFetch = (url: string, init: RequestInit = {}) =>
   fetch(url, { ...init, headers: { ...(init.headers as Record<string, string> | undefined), 'Accept-Language': getLang() } })
 
 let accessToken: string | null = null
-// Aynı anda 401 alan istekler tek bir refresh çağrısını paylaşır. Refresh token tek kullanımlık olduğu için iki kez gönderilirse backend bunu "çalınmış token" sayar ve kullanıcının tüm oturumlarını kapatır.
+// Aynı anda 401 alan istekler TEK bir refresh çağrısını paylaşır. Refresh token tek kullanımlık olduğu için iki kez gönderilirse backend bunu "çalınmış token" sayar ve kullanıcının tüm oturumlarını kapatır.
 let refreshing: Promise<string | null> | null = null
 let sessionExpiredHandler: (() => void) | null = null
 
@@ -212,3 +213,6 @@ export const deletePermission = (id: number) => request<void>(`/api/permissions/
 // Kayıt ekranında, giriş yapılmadan kullanılır; token gerektirmez.
 export const generatePassword = async (length = 16): Promise<PasswordResponse> =>
   readJson<PasswordResponse>(await apiFetch(`/api/password?length=${length}`))
+
+// AI kullanım raporu (yalnızca ai-usage.view; Admin örtük olarak sahip)
+export const getAiUsage = (days: number) => request<AiUsageReport>(`/api/ai-usage?days=${days}`)

@@ -16,7 +16,7 @@ public sealed class ClaudeForecastClient(
     private readonly AiProviderOptions _opt = options.Value.Claude;
     private readonly int _maxTokens = options.Value.MaxTokens;
 
-    public async Task<string> CompleteAsync(string systemPrompt, string userPrompt, CancellationToken ct)
+    public async Task<AiCompletion> CompleteAsync(string systemPrompt, string userPrompt, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(_opt.ApiKey))
         {
@@ -42,9 +42,12 @@ public sealed class ClaudeForecastClient(
         }
 
         using var doc = JsonDocument.Parse(raw);
-        return string.Concat(doc.RootElement.GetProperty("content").EnumerateArray()
+        var text = string.Concat(doc.RootElement.GetProperty("content").EnumerateArray()
             .Where(b => b.GetProperty("type").GetString() == "text")
             .Select(b => b.GetProperty("text").GetString()));
+
+        var usage = doc.RootElement.TryGetProperty("usage", out var u) ? u : default;
+        return new AiCompletion(text, AiCompletion.ReadInt(usage, "input_tokens"), AiCompletion.ReadInt(usage, "output_tokens"));
     }
 
     private static string Truncate(string s, int max) => s.Length <= max ? s : s[..max] + "…";

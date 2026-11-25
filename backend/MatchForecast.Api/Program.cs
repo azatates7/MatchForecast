@@ -300,6 +300,7 @@ try
         builder.Services.AddScoped<IForecastStore>(sp => sp.GetRequiredService<ForecastStore>());
     }
 
+    builder.Services.AddScoped<IAiUsageStore, AiUsageStore>();
     builder.Services.AddScoped<ForecastService>();
 
     // Girişte günün Süper Lig tahminlerini arka planda önceden üretir (Forecast:PrewarmOnLogin).

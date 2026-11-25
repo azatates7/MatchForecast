@@ -106,7 +106,8 @@ export const PERMISSIONS = {
   groupsManage: 'groups.manage',
   cacheClear: 'cache.clear',
   forecastRefresh: 'forecast.refresh',
-  appSettingsManage: 'app-settings.manage'
+  appSettingsManage: 'app-settings.manage',
+  aiUsageView: 'ai-usage.view'
 } as const
 
 // ---- Admin paneli (kullanıcı / rol / grup / yetki yönetimi) ----
@@ -207,4 +208,34 @@ export interface CacheClearResponse {
 export interface PasswordResponse {
   password: string
   length: number
+}
+
+// ---- AI kullanım raporu (GET /api/ai-usage, ai-usage.view) ----
+
+export interface AiUsageTotals {
+  calls: number
+  failures: number
+  inputTokens: number
+  outputTokens: number
+  estimatedCostUsd: number
+  averageDurationMs: number
+}
+
+export interface AiUsageDaily {
+  /** İstanbul tarihi, "yyyy-MM-dd" */
+  date: string
+  provider: string
+  model: string
+  calls: number
+  failures: number
+  inputTokens: number
+  outputTokens: number
+  estimatedCostUsd: number
+}
+
+export interface AiUsageReport {
+  from: string
+  to: string
+  totals: AiUsageTotals
+  daily: AiUsageDaily[]
 }

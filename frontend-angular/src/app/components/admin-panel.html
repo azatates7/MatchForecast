@@ -19,6 +19,8 @@
       <app-roles-tab />
     } @else if (active().id === 'groups') {
       <app-groups-tab [me]="me()" />
+    } @else if (active().id === 'usage') {
+      <app-usage-tab />
     } @else {
       <app-permissions-tab />
     }

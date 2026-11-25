@@ -30,12 +30,14 @@ public class ForecastServiceTests
     private readonly Mock<IForecastAiClient> _mockAi = new();
     private readonly IRedisCacheService _cache = new InMemoryRedisCacheService();
     private readonly Mock<IForecastStore> _mockStore = new();
+    private readonly Mock<IAiUsageStore> _mockUsage = new();
 
     private ForecastService CreateService() => new(
         _mockOdds.Object,
         _mockAi.Object,
         _cache,
         _mockStore.Object,
+        _mockUsage.Object,
         Options.Create(new AiOptions { CacheMinutes = 30 }),
         Options.Create(new ForecastOptions { PredictionCount = 5 }),
         NullLogger<ForecastService>.Instance);
@@ -46,7 +48,7 @@ public class ForecastServiceTests
 
     private void SetupAi(string response) =>
         _mockAi.Setup(a => a.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(response);
+            .ReturnsAsync(new AiCompletion(response));
 
     [Fact]
     public async Task GetForecastAsync_ReturnsStatsOutcomesAndPredictions()
@@ -96,6 +98,45 @@ public class ForecastServiceTests
         SetupAi("""{ "summary": "x", "awayGoals": { "expected": 1.0 } }""");
 
         await Assert.ThrowsAsync<ForecastException>(() => CreateService().GetForecastAsync(1, false, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task GetForecastAsync_RecordsAiUsage_WithTokens()
+    {
+        SetupMatch();
+        _mockAi.Setup(a => a.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiCompletion(ValidAiJson, 800, 600));
+
+        await CreateService().GetForecastAsync(1, false, CancellationToken.None);
+
+        _mockUsage.Verify(u => u.RecordAsync(1,
+            It.Is<AiCompletion>(c => c.InputTokens == 800 && c.OutputTokens == 600), null,
+            It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetForecastAsync_RecordsFailedAiCall_WithStatusCode()
+    {
+        SetupMatch();
+        _mockAi.Setup(a => a.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ForecastException("quota", 429));
+
+        await Assert.ThrowsAsync<ForecastException>(() => CreateService().GetForecastAsync(1, false, CancellationToken.None));
+
+        _mockUsage.Verify(u => u.RecordAsync(1, null, 429, It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetForecastAsync_StillReturnsForecast_WhenUsageCannotBeRecorded()
+    {
+        SetupMatch();
+        SetupAi(ValidAiJson);
+        _mockUsage.Setup(u => u.RecordAsync(It.IsAny<int>(), It.IsAny<AiCompletion?>(), It.IsAny<int?>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("db down"));
+
+        var result = await CreateService().GetForecastAsync(1, false, CancellationToken.None);
+
+        Assert.Equal(5, result.Predictions.Count);
     }
 
     [Fact]

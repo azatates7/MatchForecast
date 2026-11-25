@@ -20,7 +20,7 @@ public sealed class OllamaForecastClient(
     private readonly OllamaOptions _opt = options.Value.Ollama;
     private readonly int _maxTokens = options.Value.MaxTokens;
 
-    public async Task<string> CompleteAsync(string systemPrompt, string userPrompt, CancellationToken ct)
+    public async Task<AiCompletion> CompleteAsync(string systemPrompt, string userPrompt, CancellationToken ct)
     {
         /*
          * stream=false: cevap tek JSON nesnesi olarak gelir (varsayılan true'dur ve satır satır parça döner).
@@ -90,7 +90,8 @@ public sealed class OllamaForecastClient(
                     : Lang.T($"AI servisi (Ollama) boş yanıt döndü (done_reason: {reason}).", $"The AI service (Ollama) returned an empty response (done_reason: {reason})."));
             }
 
-            return text;
+            // prompt_eval_count: girdi, eval_count: üretilen token sayısı.
+            return new AiCompletion(text, AiCompletion.ReadInt(root, "prompt_eval_count"), AiCompletion.ReadInt(root, "eval_count"));
         }
     }
 

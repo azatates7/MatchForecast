@@ -9,7 +9,7 @@ import AuthPanel from './components/AuthPanel'
 import LeagueFilter from './components/LeagueFilter'
 import ThemeToggle from './components/ThemeToggle'
 import LanguageToggle from './components/LanguageToggle'
-import AdminPanel from './components/AdminPanel'
+import AdminPanel from './components/admin/AdminPanel'
 import { canOpenAdmin, clearHash, parseAdminHash } from './AdminView'
 import { useI18n } from './i18n/useI18n'
 

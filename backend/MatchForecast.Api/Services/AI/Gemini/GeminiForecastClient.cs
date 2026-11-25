@@ -16,7 +16,7 @@ public sealed class GeminiForecastClient(
     private readonly AiProviderOptions _opt = options.Value.Gemini;
     private readonly int _maxTokens = options.Value.MaxTokens;
 
-    public async Task<string> CompleteAsync(string systemPrompt, string userPrompt, CancellationToken ct)
+    public async Task<AiCompletion> CompleteAsync(string systemPrompt, string userPrompt, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(_opt.ApiKey))
         {
@@ -67,7 +67,13 @@ public sealed class GeminiForecastClient(
                 : Lang.T($"AI servisi boş yanıt döndü (finishReason: {reason}).", $"The AI service returned an empty response (finishReason: {reason})."));
         }
 
-        return text;
+        // thoughtsTokenCount (düşünme) çıktı olarak faturalandığı için çıktı token'ına eklenir.
+        var usage = doc.RootElement.TryGetProperty("usageMetadata", out var u) ? u : default;
+        var candidatesTokens = AiCompletion.ReadInt(usage, "candidatesTokenCount");
+        var thoughtsTokens = AiCompletion.ReadInt(usage, "thoughtsTokenCount");
+        int? outputTokens = candidatesTokens is null && thoughtsTokens is null ? null : (candidatesTokens ?? 0) + (thoughtsTokens ?? 0);
+
+        return new AiCompletion(text, AiCompletion.ReadInt(usage, "promptTokenCount"), outputTokens);
     }
 
     private static string Truncate(string s, int max) => s.Length <= max ? s : s[..max] + "…";
