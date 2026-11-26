@@ -772,3 +772,9 @@ button, input { font: inherit; color: inherit; }
 .absence-suspended { color: var(--card); }
 .absence-injured { color: var(--danger); }
 .absence-doubtful, .absence-out { color: var(--muted); }
+
+/* Admin: fikstür ID (API-Football teşhisi için). Listede salt okunur, panelde seçilebilir + kopyala */
+.match-id { font-size: 0.72rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.fixture-id { display: inline-flex; align-items: baseline; gap: 0.4rem; margin-left: 0.6rem; font-size: 0.85rem; }
+.fixture-id code { font-variant-numeric: tabular-nums; user-select: all; }
+.fixture-id .link-btn { font-size: 0.8rem; }

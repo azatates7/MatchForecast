@@ -1,4 +1,4 @@
-import { Component, inject, input, output } from '@angular/core';
+import { Component, inject, input, output, signal } from '@angular/core';
 import { I18nService } from '../core/i18n/i18n.service';
 import type { ForecastResult, MatchSummary } from '../core/types';
 import { ABSENCE_LABEL, groupAbsences } from '../core/absences';
@@ -19,6 +19,18 @@ interface ResultBar {
 export class ForecastPanel {
   // Eksik oyuncular (React: ForecastPanel içindeki Absences). Veri alınamadıysa (null) bölüm gösterilmez.
   protected readonly absenceLabel = ABSENCE_LABEL;
+
+  /** true: başlıkta fikstür ID'si ve kopyala butonu (yalnızca Admin) */
+  readonly showId = input(false);
+  protected readonly copied = signal(false);
+
+  // Panoya kopyalar; clipboard izni yoksa ID yine elle seçilebilir.
+  protected copyId(id: number) {
+    navigator.clipboard?.writeText(String(id)).then(() => {
+      this.copied.set(true);
+      setTimeout(() => this.copied.set(false), 1500);
+    }, () => undefined);
+  }
   protected absences(f: ForecastResult) {
     return f.missingPlayers ? groupAbsences(f.match, f.missingPlayers) : [];
   }

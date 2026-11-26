@@ -19,6 +19,8 @@ export class MatchList {
 
   /** Liste boşken gösterilecek metin (misafir gün/lig seçemediği için ona özel metin verilir) */
   readonly emptyText = input<string>();
+  /** true: her maçın altında fikstür ID'si (yalnızca Admin) */
+  readonly showIds = input(false);
   readonly select = output<number>();
 
   protected readonly i18n = inject(I18nService);

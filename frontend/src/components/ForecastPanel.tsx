@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { ForecastResult, MatchSummary, MissingPlayer, OutcomeProbabilities } from '../types'
 import StatsTable from './StatsTable'
 import { useI18n } from '../i18n/useI18n'
@@ -11,6 +12,8 @@ interface Props {
   onRetry: () => void
   /** false: "Tekrar / Yeniden analiz et" butonları gizlenir (misafir; API refresh'i yalnızca Admin'e uygular) */
   canRetry?: boolean
+  /** true: başlıkta fikstür ID'si ve kopyala butonu (yalnızca Admin) */
+  showId?: boolean
 }
 
 /*
@@ -91,7 +94,25 @@ function Absences({ match, players }: { match: MatchSummary; players: MissingPla
   )
 }
 
-export default function ForecastPanel({ match, forecast, loading, error, onRetry, canRetry = true }: Props) {
+// Admin: fikstür ID'si seçilebilir; buton panoya kopyalar (clipboard izni yoksa ID yine elle seçilebilir).
+function FixtureId({ id }: { id: number }) {
+  const { t } = useI18n()
+  const [copied, setCopied] = useState(false)
+  const copy = () => {
+    navigator.clipboard?.writeText(String(id)).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    }, () => undefined)
+  }
+  return (
+    <span className="fixture-id" title={t('fixture.id')}>
+      <code>#{id}</code>
+      <button type="button" className="link-btn" onClick={copy}>{t(copied ? 'fixture.copied' : 'fixture.copy')}</button>
+    </span>
+  )
+}
+
+export default function ForecastPanel({ match, forecast, loading, error, onRetry, canRetry = true, showId = false }: Props) {
   const { t, pct, loc } = useI18n()
 
   if (!match) {
@@ -108,7 +129,10 @@ export default function ForecastPanel({ match, forecast, loading, error, onRetry
   return (
     <article className="forecast">
       <header className="fixture-head">
-        <p className="fixture-league">{match.league}</p>
+        <p className="fixture-league">
+          {match.league}
+          {showId && <FixtureId id={match.id} />}
+        </p>
         <h2 className="fixture-title">
           <span>{match.homeTeam}</span>
           <span className="vs">–</span>

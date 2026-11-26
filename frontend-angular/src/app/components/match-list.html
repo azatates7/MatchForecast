@@ -27,6 +27,9 @@
                 <span class="match-teams">
                   <span>{{ m.homeTeam }}</span>
                   <span>{{ m.awayTeam }}</span>
+                  @if (showIds()) {
+                    <span class="match-id">#{{ m.id }}</span>
+                  }
                 </span>
               </button>
             </li>

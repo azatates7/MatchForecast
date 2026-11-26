@@ -14,12 +14,14 @@ interface Props {
   now: number
   /** Liste boşken gösterilecek metin (misafir gün/lig seçemediği için ona özel metin verilir) */
   emptyText?: string
+  /** true: her maçın altında fikstür ID'si (yalnızca Admin) */
+  showIds?: boolean
 }
 
 const time = (iso: string, locale: string) =>
   new Date(iso).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
 
-export default function MatchList({ matches, loading, error, selectedId, onSelect, fetchedAt, now, emptyText }: Props) {
+export default function MatchList({ matches, loading, error, selectedId, onSelect, fetchedAt, now, emptyText, showIds = false }: Props) {
   const { t, locale } = useI18n()
   if (loading) return <p className="note">{t('matches.loading')}</p>
   if (error) return <p className="note note-error">{error}</p>
@@ -58,6 +60,7 @@ export default function MatchList({ matches, loading, error, selectedId, onSelec
                     <span className="match-teams">
                       <span>{m.homeTeam}</span>
                       <span>{m.awayTeam}</span>
+                      {showIds && <span className="match-id">#{m.id}</span>}
                     </span>
                   </button>
                 </li>

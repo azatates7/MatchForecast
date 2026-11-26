@@ -9,7 +9,15 @@
 } @else {
   <article class="forecast">
     <header class="fixture-head">
-      <p class="fixture-league">{{ m.league }}</p>
+      <p class="fixture-league">
+        {{ m.league }}
+        @if (showId()) {
+          <span class="fixture-id" [title]="i18n.t('fixture.id')">
+            <code>#{{ m.id }}</code>
+            <button type="button" class="link-btn" (click)="copyId(m.id)">{{ i18n.t(copied() ? 'fixture.copied' : 'fixture.copy') }}</button>
+          </span>
+        }
+      </p>
       <h2 class="fixture-title">
         <span>{{ m.homeTeam }}</span>
         <span class="vs">–</span>

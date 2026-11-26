@@ -12,8 +12,7 @@ import { AdminPanel } from './components/admin-panel';
 import { canOpenAdmin, clearHash, parseAdminHash } from './core/admin-view';
 import { I18nService } from './core/i18n/i18n.service';
 
-// Canlı maç varken listenin arka planda yenilenme aralığı. API kotasını korumak için
-// kısa tutulmadı; aradaki dakikalar minuteLabel içinde yerelde ilerletilir.
+// Canlı maç varken listenin arka planda yenilenme aralığı. API kotasını korumak için kısa tutulmadı; aradaki dakikalar minuteLabel içinde yerelde ilerletilir.
 const LIVE_REFRESH_MS = 5 * 60_000;
 // Ekrandaki dakika etiketinin güncellenme aralığı (ağ isteği yapmaz)
 const CLOCK_TICK_MS = 30_000;
@@ -82,6 +81,8 @@ export class App {
   protected readonly restricted = computed(() => this.isGuest() || (this.me() === null && !this.meFailed()));
   // Önbelleği Sil yalnızca cache.clear yetkisi olana görünür (Admin dahil; API de aynı yetkiyi ister).
   protected readonly canClearCache = computed(() => hasPermission(this.me(), 'cache.clear'));
+  // Fikstür ID'leri yalnızca Admin'e gösterilir (API-Football'da maçı sorgulamak, log ve Redis anahtarlarını bulmak için).
+  protected readonly isAdmin = computed(() => this.me()?.roles.includes('Admin') ?? false);
 
   // Yönetim görünümü adresteki #admin[/sekme] ile açılır; yönetim yetkisi olmayan maç ekranında kalır.
   protected readonly hash = signal(location.hash);

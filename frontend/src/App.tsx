@@ -72,6 +72,8 @@ export default function App() {
   const restricted = isGuest || (me === null && !meFailed)
   // Önbelleği Sil yalnızca cache.clear yetkisi olana görünür (Admin dahil; API de aynı yetkiyi ister).
   const canClearCache = hasPermission(me, 'cache.clear')
+  // Fikstür ID'leri yalnızca Admin'e gösterilir (API-Football'da maçı sorgulamak, log ve Redis anahtarlarını bulmak için).
+  const isAdmin = me?.roles.includes('Admin') ?? false
 
   // Yönetim görünümü adresteki #admin[/sekme] ile açılır; yönetim yetkisi olmayan maç ekranında kalır.
   const [hash, setHash] = useState(() => window.location.hash)
@@ -327,6 +329,7 @@ export default function App() {
               fetchedAt={fetchedAt}
               now={now}
               emptyText={isGuest ? t('guest.noMatches') : undefined}
+              showIds={isAdmin}
             />
           </section>
   
@@ -338,6 +341,7 @@ export default function App() {
               error={forecastState.error}
               onRetry={() => selectedId && analyze(selectedId, true)}
               canRetry={!isGuest}
+              showId={isAdmin}
             />
           </section>
         </main>
