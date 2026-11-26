@@ -39,6 +39,10 @@ public sealed class MockOddsProvider : IOddsProvider
         return Task.FromResult<MatchSummary?>(s.Id == 0 ? null : ToSummary(s, DateOnly.FromDateTime(DateTime.Today)));
     }
 
+    // Sahte veride eksik oyuncu bilgisi yok.
+    public Task<IReadOnlyList<MissingPlayer>> GetMissingPlayersAsync(int fixtureId, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<MissingPlayer>>([]);
+
     private static MatchSummary ToSummary(
         (int Id, string League, string Country, string Home, string Away, int Hour) s, DateOnly date)
     {

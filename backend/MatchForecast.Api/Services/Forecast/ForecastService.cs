@@ -63,8 +63,8 @@ public sealed class ForecastService(
 
     public async Task<ForecastResult> GetForecastAsync(int fixtureId, bool refresh, CancellationToken ct)
     {
-        // v3: metinler iki dilli ({ tr, en }). Eski formattaki (v2) kayıtlar farklı anahtar sayesinde yok sayılır, süreleri dolunca silinirler.
-        var key = $"forecast:v3:{fixtureId}";
+        // v4: prompt'a eksik oyuncular eklendi (v3: iki dilli metinler). Eski anahtarlı kayıtlar yok sayılır, süreleri dolunca silinir.
+        var key = $"forecast:v4:{fixtureId}";
         if (!refresh)
         {
             var cached = await cache.GetAsync<ForecastResult>(key);
@@ -101,7 +101,8 @@ public sealed class ForecastService(
             throw new ForecastException(Lang.T("Maç bulunamadı.", "Match not found."), StatusCodes.Status404NotFound);
         }
 
-        var raw = (await CallAiAsync(fixtureId, ForecastPrompt.BuildUser(match), ct)).Text;
+        var missing = await GetMissingPlayersAsync(fixtureId, ct);
+        var raw = (await CallAiAsync(fixtureId, ForecastPrompt.BuildUser(match, missing), ct)).Text;
         var response = Parse(raw);
 
         var opt = forecastOptions.Value;
@@ -118,6 +119,20 @@ public sealed class ForecastService(
         await cache.SetAsync(key, result, TimeSpan.FromMinutes(aiOptions.Value.CacheMinutes));
         await SaveAsync(result);
         return result;
+    }
+
+    // Fail-open: eksik oyuncu verisi alınamazsa (kota, plan kısıtı, ağ) tahmin yine üretilir; prompt'ta "bilgi alınamadı" yazar.
+    private async Task<IReadOnlyList<MissingPlayer>?> GetMissingPlayersAsync(int fixtureId, CancellationToken ct)
+    {
+        try
+        {
+            return await odds.GetMissingPlayersAsync(fixtureId, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Missing players for fixture {FixtureId} could not be loaded; forecasting without them.", fixtureId);
+            return null;
+        }
     }
 
     /*

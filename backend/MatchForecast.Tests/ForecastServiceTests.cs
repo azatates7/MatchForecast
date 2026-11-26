@@ -140,6 +140,40 @@ public class ForecastServiceTests
     }
 
     [Fact]
+    public async Task GetForecastAsync_SendsMissingPlayersToAi()
+    {
+        SetupMatch();
+        _mockOdds.Setup(o => o.GetMissingPlayersAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new MissingPlayer("Inter", "L. Martinez", "Missing Fixture", "Suspended")]);
+        string? userPrompt = null;
+        _mockAi.Setup(a => a.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, CancellationToken>((_, user, _) => userPrompt = user)
+            .ReturnsAsync(new AiCompletion(ValidAiJson));
+
+        await CreateService().GetForecastAsync(1, false, CancellationToken.None);
+
+        Assert.Contains("- Inter: L. Martinez (oynamayacak, Suspended)", userPrompt);
+        Assert.Contains("- Milan: bildirilen eksik yok", userPrompt);
+    }
+
+    [Fact]
+    public async Task GetForecastAsync_StillForecasts_WhenMissingPlayersCannotBeLoaded()
+    {
+        SetupMatch();
+        _mockOdds.Setup(o => o.GetMissingPlayersAsync(1, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ForecastException("API-Football error: plan"));
+        string? userPrompt = null;
+        _mockAi.Setup(a => a.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, CancellationToken>((_, user, _) => userPrompt = user)
+            .ReturnsAsync(new AiCompletion(ValidAiJson));
+
+        var result = await CreateService().GetForecastAsync(1, false, CancellationToken.None);
+
+        Assert.Equal(5, result.Predictions.Count);
+        Assert.Contains("Eksik oyuncular: bilgi alınamadı.", userPrompt);
+    }
+
+    [Fact]
     public async Task GetForecastAsync_Throws404_WhenMatchNotFound()
     {
         _mockOdds.Setup(o => o.GetMatchAsync(99, It.IsAny<CancellationToken>())).ReturnsAsync((MatchSummary?)null);
