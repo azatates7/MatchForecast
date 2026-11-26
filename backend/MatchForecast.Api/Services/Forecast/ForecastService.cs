@@ -115,7 +115,7 @@ public sealed class ForecastService(
             throw new ForecastException(Lang.T("Yapay zeka geçerli bir tahmin üretmedi, tekrar deneyin.", "The AI did not produce a valid forecast, please try again."));
         }
 
-        var result = new ForecastResult(match, LocalizedText.Of(response.Summary, response.SummaryEn), projection.Outcomes, projection.Stats, predictions, DateTimeOffset.Now);
+        var result = new ForecastResult(match, LocalizedText.Of(response.Summary, response.SummaryEn), projection.Outcomes, projection.Stats, predictions, DateTimeOffset.Now, missing);
         await cache.SetAsync(key, result, TimeSpan.FromMinutes(aiOptions.Value.CacheMinutes));
         await SaveAsync(result);
         return result;

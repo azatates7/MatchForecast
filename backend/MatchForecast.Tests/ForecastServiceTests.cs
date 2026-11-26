@@ -150,9 +150,10 @@ public class ForecastServiceTests
             .Callback<string, string, CancellationToken>((_, user, _) => userPrompt = user)
             .ReturnsAsync(new AiCompletion(ValidAiJson));
 
-        await CreateService().GetForecastAsync(1, false, CancellationToken.None);
+        var result = await CreateService().GetForecastAsync(1, false, CancellationToken.None);
 
         Assert.Contains("- Inter: L. Martinez (oynamayacak, Suspended)", userPrompt);
+        Assert.Equal("L. Martinez", Assert.Single(result.MissingPlayers!).Player); // ekranda gösterilmek üzere sonuçta da döner
         Assert.Contains("- Milan: bildirilen eksik yok", userPrompt);
     }
 
@@ -171,6 +172,7 @@ public class ForecastServiceTests
 
         Assert.Equal(5, result.Predictions.Count);
         Assert.Contains("Eksik oyuncular: bilgi alınamadı.", userPrompt);
+        Assert.Null(result.MissingPlayers); // ekran "bilgi alınamadı" dipnotunu gösterir
     }
 
     [Fact]

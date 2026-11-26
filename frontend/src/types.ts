@@ -69,6 +69,8 @@ export interface ForecastResult {
   stats: StatProjection[]
   predictions: Prediction[]
   generatedAt: string
+  /** null/yok: eksik oyuncu verisi alınamadı; boş dizi: bildirilen eksik yok */
+  missingPlayers?: MissingPlayer[] | null
 }
 
 export interface AuthConfigResponse {
@@ -238,4 +240,12 @@ export interface AiUsageReport {
   to: string
   totals: AiUsageTotals
   daily: AiUsageDaily[]
+}
+
+// Maça çıkamayacak / şüpheli oyuncu (API-Football /injuries). type: "Missing Fixture" | "Questionable"; reason İngilizce.
+export interface MissingPlayer {
+  team: string
+  player: string
+  type: string
+  reason: string
 }

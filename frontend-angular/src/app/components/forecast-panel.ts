@@ -1,6 +1,7 @@
 import { Component, inject, input, output } from '@angular/core';
 import { I18nService } from '../core/i18n/i18n.service';
 import type { ForecastResult, MatchSummary } from '../core/types';
+import { ABSENCE_LABEL, groupAbsences } from '../core/absences';
 import { StatsTable } from './stats-table';
 
 interface ResultBar {
@@ -16,6 +17,12 @@ interface ResultBar {
   templateUrl: './forecast-panel.html',
 })
 export class ForecastPanel {
+  // Eksik oyuncular (React: ForecastPanel içindeki Absences). Veri alınamadıysa (null) bölüm gösterilmez.
+  protected readonly absenceLabel = ABSENCE_LABEL;
+  protected absences(f: ForecastResult) {
+    return f.missingPlayers ? groupAbsences(f.match, f.missingPlayers) : [];
+  }
+
   readonly match = input<MatchSummary | null>(null);
   readonly forecast = input<ForecastResult | null>(null);
   readonly loading = input(false);

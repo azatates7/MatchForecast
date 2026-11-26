@@ -1,6 +1,7 @@
-import type { ForecastResult, MatchSummary, OutcomeProbabilities } from '../types'
+import type { ForecastResult, MatchSummary, MissingPlayer, OutcomeProbabilities } from '../types'
 import StatsTable from './StatsTable'
 import { useI18n } from '../i18n/useI18n'
+import { ABSENCE_LABEL, groupAbsences } from './Absences'
 
 interface Props {
   match: MatchSummary | null
@@ -60,6 +61,36 @@ function Outcomes({ o }: { o: OutcomeProbabilities }) {
   )
 }
 
+// Modelin dikkate aldığı eksik oyuncular (API-Football). Veri alınamadıysa bölüm hiç gösterilmez; dipnot bunu söyler.
+function Absences({ match, players }: { match: MatchSummary; players: MissingPlayer[] }) {
+  const { t } = useI18n()
+  return (
+    <section className="absences">
+      <h3 className="section-title">{t('absences.title')}</h3>
+      {players.length === 0 ? <p className="absences-none">{t('absences.none')}</p> : (
+        <div className="absences-grid">
+          {groupAbsences(match, players).map(g => (
+            <div key={g.team} className="absences-team">
+              <h4>{g.team}</h4>
+              {g.absences.length === 0 ? <p className="absences-none">{t('absences.teamNone')}</p> : (
+                <ul>
+                  {g.absences.map(a => (
+                    <li key={a.player}>
+                      <span>{a.player}</span>
+                      <span className={`absence-tag absence-${a.kind}`}>{t(ABSENCE_LABEL[a.kind])}</span>
+                      {a.reason && <span className="absence-reason">{a.reason}</span>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
 export default function ForecastPanel({ match, forecast, loading, error, onRetry, canRetry = true }: Props) {
   const { t, pct, loc } = useI18n()
 
@@ -98,6 +129,8 @@ export default function ForecastPanel({ match, forecast, loading, error, onRetry
         <>
           {summary && <p className="summary">{summary}</p>}
 
+          {forecast.missingPlayers && <Absences match={forecast.match} players={forecast.missingPlayers} />}
+
           <Outcomes o={forecast.outcomes} />
 
           <h3 className="section-title">{t('forecast.top', { n: forecast.predictions.length })}</h3>
@@ -127,7 +160,7 @@ export default function ForecastPanel({ match, forecast, loading, error, onRetry
           <StatsTable stats={forecast.stats} />
 
           <footer className="forecast-foot">
-            <span>{t('forecast.footnote')}</span>
+            <span>{t(forecast.missingPlayers ? 'forecast.footnote' : 'forecast.footnoteNoAbsences')}</span>
             {canRetry && <button type="button" className="link-btn" onClick={onRetry}>{t('forecast.reanalyze')}</button>}
           </footer>
           <p className="disclaimer">{t('forecast.disclaimer')}</p>

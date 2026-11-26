@@ -16,7 +16,8 @@
 }
 
 /*
- * Karanlık tema <html data-theme="dark"> ile açılır. İlk değeri index.html'deki betik atar (kayıtlı seçim, yoksa sistem tercihi); üst bardaki tema düğmesi değiştirir ve localStorage'a kaydeder.
+ * Karanlık tema <html data-theme="dark"> ile açılır. İlk değeri index.html'deki betik atar (kayıtlı seçim, yoksa sistem
+ * tercihi); üst bardaki tema düğmesi değiştirir ve localStorage'a kaydeder.
  */
 :root[data-theme="dark"] {
   --paper: #0f1a22;
@@ -746,3 +747,28 @@ button, input { font: inherit; color: inherit; }
 .usage-stats dt { color: var(--muted); font-size: 0.8rem; }
 .usage-stats dd { margin: 0.25rem 0 0; font-size: 1.15rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 .admin-table .usage-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.usage-range { display: inline-flex; align-items: center; gap: 0.4rem; }
+.usage-range select {
+  padding: 0.35rem 0.6rem;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Eksik oyuncular: iki takım yan yana (dar ekranda alt alta), oyuncu adı + durum etiketi + neden */
+.absences { margin: 0 0 1.75rem; max-width: 46rem; }
+.absences .section-title { margin-top: 0; }
+.absences-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 0.75rem; }
+.absences-team { padding: 0.75rem 0.9rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.absences-team h4 { margin: 0 0 0.5rem; font-size: 0.95rem; }
+.absences-team ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.absences-team li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem; font-size: 0.9rem; }
+.absences-none { margin: 0; color: var(--muted); font-size: 0.9rem; }
+.absence-reason { color: var(--muted); font-size: 0.8rem; }
+.absence-tag { padding: 0.05rem 0.45rem; border-radius: 999px; font-size: 0.72rem; font-weight: 600; border: 1px solid currentColor; }
+.absence-suspended { color: var(--card); }
+.absence-injured { color: var(--danger); }
+.absence-doubtful, .absence-out { color: var(--muted); }

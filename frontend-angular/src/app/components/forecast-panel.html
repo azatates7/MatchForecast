@@ -35,6 +35,38 @@
         <p class="summary">{{ summary }}</p>
       }
 
+      @if (f.missingPlayers; as missing) {
+        <section class="absences">
+          <h3 class="section-title">{{ i18n.t('absences.title') }}</h3>
+          @if (missing.length === 0) {
+            <p class="absences-none">{{ i18n.t('absences.none') }}</p>
+          } @else {
+            <div class="absences-grid">
+              @for (g of absences(f); track g.team) {
+                <div class="absences-team">
+                  <h4>{{ g.team }}</h4>
+                  @if (g.absences.length === 0) {
+                    <p class="absences-none">{{ i18n.t('absences.teamNone') }}</p>
+                  } @else {
+                    <ul>
+                      @for (a of g.absences; track a.player) {
+                        <li>
+                          <span>{{ a.player }}</span>
+                          <span [class]="'absence-tag absence-' + a.kind">{{ i18n.t(absenceLabel[a.kind]) }}</span>
+                          @if (a.reason) {
+                            <span class="absence-reason">{{ a.reason }}</span>
+                          }
+                        </li>
+                      }
+                    </ul>
+                  }
+                </div>
+              }
+            </div>
+          }
+        </section>
+      }
+
       <section class="outcomes">
         @for (b of resultBars(f); track b.title) {
           <div class="result">
@@ -93,7 +125,7 @@
       <app-stats-table [stats]="f.stats" />
 
       <footer class="forecast-foot">
-        <span>{{ i18n.t('forecast.footnote') }}</span>
+        <span>{{ i18n.t(f.missingPlayers ? 'forecast.footnote' : 'forecast.footnoteNoAbsences') }}</span>
         @if (canRetry()) {
           <button type="button" class="link-btn" (click)="retry.emit()">{{ i18n.t('forecast.reanalyze') }}</button>
         }
