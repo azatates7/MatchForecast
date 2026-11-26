@@ -63,8 +63,12 @@ public sealed class ForecastService(
 
     public async Task<ForecastResult> GetForecastAsync(int fixtureId, bool refresh, CancellationToken ct)
     {
-        // v4: prompt'a eksik oyuncular eklendi (v3: iki dilli metinler). Eski anahtarlı kayıtlar yok sayılır, süreleri dolunca silinir.
-        var key = $"forecast:v4:{fixtureId}";
+        /*
+         * Sonucun biçimi ya da prompt'un içeriği değişince sürüm artırılır; eski anahtarlı kayıtlar yok sayılır, süreleri dolunca silinir.
+         * v5: sonuca MissingPlayers eklendi (v4 kayıtlarında bu alan yok, ekran eksik oyuncu bölümünü gösteremez).
+         * v4: prompt'a eksik oyuncular eklendi. v3: iki dilli metinler.
+         */
+        var key = $"forecast:v5:{fixtureId}";
         if (!refresh)
         {
             var cached = await cache.GetAsync<ForecastResult>(key);
