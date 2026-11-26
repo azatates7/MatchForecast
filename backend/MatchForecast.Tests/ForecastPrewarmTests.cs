@@ -1,6 +1,7 @@
 using MatchForecast.Api.Options;
 using MatchForecast.Api.Services.ApiFootball;
 using MatchForecast.Api.Services.Forecast;
+using MatchForecast.Api.Services.Absences;
 using MatchForecast.Api.Services.Redis;
 using MatchForecast.Api.Services.Security.Guest;
 using MatchForecast.Models.Response;
@@ -59,6 +60,8 @@ public class ForecastPrewarmTests
             .AddSingleton<IRedisCacheService>(_cache)
             .AddSingleton(Mock.Of<IForecastStore>())
             .AddSingleton(Mock.Of<IAiUsageStore>())
+            .AddSingleton(Mock.Of<IAbsenceResearcher>())
+            .AddSingleton(Options.Create(new AbsencesOptions()))
             .AddSingleton(Options.Create(new AiOptions { CacheMinutes = 30 }))
             .AddSingleton(Options.Create(new ForecastOptions { PredictionCount = 5 }))
             .AddScoped<ForecastService>()
@@ -79,9 +82,9 @@ public class ForecastPrewarmTests
         await CreateWorker().PrewarmTodayAsync(CancellationToken.None);
 
         Assert.Equal(2, AiCalls());
-        Assert.NotNull(await _cache.GetAsync<ForecastResult>($"forecast:v5:{SuperLig1.Id}"));
-        Assert.NotNull(await _cache.GetAsync<ForecastResult>($"forecast:v5:{SuperLig2.Id}"));
-        Assert.Null(await _cache.GetAsync<ForecastResult>($"forecast:v5:{PremierLeague.Id}"));
+        Assert.NotNull(await _cache.GetAsync<ForecastResult>($"forecast:v6:{SuperLig1.Id}"));
+        Assert.NotNull(await _cache.GetAsync<ForecastResult>($"forecast:v6:{SuperLig2.Id}"));
+        Assert.Null(await _cache.GetAsync<ForecastResult>($"forecast:v6:{PremierLeague.Id}"));
     }
 
     [Fact]
@@ -115,8 +118,8 @@ public class ForecastPrewarmTests
 
         await CreateWorker().PrewarmTodayAsync(CancellationToken.None);
 
-        Assert.Null(await _cache.GetAsync<ForecastResult>($"forecast:v5:{SuperLig1.Id}"));
-        Assert.NotNull(await _cache.GetAsync<ForecastResult>($"forecast:v5:{SuperLig2.Id}"));
+        Assert.Null(await _cache.GetAsync<ForecastResult>($"forecast:v6:{SuperLig1.Id}"));
+        Assert.NotNull(await _cache.GetAsync<ForecastResult>($"forecast:v6:{SuperLig2.Id}"));
     }
 
     [Fact]
@@ -133,6 +136,8 @@ public class ForecastPrewarmTests
             .AddSingleton<IRedisCacheService>(_cache)
             .AddSingleton(Mock.Of<IForecastStore>())
             .AddSingleton(Mock.Of<IAiUsageStore>())
+            .AddSingleton(Mock.Of<IAbsenceResearcher>())
+            .AddSingleton(Options.Create(new AbsencesOptions()))
             .AddSingleton(Options.Create(new AiOptions { CacheMinutes = 30 }))
             .AddSingleton(Options.Create(new ForecastOptions { PredictionCount = 5 }))
             .AddScoped<ForecastService>()

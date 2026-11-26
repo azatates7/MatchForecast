@@ -18,6 +18,7 @@ using StackExchange.Redis;
 using MatchForecast.Api.Services.Security;
 using MatchForecast.Api.Services.ApiFootball;
 using MatchForecast.Api.Services.Forecast;
+using MatchForecast.Api.Services.Absences;
 using MatchForecast.Api.Services.AI.Gemini;
 using MatchForecast.Api.Services.AI.Claude;
 using MatchForecast.Api.Services.AI.Ollama;
@@ -46,7 +47,8 @@ try
     builder.Host.UseNLog();
 
     /*
-     * Ayarlar veritabanından (app_settings) yüklenir; servis kayıtlarından ÖNCE olmalı ki aşağıdaki bütün builder.Configuration okumaları ve IOptions bağlamaları DB değerlerini görsün. Migration da burada uygulanır.
+     * Ayarlar veritabanından (app_settings) yüklenir; servis kayıtlarından ÖNCE olmalı ki aşağıdaki bütün
+     * builder.Configuration okumaları ve IOptions bağlamaları DB değerlerini görsün. Migration da burada uygulanır.
      * Ortamdan yalnızca ConnectionStrings:Supabase ve AppSettings:EncryptionKey okunur (bkz. DatabaseSettings).
      */
     var settingsCrypto = await DatabaseSettings.LoadAsync(builder, logger);
@@ -68,6 +70,7 @@ try
 
     builder.Services.Configure<OddsProviderOptions>(builder.Configuration.GetSection(OddsProviderOptions.Section));
     builder.Services.Configure<AiOptions>(builder.Configuration.GetSection(AiOptions.Section));
+    builder.Services.Configure<AbsencesOptions>(builder.Configuration.GetSection(AbsencesOptions.Section));
 
     // JWT ayarları: eksik/kısa SecretKey ile uygulama hiç ayağa kalkmasın (ilk istekte değil, startup'ta hata).
     builder.Services.AddOptions<JwtOptions>()
@@ -301,6 +304,16 @@ try
     }
 
     builder.Services.AddScoped<IAiUsageStore, AiUsageStore>();
+
+    // Eksik oyuncu araştırması her zaman Gemini (Google araması) ile yapılır; tahmin sağlayıcısı başka olsa da Ai:Gemini anahtarı kullanılır.
+    builder.Services.AddHttpClient<IAbsenceResearcher, GeminiAbsenceResearcher>((sp, c) =>
+    {
+        var g = sp.GetRequiredService<IOptions<AiOptions>>().Value.Gemini;
+        c.BaseAddress = new Uri(string.IsNullOrWhiteSpace(g.BaseUrl) ? "https://generativelanguage.googleapis.com/v1beta/" : g.BaseUrl);
+        c.Timeout = TimeSpan.FromSeconds(90);
+        if (!string.IsNullOrWhiteSpace(g.ApiKey))
+            c.DefaultRequestHeaders.Add("x-goog-api-key", g.ApiKey);
+    });
     builder.Services.AddScoped<ForecastService>();
 
     // Girişte günün Süper Lig tahminlerini arka planda önceden üretir (Forecast:PrewarmOnLogin).

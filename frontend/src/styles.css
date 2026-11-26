@@ -771,7 +771,10 @@ button, input { font: inherit; color: inherit; }
 .absence-tag { padding: 0.05rem 0.45rem; border-radius: 999px; font-size: 0.72rem; font-weight: 600; border: 1px solid currentColor; }
 .absence-suspended { color: var(--card); }
 .absence-injured { color: var(--danger); }
-.absence-doubtful, .absence-out { color: var(--muted); }
+.absence-not-in-squad { color: var(--ink); }
+.absence-doubtful { color: var(--muted); border-style: dashed; } /* kesinleşmedi */
+.absences-meta { margin: 0.6rem 0 0; font-size: 0.78rem; color: var(--muted); }
+.absences-meta a { color: inherit; }
 
 /* Admin: fikstür ID (API-Football teşhisi için). Listede salt okunur, panelde seçilebilir + kopyala */
 .match-id { font-size: 0.72rem; color: var(--muted); font-variant-numeric: tabular-nums; }

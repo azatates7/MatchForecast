@@ -1,42 +1,59 @@
 using MatchForecast.Api.Services.Forecast;
+using MatchForecast.Models.Common;
 using MatchForecast.Models.Response;
 
 namespace MatchForecast.Tests;
 
-// Eksik oyuncu bloğu: takım bazında listelenir; veri yoksa model bunu açıkça bilir (uydurmasın diye).
+// Eksik oyuncu bloğu: maç günü takım bazında listelenir; öncesinde/başarısızlıkta model bunu açıkça bilir (uydurmasın diye).
 public class ForecastPromptTests
 {
     private static readonly MatchSummary Match = new(1, DateTimeOffset.Now, "Süper Lig", "Turkey", "Galatasaray", "Fenerbahce", "NS");
 
+    // Prompt satırları. Satır bazında tam (ordinal) eşleşme: kültüre duyarlı alt-metin aramasından etkilenmez, başarısız olursa xUnit tüm satırları yazdırır (hangi satırın farklı olduğu görünür).
+    private static string[] Lines(string prompt) => prompt.Split('\n', StringSplitOptions.TrimEntries);
+
     [Fact]
-    public void BuildUser_ListsMissingPlayersPerTeam()
+    public void BuildUser_ListsAbsencesPerTeam_WithStatus()
     {
-        var prompt = ForecastPrompt.BuildUser(Match,
+        var report = new AbsenceReport(AbsenceReport.Ready,
         [
-            new("Galatasaray", "M. Icardi", "Missing Fixture", "Knee Injury"),
-            new("Galatasaray", "L. Torreira", "Questionable", "Muscle Injury"),
-            new("Fenerbahce", "F. Kadıoğlu", "Missing Fixture", "Suspended")
-        ]);
+            new TeamAbsence("Galatasaray", "V. Osimhen", TeamAbsence.Injured, LocalizedText.Of("Diz sakatlığı", "Knee injury")),
+            new TeamAbsence("Galatasaray", "R. Leao", TeamAbsence.Doubtful, LocalizedText.Of("Kas ağrısı", "Muscle pain")),
+            new TeamAbsence("Fenerbahce", "R. Lukaku", TeamAbsence.Suspended, LocalizedText.Of("Sarı kart cezası", "Yellow card ban")),
+            new TeamAbsence("Fenerbahce", "R. Becao", TeamAbsence.NotInSquad, LocalizedText.Of("Kadro dışı", "Left out"))
+        ], [], DateTimeOffset.Now);
 
-        Assert.Contains("- Galatasaray: M. Icardi (oynamayacak, Knee Injury); L. Torreira (şüpheli, Muscle Injury)", prompt);
-        Assert.Contains("- Fenerbahce: F. Kadıoğlu (oynamayacak, Suspended)", prompt);
+        var prompt = ForecastPrompt.BuildUser(Match, report);
+
+        Assert.Contains("- Galatasaray: V. Osimhen (sakat, Diz sakatlığı); R. Leao (şüpheli, Kas ağrısı)", Lines(prompt));
+        Assert.Contains("- Fenerbahce: R. Lukaku (cezalı, Sarı kart cezası); R. Becao (kadroda yok, Kadro dışı)", Lines(prompt));
     }
 
     [Fact]
-    public void BuildUser_SaysNoReportedAbsences_ForEmptyList()
+    public void BuildUser_SaysNoAnnouncedAbsences_ForEmptyReadyReport()
     {
-        var prompt = ForecastPrompt.BuildUser(Match, []);
+        var prompt = ForecastPrompt.BuildUser(Match, new AbsenceReport(AbsenceReport.Ready, [], [], DateTimeOffset.Now));
 
-        Assert.Contains("- Galatasaray: bildirilen eksik yok", prompt);
-        Assert.Contains("- Fenerbahce: bildirilen eksik yok", prompt);
+        Assert.Contains("- Galatasaray: açıklanan eksik yok", Lines(prompt));
+        Assert.Contains("- Fenerbahce: açıklanan eksik yok", Lines(prompt));
     }
 
     [Fact]
-    public void BuildUser_SaysUnavailable_WhenDataCouldNotBeLoaded()
+    public void BuildUser_SaysPending_BeforeMatchDay()
     {
-        var prompt = ForecastPrompt.BuildUser(Match, null);
+        var prompt = ForecastPrompt.BuildUser(Match, AbsenceReport.PendingReport());
 
-        Assert.Contains("Eksik oyuncular: bilgi alınamadı.", prompt);
-        Assert.DoesNotContain("bildirilen eksik yok", prompt);
+        Assert.Contains("Eksik oyuncular: henüz netleşmedi (maç günü açıklanır).", Lines(prompt));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void BuildUser_SaysUnavailable_WhenNoData(bool nullReport)
+    {
+        var prompt = ForecastPrompt.BuildUser(Match, nullReport ? null : AbsenceReport.UnavailableReport());
+
+        Assert.Contains("Eksik oyuncular: bilgi alınamadı.", Lines(prompt));
+        Assert.DoesNotContain(Lines(prompt), l => l.Contains("açıklanan eksik yok", StringComparison.Ordinal));
     }
 }

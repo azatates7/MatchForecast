@@ -28,11 +28,12 @@ public static class ForecastPrompt
         - Başlangıç noktası olarak üst düzey liglerin yaklaşık maç ortalamalarını al (toplam gol ~2.7,
           ilk yarı gol ~1.2, korner ~10, sarı kart ~4.5, kırmızı kart ~0.2) ve bunu takımların gücü,
           oyun tarzı, lig karakteri ve ev sahibi avantajına göre ayarla.
-        - Kullanıcı mesajındaki eksik oyuncu listesini (sakat, cezalı vb.) hesaba kat: hücum oyuncusu eksikse o takımın,
-          kaleci veya savunma oyuncusu eksikse rakibin gol beklentisini buna göre ayarla. "Şüpheli" oyuncular oynayabilir;
-          etkilerini daha az say. Belirgin etkisi olan bir eksik varsa ilgili reasoning'de kısaca an.
-        - Listede olmayan hiçbir oyuncunun sakat veya cezalı olduğunu varsayma ve isim uydurma. Eksik oyuncu bilgisi
-          alınamadıysa bu konuda yorum yapma.
+        - Kullanıcı mesajındaki eksik oyuncu listesini hesaba kat. "cezalı", "kadroda yok" ve "sakat" oyuncular bu maçta
+          oynamaz; "şüpheli" oyuncular oynayabilir, etkilerini daha az say. Hücum oyuncusu eksikse o takımın, kaleci veya
+          savunma oyuncusu eksikse rakibin gol beklentisini buna göre ayarla. Belirgin etkisi olan bir eksik varsa
+          ilgili reasoning'de ve summary'de kısaca an.
+        - Listede olmayan hiçbir oyuncunun eksik olduğunu varsayma ve isim uydurma. Eksikler henüz netleşmediyse veya
+          bilgi alınamadıysa bu konuda yorum yapma.
         - reasoning: en fazla 1 cümle, Türkçe. reasoningEn: aynı cümlenin İngilizcesi.
         - summary: maçın 1-2 cümlelik genel değerlendirmesi, Türkçe. summaryEn: aynı metnin İngilizcesi.
         - Cevabın SADECE geçerli JSON olsun; açıklama, markdown veya kod bloğu ekleme.
@@ -50,11 +51,8 @@ public static class ForecastPrompt
         }
         """;
 
-    // Takım başına en fazla bu kadar oyuncu yazılır; uzun listeler prompt'u şişirmesin.
-    private const int MaxMissingPerTeam = 12;
-
-    /// <param name="missing">Eksik oyuncular; null ise veri alınamamıştır (boş liste: bildirilen eksik yok).</param>
-    public static string BuildUser(MatchSummary match, IReadOnlyList<MissingPlayer>? missing = null)
+    /// <param name="absences">Eksik oyuncu raporu; null ise bilgi alınamamış sayılır.</param>
+    public static string BuildUser(MatchSummary match, AbsenceReport? absences = null)
     {
         var tr = CultureInfo.GetCultureInfo("tr-TR");
         var sb = new StringBuilder();
@@ -62,42 +60,44 @@ public static class ForecastPrompt
         sb.AppendLine($"Lig: {match.League} ({match.Country})");
         sb.AppendLine($"Başlama: {match.Kickoff.ToString("dd MMMM yyyy HH:mm", tr)}");
         sb.AppendLine();
-        AppendMissingPlayers(sb, match, missing);
+        AppendAbsences(sb, match, absences);
         sb.AppendLine();
         sb.AppendLine("Bu maç için metriklerin beklenen değerlerini JSON olarak döndür.");
         return sb.ToString();
     }
 
-    private static void AppendMissingPlayers(StringBuilder sb, MatchSummary match, IReadOnlyList<MissingPlayer>? missing)
+    private static void AppendAbsences(StringBuilder sb, MatchSummary match, AbsenceReport? absences)
     {
-        if (missing is null)
+        switch (absences?.State)
         {
-            sb.AppendLine("Eksik oyuncular: bilgi alınamadı.");
-            return;
+            case AbsenceReport.Pending:
+                sb.AppendLine("Eksik oyuncular: henüz netleşmedi (maç günü açıklanır).");
+                return;
+            case AbsenceReport.Ready:
+                break;
+            default:
+                sb.AppendLine("Eksik oyuncular: bilgi alınamadı.");
+                return;
         }
 
-        sb.AppendLine("Eksik oyuncular (sakatlık, ceza vb.; kaynak: API-Football):");
+        sb.AppendLine("Eksik oyuncular (maç günü resmi açıklamalar):");
         foreach (var team in new[] { match.HomeTeam, match.AwayTeam })
         {
-            var players = missing
-                .Where(p => string.Equals(p.Team, team, StringComparison.OrdinalIgnoreCase))
-                .Take(MaxMissingPerTeam)
-                .Select(Describe)
-                .ToList();
-            sb.AppendLine($"- {team}: {(players.Count == 0 ? "bildirilen eksik yok" : string.Join("; ", players))}");
+            var players = absences!.Players.Where(p => p.Team == team).Select(Describe).ToList();
+            sb.AppendLine($"- {team}: {(players.Count == 0 ? "açıklanan eksik yok" : string.Join("; ", players))}");
         }
     }
 
-    // "D. Costa (oynamayacak, Suspended)"; neden İngilizce kalır (sağlayıcı metni).
-    private static string Describe(MissingPlayer p)
+    // "M. Icardi (sakat, Diz sakatlığı)"
+    private static string Describe(TeamAbsence p)
     {
-        var status = p.Type switch
+        var status = p.Status switch
         {
-            "Missing Fixture" => "oynamayacak",
-            "Questionable" => "şüpheli",
-            _ => p.Type
+            TeamAbsence.Suspended => "cezalı",
+            TeamAbsence.NotInSquad => "kadroda yok",
+            TeamAbsence.Injured => "sakat",
+            _ => "şüpheli"
         };
-        var detail = string.Join(", ", new[] { status, p.Reason }.Where(x => !string.IsNullOrWhiteSpace(x)));
-        return detail.Length == 0 ? p.Player : $"{p.Player} ({detail})";
+        return string.IsNullOrWhiteSpace(p.Reason.Tr) ? $"{p.Player} ({status})" : $"{p.Player} ({status}, {p.Reason.Tr})";
     }
 }

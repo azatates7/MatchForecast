@@ -5,6 +5,7 @@ using MatchForecast.Api.Options;
 using Microsoft.Extensions.Options;
 using MatchForecast.Api.Services.Redis;
 using MatchForecast.Api.Services.ApiFootball;
+using MatchForecast.Api.Services.Absences;
 
 namespace MatchForecast.Api.Services.Forecast;
 
@@ -23,7 +24,9 @@ public sealed class ForecastService(
     IRedisCacheService cache,
     IForecastStore store,
     IAiUsageStore usageStore,
+    IAbsenceResearcher absenceResearcher,
     IOptions<AiOptions> aiOptions,
+    IOptions<AbsencesOptions> absenceOptions,
     IOptions<ForecastOptions> forecastOptions,
     ILogger<ForecastService> logger)
 {
@@ -65,10 +68,11 @@ public sealed class ForecastService(
     {
         /*
          * Sonucun biçimi ya da prompt'un içeriği değişince sürüm artırılır; eski anahtarlı kayıtlar yok sayılır, süreleri dolunca silinir.
+         * v6: eksik oyuncular API-Football yerine maç günü resmi açıklamalardan (AbsenceReport); sonuç alanı Absences.
          * v5: sonuca MissingPlayers eklendi (v4 kayıtlarında bu alan yok, ekran eksik oyuncu bölümünü gösteremez).
          * v4: prompt'a eksik oyuncular eklendi. v3: iki dilli metinler.
          */
-        var key = $"forecast:v5:{fixtureId}";
+        var key = $"forecast:v6:{fixtureId}";
         if (!refresh)
         {
             var cached = await cache.GetAsync<ForecastResult>(key);
@@ -105,8 +109,8 @@ public sealed class ForecastService(
             throw new ForecastException(Lang.T("Maç bulunamadı.", "Match not found."), StatusCodes.Status404NotFound);
         }
 
-        var missing = await GetMissingPlayersAsync(fixtureId, ct);
-        var raw = (await CallAiAsync(fixtureId, ForecastPrompt.BuildUser(match, missing), ct)).Text;
+        var absences = await GetAbsencesAsync(match, ct);
+        var raw = (await CallAiAsync(fixtureId, ForecastPrompt.BuildUser(match, absences), ct)).Text;
         var response = Parse(raw);
 
         var opt = forecastOptions.Value;
@@ -119,24 +123,45 @@ public sealed class ForecastService(
             throw new ForecastException(Lang.T("Yapay zeka geçerli bir tahmin üretmedi, tekrar deneyin.", "The AI did not produce a valid forecast, please try again."));
         }
 
-        var result = new ForecastResult(match, LocalizedText.Of(response.Summary, response.SummaryEn), projection.Outcomes, projection.Stats, predictions, DateTimeOffset.Now, missing);
-        await cache.SetAsync(key, result, TimeSpan.FromMinutes(aiOptions.Value.CacheMinutes));
+        var result = new ForecastResult(match, LocalizedText.Of(response.Summary, response.SummaryEn), projection.Outcomes, projection.Stats, predictions, DateTimeOffset.Now, absences);
+        await cache.SetAsync(key, result, ForecastCacheTtl(match, absences, DateTime.Now));
         await SaveAsync(result);
         return result;
     }
 
-    // Fail-open: eksik oyuncu verisi alınamazsa (kota, plan kısıtı, ağ) tahmin yine üretilir; prompt'ta "bilgi alınamadı" yazar.
-    private async Task<IReadOnlyList<MissingPlayer>?> GetMissingPlayersAsync(int fixtureId, CancellationToken ct)
+    // Fail-open: araştırma hata verirse (veya null dönerse) tahmin yine üretilir; prompt'ta "bilgi alınamadı" yazar.
+    private async Task<AbsenceReport> GetAbsencesAsync(MatchSummary match, CancellationToken ct)
     {
         try
         {
-            return await odds.GetMissingPlayersAsync(fixtureId, ct);
+            return await absenceResearcher.GetAsync(match, ct) ?? AbsenceReport.UnavailableReport();
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogWarning(ex, "Missing players for fixture {FixtureId} could not be loaded; forecasting without them.", fixtureId);
-            return null;
+            logger.LogWarning(ex, "Absences for fixture {FixtureId} could not be loaded; forecasting without them.", match.Id);
+            return AbsenceReport.UnavailableReport();
         }
+    }
+
+    /*
+     * Tahmin önbellek süresi (Ai:CacheMinutes) eksik oyuncu durumuna göre kısalır:
+     * - Pending (maç günü değil): en geç maç gününün başında (00:00) biter; maç günü tahmin eksiklerle yeniden üretilir.
+     * - Ready (maç günü): Absences:CacheMinutes'ı aşmaz; kadro bilgisi maça yaklaştıkça netleştiği için tahmin de tazelenir.
+     */
+    public TimeSpan ForecastCacheTtl(MatchSummary match, AbsenceReport absences, DateTime now)
+    {
+        var ttl = TimeSpan.FromMinutes(aiOptions.Value.CacheMinutes);
+        if (absences.State == AbsenceReport.Pending)
+        {
+            var untilMatchDay = match.Kickoff.ToLocalTime().Date - now;
+            ttl = untilMatchDay < ttl ? untilMatchDay : ttl;
+        }
+        else if (absences.State == AbsenceReport.Ready)
+        {
+            var refresh = TimeSpan.FromMinutes(absenceOptions.Value.CacheMinutes);
+            ttl = refresh < ttl ? refresh : ttl;
+        }
+        return ttl < TimeSpan.FromMinutes(1) ? TimeSpan.FromMinutes(1) : ttl;
     }
 
     /*

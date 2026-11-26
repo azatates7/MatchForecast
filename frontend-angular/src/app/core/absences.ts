@@ -1,42 +1,52 @@
-import type { MatchSummary, MissingPlayer } from './types'
+import type { AbsenceReport, AbsenceSource, LocalizedText, MatchSummary, TeamAbsence } from './types'
 
 /*
  * Eksik oyuncuları ev/deplasman takımına göre gruplar ve etiketler. Saf mantık; React ve Angular aynı dosyayı kullanır
  * (frontend/src/Absences.ts = frontend-angular/src/app/core/absences.ts).
- * Etiket, sağlayıcının İngilizce "reason" metninden çıkarılır: ceza (suspended, red/yellow card) → Cezalı,
- * sakatlık/hastalık → Sakat, "Questionable" → Şüpheli, diğer nedenler (ör. milli takım) → Oynamayacak.
+ * Liste maç günü resmi açıklamalardan backend'de çıkarılır; durumlar: Cezalı, Kadroda yok, Sakat, Şüpheli.
  */
-export type AbsenceKind = 'suspended' | 'injured' | 'doubtful' | 'out'
+export type AbsenceKind = 'suspended' | 'not-in-squad' | 'injured' | 'doubtful'
 
 export interface Absence {
   player: string
   kind: AbsenceKind
-  /** Gösterilecek neden (İngilizce, sağlayıcı metni); etiketle aynı bilgiyi veriyorsa boş */
-  reason: string
+  reason: LocalizedText
 }
 
 export const ABSENCE_LABEL = {
   suspended: 'absences.suspended',
+  'not-in-squad': 'absences.notInSquad',
   injured: 'absences.injured',
-  doubtful: 'absences.doubtful',
-  out: 'absences.out'
+  doubtful: 'absences.doubtful'
 } as const
 
-const SUSPENSION = /suspen|red card|yellow card/i
-const INJURY = /injur|knock|ill|surgery|fracture|strain|sprain|muscle|knee|ankle|hamstring|groin|calf|thigh|back|shoulder|foot|hip/i
-
-export function absenceKind(p: MissingPlayer): AbsenceKind {
-  if (p.type === 'Questionable') return 'doubtful'
-  if (SUSPENSION.test(p.reason)) return 'suspended'
-  if (INJURY.test(p.reason)) return 'injured'
-  return 'out'
+export function absenceKind(status: TeamAbsence['status']): AbsenceKind {
+  switch (status) {
+    case 'Suspended': return 'suspended'
+    case 'NotInSquad': return 'not-in-squad'
+    case 'Injured': return 'injured'
+    default: return 'doubtful'
+  }
 }
 
-export function groupAbsences(match: MatchSummary, players: MissingPlayer[]): { team: string; absences: Absence[] }[] {
+export function groupAbsences(match: MatchSummary, players: TeamAbsence[]): { team: string; absences: Absence[] }[] {
   return [match.homeTeam, match.awayTeam].map(team => ({
     team,
     absences: players
-      .filter(p => p.team.toLowerCase() === team.toLowerCase())
-      .map(p => ({ player: p.player, kind: absenceKind(p), reason: /^suspended$/i.test(p.reason.trim()) ? '' : p.reason }))
+      .filter(p => p.team === team)
+      .map(p => ({ player: p.player, kind: absenceKind(p.status), reason: p.reason }))
   }))
+}
+
+// Dipnot: tahminin hangi eksik oyuncu bilgisiyle üretildiğini söyler.
+export function absenceFootnote(report: AbsenceReport | null | undefined) {
+  if (report?.state === 'Ready') return 'forecast.footnote' as const
+  if (report?.state === 'Pending') return 'forecast.footnotePending' as const
+  return 'forecast.footnoteNoAbsences' as const
+}
+
+// Kaynak adı: başlık (genelde alan adı) yoksa URL'nin host'u.
+export function sourceLabel(s: AbsenceSource): string {
+  if (s.title) return s.title
+  try { return new URL(s.url).hostname } catch { return s.url }
 }

@@ -9,6 +9,7 @@ using Xunit;
 using MatchForecast.Api.Services.Redis;
 using MatchForecast.Api.Services.ApiFootball;
 using MatchForecast.Api.Services.Forecast;
+using MatchForecast.Api.Services.Absences;
 
 namespace MatchForecast.Tests;
 
@@ -31,6 +32,7 @@ public class ForecastServiceTests
     private readonly IRedisCacheService _cache = new InMemoryRedisCacheService();
     private readonly Mock<IForecastStore> _mockStore = new();
     private readonly Mock<IAiUsageStore> _mockUsage = new();
+    private readonly Mock<IAbsenceResearcher> _mockAbsences = new();
 
     private ForecastService CreateService() => new(
         _mockOdds.Object,
@@ -38,7 +40,9 @@ public class ForecastServiceTests
         _cache,
         _mockStore.Object,
         _mockUsage.Object,
+        _mockAbsences.Object,
         Options.Create(new AiOptions { CacheMinutes = 30 }),
+        Options.Create(new AbsencesOptions { CacheMinutes = 240 }),
         Options.Create(new ForecastOptions { PredictionCount = 5 }),
         NullLogger<ForecastService>.Instance);
 
@@ -140,11 +144,13 @@ public class ForecastServiceTests
     }
 
     [Fact]
-    public async Task GetForecastAsync_SendsMissingPlayersToAi()
+    public async Task GetForecastAsync_SendsAbsencesToAi_AndReturnsThem()
     {
         SetupMatch();
-        _mockOdds.Setup(o => o.GetMissingPlayersAsync(1, It.IsAny<CancellationToken>()))
-            .ReturnsAsync([new MissingPlayer("Inter", "L. Martinez", "Missing Fixture", "Suspended")]);
+        var report = new AbsenceReport(AbsenceReport.Ready,
+            [new TeamAbsence("Inter", "L. Martinez", TeamAbsence.Suspended, LocalizedText.Of("Kırmızı kart cezası", "Red card ban"))],
+            [new AbsenceSource("inter.it", "https://example.com/a")], DateTimeOffset.Now);
+        _mockAbsences.Setup(a => a.GetAsync(It.IsAny<MatchSummary>(), It.IsAny<CancellationToken>())).ReturnsAsync(report);
         string? userPrompt = null;
         _mockAi.Setup(a => a.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .Callback<string, string, CancellationToken>((_, user, _) => userPrompt = user)
@@ -152,17 +158,17 @@ public class ForecastServiceTests
 
         var result = await CreateService().GetForecastAsync(1, false, CancellationToken.None);
 
-        Assert.Contains("- Inter: L. Martinez (oynamayacak, Suspended)", userPrompt);
-        Assert.Equal("L. Martinez", Assert.Single(result.MissingPlayers!).Player); // ekranda gösterilmek üzere sonuçta da döner
-        Assert.Contains("- Milan: bildirilen eksik yok", userPrompt);
+        Assert.Contains("- Inter: L. Martinez (cezalı, Kırmızı kart cezası)", userPrompt);
+        Assert.Contains("- Milan: açıklanan eksik yok", userPrompt);
+        Assert.Same(report, result.Absences); // ekranda gösterilmek üzere sonuçta da döner
     }
 
     [Fact]
-    public async Task GetForecastAsync_StillForecasts_WhenMissingPlayersCannotBeLoaded()
+    public async Task GetForecastAsync_StillForecasts_WhenAbsencesFail()
     {
         SetupMatch();
-        _mockOdds.Setup(o => o.GetMissingPlayersAsync(1, It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new ForecastException("API-Football error: plan"));
+        _mockAbsences.Setup(a => a.GetAsync(It.IsAny<MatchSummary>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("search down"));
         string? userPrompt = null;
         _mockAi.Setup(a => a.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .Callback<string, string, CancellationToken>((_, user, _) => userPrompt = user)
@@ -172,8 +178,37 @@ public class ForecastServiceTests
 
         Assert.Equal(5, result.Predictions.Count);
         Assert.Contains("Eksik oyuncular: bilgi alınamadı.", userPrompt);
-        Assert.Null(result.MissingPlayers); // ekran "bilgi alınamadı" dipnotunu gösterir
+        Assert.Equal(AbsenceReport.Unavailable, result.Absences!.State);
     }
+
+    [Fact]
+    public void ForecastCacheTtl_EndsAtMatchDayStart_WhenAbsencesPending()
+    {
+        var now = new DateTime(2026, 11, 26, 20, 0, 0);
+        var match = new MatchSummary(1, new DateTimeOffset(2026, 11, 28, 21, 0, 0, TimeSpan.FromHours(3)), "Süper Lig", "Turkey", "A", "B", "NS");
+        var service = CreateServiceWith(cacheMinutes: 1440 * 7);
+
+        // 26.11 20:00 → 28.11 00:00 = 28 saat (yedi günlük ayar yerine)
+        Assert.Equal(TimeSpan.FromHours(28), service.ForecastCacheTtl(match, AbsenceReport.PendingReport(), now));
+    }
+
+    [Fact]
+    public void ForecastCacheTtl_IsLimitedByAbsenceRefresh_OnMatchDay()
+    {
+        var match = new MatchSummary(1, DateTimeOffset.Now.AddHours(5), "Süper Lig", "Turkey", "A", "B", "NS");
+        var service = CreateServiceWith(cacheMinutes: 1440);
+        var ready = new AbsenceReport(AbsenceReport.Ready, [], [], DateTimeOffset.Now);
+
+        Assert.Equal(TimeSpan.FromMinutes(240), service.ForecastCacheTtl(match, ready, DateTime.Now));
+        Assert.Equal(TimeSpan.FromMinutes(1440), service.ForecastCacheTtl(match, AbsenceReport.UnavailableReport(), DateTime.Now));
+    }
+
+    private ForecastService CreateServiceWith(int cacheMinutes) => new(
+        _mockOdds.Object, _mockAi.Object, _cache, _mockStore.Object, _mockUsage.Object, _mockAbsences.Object,
+        Options.Create(new AiOptions { CacheMinutes = cacheMinutes }),
+        Options.Create(new AbsencesOptions { CacheMinutes = 240 }),
+        Options.Create(new ForecastOptions { PredictionCount = 5 }),
+        NullLogger<ForecastService>.Instance);
 
     [Fact]
     public async Task GetForecastAsync_Throws404_WhenMatchNotFound()

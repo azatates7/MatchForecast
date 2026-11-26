@@ -1,8 +1,8 @@
-import { useState } from 'react'
-import type { ForecastResult, MatchSummary, MissingPlayer, OutcomeProbabilities } from '../types'
+import { Fragment, useState } from 'react'
+import type { AbsenceReport, ForecastResult, MatchSummary, OutcomeProbabilities } from '../types'
 import StatsTable from './StatsTable'
 import { useI18n } from '../i18n/useI18n'
-import { ABSENCE_LABEL, groupAbsences } from './Absences'
+import { ABSENCE_LABEL, absenceFootnote, groupAbsences, sourceLabel } from '../Absences'
 
 interface Props {
   match: MatchSummary | null
@@ -64,31 +64,51 @@ function Outcomes({ o }: { o: OutcomeProbabilities }) {
   )
 }
 
-// Modelin dikkate aldığı eksik oyuncular (API-Football). Veri alınamadıysa bölüm hiç gösterilmez; dipnot bunu söyler.
-function Absences({ match, players }: { match: MatchSummary; players: MissingPlayer[] }) {
-  const { t } = useI18n()
+// Modelin dikkate aldığı eksik oyuncular: maç günü resmi açıklamalardan; öncesinde "maç günü netleşir".
+function Absences({ match, report }: { match: MatchSummary; report: AbsenceReport }) {
+  const { t, loc, locale } = useI18n()
   return (
     <section className="absences">
       <h3 className="section-title">{t('absences.title')}</h3>
-      {players.length === 0 ? <p className="absences-none">{t('absences.none')}</p> : (
-        <div className="absences-grid">
-          {groupAbsences(match, players).map(g => (
-            <div key={g.team} className="absences-team">
-              <h4>{g.team}</h4>
-              {g.absences.length === 0 ? <p className="absences-none">{t('absences.teamNone')}</p> : (
-                <ul>
-                  {g.absences.map(a => (
-                    <li key={a.player}>
-                      <span>{a.player}</span>
-                      <span className={`absence-tag absence-${a.kind}`}>{t(ABSENCE_LABEL[a.kind])}</span>
-                      {a.reason && <span className="absence-reason">{a.reason}</span>}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          ))}
-        </div>
+      {report.state === 'Pending' ? <p className="absences-none">{t('absences.pending')}</p>
+        : report.state !== 'Ready' ? <p className="absences-none">{t('absences.unavailable')}</p>
+        : report.players.length === 0 ? <p className="absences-none">{t('absences.none')}</p>
+        : (
+          <div className="absences-grid">
+            {groupAbsences(match, report.players).map(g => (
+              <div key={g.team} className="absences-team">
+                <h4>{g.team}</h4>
+                {g.absences.length === 0 ? <p className="absences-none">{t('absences.teamNone')}</p> : (
+                  <ul>
+                    {g.absences.map(a => (
+                      <li key={a.player}>
+                        <span>{a.player}</span>
+                        <span className={`absence-tag absence-${a.kind}`}>{t(ABSENCE_LABEL[a.kind])}</span>
+                        {loc(a.reason) && <span className="absence-reason">{loc(a.reason)}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      {report.state === 'Ready' && (
+        <p className="absences-meta">
+          {report.checkedAt && t('absences.checkedAt', { time: new Date(report.checkedAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }) })}
+          {report.sources.length > 0 && (
+            <>
+              {report.checkedAt && ' · '}
+              {t('absences.sources')}:{' '}
+              {report.sources.map((src, i) => (
+                <Fragment key={src.url}>
+                  {i > 0 && ', '}
+                  <a href={src.url} target="_blank" rel="noopener noreferrer">{sourceLabel(src)}</a>
+                </Fragment>
+              ))}
+            </>
+          )}
+        </p>
       )}
     </section>
   )
@@ -153,7 +173,7 @@ export default function ForecastPanel({ match, forecast, loading, error, onRetry
         <>
           {summary && <p className="summary">{summary}</p>}
 
-          {forecast.missingPlayers && <Absences match={forecast.match} players={forecast.missingPlayers} />}
+          {forecast.absences && <Absences match={forecast.match} report={forecast.absences} />}
 
           <Outcomes o={forecast.outcomes} />
 
@@ -184,7 +204,7 @@ export default function ForecastPanel({ match, forecast, loading, error, onRetry
           <StatsTable stats={forecast.stats} />
 
           <footer className="forecast-foot">
-            <span>{t(forecast.missingPlayers ? 'forecast.footnote' : 'forecast.footnoteNoAbsences')}</span>
+            <span>{t(absenceFootnote(forecast.absences))}</span>
             {canRetry && <button type="button" className="link-btn" onClick={onRetry}>{t('forecast.reanalyze')}</button>}
           </footer>
           <p className="disclaimer">{t('forecast.disclaimer')}</p>

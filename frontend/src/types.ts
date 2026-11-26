@@ -69,8 +69,8 @@ export interface ForecastResult {
   stats: StatProjection[]
   predictions: Prediction[]
   generatedAt: string
-  /** null/yok: eksik oyuncu verisi alınamadı; boş dizi: bildirilen eksik yok */
-  missingPlayers?: MissingPlayer[] | null
+  /** Eksik oyuncu raporu; eski kayıtlarda yok */
+  absences?: AbsenceReport | null
 }
 
 export interface AuthConfigResponse {
@@ -242,10 +242,24 @@ export interface AiUsageReport {
   daily: AiUsageDaily[]
 }
 
-// Maça çıkamayacak / şüpheli oyuncu (API-Football /injuries). type: "Missing Fixture" | "Questionable"; reason İngilizce.
-export interface MissingPlayer {
+// Eksik oyuncu raporu (maç günü resmi açıklamalardan; backend: AbsenceReport).
+// state: "Pending" maç günü değil (eksikler maç günü netleşir) | "Ready" tarandı | "Unavailable" alınamadı
+export interface AbsenceReport {
+  state: 'Pending' | 'Ready' | 'Unavailable'
+  players: TeamAbsence[]
+  sources: AbsenceSource[]
+  checkedAt: string | null
+}
+
+// status: "Suspended" cezalı | "NotInSquad" kadroda yok (UEFA listesi, kontenjan, teknik karar) | "Injured" sakat | "Doubtful" şüpheli
+export interface TeamAbsence {
   team: string
   player: string
-  type: string
-  reason: string
+  status: 'Suspended' | 'NotInSquad' | 'Injured' | 'Doubtful'
+  reason: LocalizedText
+}
+
+export interface AbsenceSource {
+  title: string
+  url: string
 }

@@ -50,10 +50,6 @@ public sealed class PublicOddsProvider(HttpClient http, IMemoryCache cache, ILog
         return GetMatchesAsync(today, ct).ContinueWith(t => t.Result.FirstOrDefault(m => m.Id == fixtureId), ct);
     }
 
-    // ESPN scoreboard eksik oyuncu bilgisi vermez.
-    public Task<IReadOnlyList<MissingPlayer>> GetMissingPlayersAsync(int fixtureId, CancellationToken ct) =>
-        Task.FromResult<IReadOnlyList<MissingPlayer>>([]);
-
     private async Task<JsonDocument> GetAsync(string path, CancellationToken ct)
     {
         using var res = await http.GetAsync(path, ct);

@@ -19,9 +19,6 @@ public sealed class ApiFootballOddsProvider(
     private TimeSpan CacheTtl => TimeSpan.FromMinutes(_opt.CacheMinutes);
     private static readonly TimeSpan LiveCacheTtl = TimeSpan.FromMinutes(1);
 
-    // Eksik oyuncu listesi maç gününe doğru güncellenir; tahmin başına 1 istek, aynı maç için 1 saat tekrar sorulmaz.
-    private static readonly TimeSpan MissingPlayersCacheTtl = TimeSpan.FromHours(1);
-
     private static readonly HashSet<string> PopularLeagues = new(StringComparer.OrdinalIgnoreCase)
     {
         "Süper Lig", "Super Lig",
@@ -85,29 +82,6 @@ public sealed class ApiFootballOddsProvider(
         return match;
     }
 
-    /*
-     * /injuries?fixture={id}: maça çıkamayacak (sakatlık, ceza vb.) ve şüpheli oyuncular.
-     * Boş liste de önbelleğe alınır; eksik yoksa aynı maç için API tekrar çağrılmaz.
-     * Hata (kota, plan kısıtı) ForecastException olarak yukarı çıkar; ForecastService bunu yutup veri olmadan devam eder.
-     */
-    public async Task<IReadOnlyList<MissingPlayer>> GetMissingPlayersAsync(int fixtureId, CancellationToken ct)
-    {
-        var key = $"injuries:{fixtureId}";
-        var cached = await cache.GetAsync<List<MissingPlayer>>(key);
-        if (cached is not null)
-            return cached;
-
-        using var doc = await GetAsync($"injuries?fixture={fixtureId}", ct);
-        var list = doc.RootElement.GetProperty("response")
-            .EnumerateArray()
-            .Select(ParseMissingPlayer)
-            .Where(p => p.Player.Length > 0)
-            .ToList();
-
-        await cache.SetAsync(key, list, MissingPlayersCacheTtl);
-        return list;
-    }
-
     private async Task<JsonDocument> GetAsync(string path, CancellationToken ct)
     {
         using var res = await http.GetAsync(path, ct);
@@ -154,23 +128,6 @@ public sealed class ApiFootballOddsProvider(
             OptionalInt(status, "elapsed"),
             OptionalInt(status, "extra"));
     }
-
-    // Yanıt: { player: { name, type, reason }, team: { name } }. Eksik alanlar boş metin olur.
-    private static MissingPlayer ParseMissingPlayer(JsonElement item)
-    {
-        var player = item.TryGetProperty("player", out var p) ? p : default;
-        var team = item.TryGetProperty("team", out var t) ? t : default;
-        return new MissingPlayer(
-            OptionalString(team, "name"),
-            OptionalString(player, "name"),
-            OptionalString(player, "type"),
-            OptionalString(player, "reason"));
-    }
-
-    private static string OptionalString(JsonElement parent, string name) =>
-        parent.ValueKind == JsonValueKind.Object && parent.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String
-            ? v.GetString() ?? ""
-            : "";
 
     private static int? OptionalInt(JsonElement parent, string name) =>
         parent.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetInt32() : null;

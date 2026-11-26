@@ -43,10 +43,14 @@
         <p class="summary">{{ summary }}</p>
       }
 
-      @if (f.missingPlayers; as missing) {
+      @if (f.absences; as report) {
         <section class="absences">
           <h3 class="section-title">{{ i18n.t('absences.title') }}</h3>
-          @if (missing.length === 0) {
+          @if (report.state === 'Pending') {
+            <p class="absences-none">{{ i18n.t('absences.pending') }}</p>
+          } @else if (report.state !== 'Ready') {
+            <p class="absences-none">{{ i18n.t('absences.unavailable') }}</p>
+          } @else if (report.players.length === 0) {
             <p class="absences-none">{{ i18n.t('absences.none') }}</p>
           } @else {
             <div class="absences-grid">
@@ -61,8 +65,8 @@
                         <li>
                           <span>{{ a.player }}</span>
                           <span [class]="'absence-tag absence-' + a.kind">{{ i18n.t(absenceLabel[a.kind]) }}</span>
-                          @if (a.reason) {
-                            <span class="absence-reason">{{ a.reason }}</span>
+                          @if (i18n.loc(a.reason); as reason) {
+                            <span class="absence-reason">{{ reason }}</span>
                           }
                         </li>
                       }
@@ -71,6 +75,25 @@
                 </div>
               }
             </div>
+          }
+          @if (report.state === 'Ready') {
+            <p class="absences-meta">
+              @if (report.checkedAt) {
+                {{ i18n.t('absences.checkedAt', { time: checkedAt(report.checkedAt) }) }}
+              }
+              @if (report.sources.length > 0) {
+                @if (report.checkedAt) {
+                  ·
+                }
+                {{ i18n.t('absences.sources') }}:
+                @for (src of report.sources; track src.url; let i = $index) {
+                  @if (i > 0) {
+                    ,
+                  }
+                  <a [href]="src.url" target="_blank" rel="noopener noreferrer">{{ sourceLabel(src) }}</a>
+                }
+              }
+            </p>
           }
         </section>
       }
@@ -133,7 +156,7 @@
       <app-stats-table [stats]="f.stats" />
 
       <footer class="forecast-foot">
-        <span>{{ i18n.t(f.missingPlayers ? 'forecast.footnote' : 'forecast.footnoteNoAbsences') }}</span>
+        <span>{{ i18n.t(absenceFootnote(f.absences)) }}</span>
         @if (canRetry()) {
           <button type="button" class="link-btn" (click)="retry.emit()">{{ i18n.t('forecast.reanalyze') }}</button>
         }

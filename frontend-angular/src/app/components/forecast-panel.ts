@@ -1,7 +1,7 @@
 import { Component, inject, input, output, signal } from '@angular/core';
 import { I18nService } from '../core/i18n/i18n.service';
 import type { ForecastResult, MatchSummary } from '../core/types';
-import { ABSENCE_LABEL, groupAbsences } from '../core/absences';
+import { ABSENCE_LABEL, absenceFootnote, groupAbsences, sourceLabel } from '../core/absences';
 import { StatsTable } from './stats-table';
 
 interface ResultBar {
@@ -17,8 +17,10 @@ interface ResultBar {
   templateUrl: './forecast-panel.html',
 })
 export class ForecastPanel {
-  // Eksik oyuncular (React: ForecastPanel içindeki Absences). Veri alınamadıysa (null) bölüm gösterilmez.
+  // Eksik oyuncular (React: ForecastPanel içindeki Absences); maç günü resmi açıklamalardan, öncesinde "maç günü netleşir".
   protected readonly absenceLabel = ABSENCE_LABEL;
+  protected readonly absenceFootnote = absenceFootnote;
+  protected readonly sourceLabel = sourceLabel;
 
   /** true: başlıkta fikstür ID'si ve kopyala butonu (yalnızca Admin) */
   readonly showId = input(false);
@@ -32,7 +34,11 @@ export class ForecastPanel {
     }, () => undefined);
   }
   protected absences(f: ForecastResult) {
-    return f.missingPlayers ? groupAbsences(f.match, f.missingPlayers) : [];
+    return f.absences ? groupAbsences(f.match, f.absences.players) : [];
+  }
+
+  protected checkedAt(iso: string): string {
+    return new Date(iso).toLocaleTimeString(this.i18n.locale(), { hour: '2-digit', minute: '2-digit' });
   }
 
   readonly match = input<MatchSummary | null>(null);

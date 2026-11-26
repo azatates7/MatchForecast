@@ -2,8 +2,9 @@ using MatchForecast.Models.Common;
 
 namespace MatchForecast.Models.Response;
 
-/// <param name="MissingPlayers">
-/// Tahmin üretilirken prompt'a giren eksik oyuncular (sakat, cezalı, şüpheli). null: veri alınamadı; boş liste: bildirilen eksik yok. Ekranda gösterilir; modelin hangi bilgiyle çalıştığını kullanıcı da görür.
+/// <param name="Absences">
+/// Tahmin üretilirken prompt'a giren eksik oyuncu raporu (maç günü resmi açıklamalardan). Ekranda da gösterilir;
+/// modelin hangi bilgiyle çalıştığını kullanıcı da görür. null: eski kayıt (rapor yok).
 /// </param>
 public sealed record ForecastResult(
     MatchSummary Match,
@@ -12,4 +13,4 @@ public sealed record ForecastResult(
     IReadOnlyList<StatProjection> Stats,
     IReadOnlyList<Prediction> Predictions,
     DateTimeOffset GeneratedAt,
-    IReadOnlyList<MissingPlayer>? MissingPlayers = null);
+    AbsenceReport? Absences = null);
