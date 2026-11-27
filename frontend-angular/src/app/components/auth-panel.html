@@ -1,7 +1,7 @@
 <main class="login">
   <form class="login-card" (submit)="submit($event)">
     <div class="login-head">
-      <h1 class="brand">{{ i18n.t('brand') }}</h1>
+      <h1 class="brand brand-link"><app-brand-logo /><span>{{ i18n.t('brand') }}</span></h1>
       <app-language-toggle />
     </div>
 

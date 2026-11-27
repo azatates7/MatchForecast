@@ -5,6 +5,7 @@
  */
 export const tr = {
   brand: 'Maç Analiz',
+  home: 'Ana sayfa (bugünün maçları)',
 
   'lang.label': 'Dil',
   'lang.tr': 'Türkçe',
@@ -275,6 +276,7 @@ export type Dict = Record<MessageKey, string>
 
 export const en: Dict = {
   brand: 'Match Forecast',
+  home: 'Home (today\'s matches)',
 
   'lang.label': 'Language',
   'lang.tr': 'Turkish',

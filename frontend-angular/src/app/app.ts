@@ -8,11 +8,13 @@ import { AuthPanel } from './components/auth-panel';
 import { LeagueFilter } from './components/league-filter';
 import { ThemeToggle } from './components/theme-toggle';
 import { LanguageToggle } from './components/language-toggle';
+import { BrandLogo } from './components/brand-logo';
 import { AdminPanel } from './components/admin-panel';
 import { canOpenAdmin, clearHash, parseAdminHash } from './core/admin-view';
 import { I18nService } from './core/i18n/i18n.service';
 
-// Canlı maç varken listenin arka planda yenilenme aralığı. API kotasını korumak için kısa tutulmadı; aradaki dakikalar minuteLabel içinde yerelde ilerletilir.
+// Canlı maç varken listenin arka planda yenilenme aralığı. API kotasını korumak için
+// kısa tutulmadı; aradaki dakikalar minuteLabel içinde yerelde ilerletilir.
 const LIVE_REFRESH_MS = 5 * 60_000;
 // Ekrandaki dakika etiketinin güncellenme aralığı (ağ isteği yapmaz)
 const CLOCK_TICK_MS = 30_000;
@@ -45,7 +47,7 @@ interface CacheState { clearing: boolean; message?: string; error?: boolean }
 
 @Component({
   selector: 'app-root',
-  imports: [MatchList, ForecastPanel, AuthPanel, LeagueFilter, ThemeToggle, LanguageToggle, AdminPanel],
+  imports: [MatchList, ForecastPanel, AuthPanel, LeagueFilter, ThemeToggle, LanguageToggle, AdminPanel, BrandLogo],
   templateUrl: './app.html',
   styleUrl: './app.css',
   host: { '(window:hashchange)': 'onHashChange()' },
@@ -223,6 +225,19 @@ export class App {
         if (isCancelled() || silent) return;
         this.matchesState.set({ loading: false, error: e.message });
       });
+  }
+
+  // Logo/site adı: admin panelinden çıkar, bugünün maçlarına döner, seçimi ve aramayı sıfırlar.
+  // Lig filtresi ve favoriler korunur (kullanıcının kendi tercihi). Devam eden analiz cevabı yok sayılır.
+  protected goHome(e: Event) {
+    e.preventDefault();
+    this.requestSeq++;
+    this.backToMatches();
+    this.date.set(todayInIstanbul());
+    this.query.set('');
+    this.selectedId.set(null);
+    this.forecast.set(null);
+    this.forecastState.set({ loading: false });
   }
 
   protected shiftDay(days: number) {

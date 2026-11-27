@@ -70,6 +70,21 @@ button, input { font: inherit; color: inherit; }
   letter-spacing: -0.01em;
 }
 
+/* Logo + site adı; üst barda ana sayfaya döner */
+.brand-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: inherit;
+  text-decoration: none;
+}
+.brand-logo { width: 2rem; height: 2rem; flex: none; transition: transform 0.2s ease; }
+.brand-logo-bg { fill: var(--pitch); }
+.brand-logo-ball { fill: var(--surface); stroke: var(--surface); }
+a.brand-link:hover .brand-logo { transform: rotate(-18deg); }
+a.brand-link:focus-visible { outline-offset: 4px; border-radius: 6px; }
+@media (prefers-reduced-motion: reduce) { .brand-logo { transition: none; } }
+
 .date-nav { display: flex; gap: 0.25rem; }
 
 .date-nav button,

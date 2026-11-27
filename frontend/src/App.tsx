@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { addFavoriteLeague, clearCache, getFavoriteLeagues, getForecast, getMatches, getMe, hasSession, logout, onSessionExpired, removeFavoriteLeague } from './api'
 import { hasPermission, type MeResponse } from './types'
 import type { ForecastResult, MatchSummary } from './types'
@@ -8,13 +8,13 @@ import ForecastPanel from './components/ForecastPanel'
 import AuthPanel from './components/AuthPanel'
 import LeagueFilter from './components/LeagueFilter'
 import ThemeToggle from './components/ThemeToggle'
+import BrandLogo from './components/BrandLogo'
 import LanguageToggle from './components/LanguageToggle'
 import AdminPanel from './components/admin/AdminPanel'
 import { canOpenAdmin, clearHash, parseAdminHash } from './AdminView'
 import { useI18n } from './i18n/useI18n'
 
-// Canlı maç varken listenin arka planda yenilenme aralığı. API kotasını korumak için
-// kısa tutulmadı; aradaki dakikalar matchStatus.minuteLabel içinde yerelde ilerletilir.
+// Canlı maç varken listenin arka planda yenilenme aralığı. API kotasını korumak için kısa tutulmadı; aradaki dakikalar matchStatus.minuteLabel içinde yerelde ilerletilir.
 const LIVE_REFRESH_MS = 5 * 60_000
 // Ekrandaki dakika etiketinin güncellenme aralığı (ağ isteği yapmaz)
 const CLOCK_TICK_MS = 30_000
@@ -191,6 +191,19 @@ export default function App() {
   // Hızlı art arda tıklamalarda eski cevabın yenisini ezmemesi için
   const requestSeq = useRef(0)
 
+  // Logo/site adı: admin panelinden çıkar, bugünün maçlarına döner, seçimi ve aramayı sıfırlar.
+  // Lig filtresi ve favoriler korunur (kullanıcının kendi tercihi). Devam eden analiz cevabı yok sayılır.
+  const goHome = (e: MouseEvent) => {
+    e.preventDefault()
+    requestSeq.current++
+    backToMatches()
+    setDate(todayInIstanbul())
+    setQuery('')
+    setSelectedId(null)
+    setForecast(null)
+    setForecastState({ loading: false })
+  }
+
   const analyze = async (id: number, refresh = false) => {
     const seq = ++requestSeq.current
     setSelectedId(id)
@@ -256,7 +269,12 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <h1 className="brand">{t('brand')}</h1>
+        <h1 className="brand">
+          <a href="/" className="brand-link" onClick={goHome} title={t('home')}>
+            <BrandLogo />
+            <span>{t('brand')}</span>
+          </a>
+        </h1>
         {showAdmin ? null : restricted ? (
           <div className="date-nav">
             <input type="date" value={date} disabled aria-label={t('date.guest')} />

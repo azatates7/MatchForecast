@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { forgotPassword, generatePassword, getAuthConfig, login, loginAsGuest, loginWithGoogle, register, resetPassword } from '../api'
 import { renderGoogleButton } from './Google'
+import BrandLogo from './BrandLogo'
 import LanguageToggle from './LanguageToggle'
 import { useI18n } from '../i18n/useI18n'
 import type { MessageKey } from '../i18n/messages'
@@ -151,7 +152,7 @@ export default function AuthPanel({ onAuthenticated }: { onAuthenticated: () => 
     <main className="login">
       <form className="login-card" onSubmit={submit}>
         <div className="login-head">
-          <h1 className="brand">{t('brand')}</h1>
+          <h1 className="brand brand-link"><BrandLogo /><span>{t('brand')}</span></h1>
           <LanguageToggle />
         </div>
 

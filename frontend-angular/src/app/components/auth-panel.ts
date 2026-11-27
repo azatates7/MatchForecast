@@ -3,6 +3,7 @@ import { forgotPassword, generatePassword, getAuthConfig, login, loginAsGuest, l
 import { renderGoogleButton } from '../core/google';
 import { I18nService } from '../core/i18n/i18n.service';
 import type { MessageKey } from '../core/i18n/messages';
+import { BrandLogo } from './brand-logo';
 import { LanguageToggle } from './language-toggle';
 
 type Mode = 'login' | 'register' | 'forgot' | 'reset';
@@ -33,7 +34,7 @@ const SUBMIT_LABELS: Record<Mode, [idle: MessageKey, busy: MessageKey]> = {
 // Giriş, kayıt, şifremi unuttum ve şifre sıfırlama ekranları. Oturum açılınca "authenticated" yayınlanır.
 @Component({
   selector: 'app-auth-panel',
-  imports: [LanguageToggle],
+  imports: [LanguageToggle, BrandLogo],
   templateUrl: './auth-panel.html',
 })
 export class AuthPanel {
