@@ -8,7 +8,7 @@ namespace MatchForecast.Api.Services.Forecast;
  * yapılan karşılığıdır; sonuç deterministiktir (aynı projeksiyon her zaman aynı listeyi verir).
  * 1. Olasılığı hesaplanabilen tüm seçenekler yüzdeye çevrilir.
  * 2. Önce olasılık bandındaki (varsayılan %55-%85) seçenekler, yüksek olasılıktan düşüğe doğru alınır.
- * 3. Yetmezse banda en yakın olanlarla tamamlanır.
+ * 3. Yetmezse banda en yakın olanlarla tamamlanır; MinShownProbability altındakiler (varsayılan %50 ve altı) hiç alınmaz.
  * 4. Her gruptan en fazla bir seçenek alınır.
  * 5. Sonuç olasılığa göre azalan sıralanır.
  */
@@ -20,6 +20,7 @@ public static class PredictionSelector
             .Select((option, index) => (Option: option, Index: index, P: option.Probability(projection)))
             .Where(c => c.P is not null)
             .Select(c => (c.Option, c.Index, Percent: PoissonMath.ToPercent(c.P!.Value)))
+            .Where(c => c.Percent >= opt.MinShownProbability)
             .OrderByDescending(c => c.Percent)
             .ThenBy(c => c.Index)
             .ToList();

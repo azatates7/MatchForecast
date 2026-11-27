@@ -13,8 +13,6 @@ interface Props {
   onRetry: () => void
   /** false: "Tekrar / Yeniden analiz et" butonları gizlenir (misafir; API refresh'i yalnızca Admin'e uygular) */
   canRetry?: boolean
-  /** true: başlıkta fikstür ID'si ve kopyala butonu (yalnızca Admin) */
-  showId?: boolean
 }
 
 /*
@@ -151,24 +149,6 @@ function Absences({ match, report }: { match: MatchSummary; report: AbsenceRepor
   )
 }
 
-// Admin: fikstür ID'si seçilebilir; buton panoya kopyalar (clipboard izni yoksa ID yine elle seçilebilir).
-function FixtureId({ id }: { id: number }) {
-  const { t } = useI18n()
-  const [copied, setCopied] = useState(false)
-  const copy = () => {
-    navigator.clipboard?.writeText(String(id)).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    }, () => undefined)
-  }
-  return (
-    <span className="fixture-id" title={t('fixture.id')}>
-      <code>#{id}</code>
-      <button type="button" className="link-btn" onClick={copy}>{t(copied ? 'fixture.copied' : 'fixture.copy')}</button>
-    </span>
-  )
-}
-
 // Maçın paylaşılabilir adresini (#match/<id>) panoya kopyalar; herkese görünür. Açan kişinin yetkisini API denetler.
 function ShareLink({ id }: { id: number }) {
   const { t } = useI18n()
@@ -186,7 +166,7 @@ function ShareLink({ id }: { id: number }) {
   )
 }
 
-export default function ForecastPanel({ match, forecast, loading, error, onRetry, canRetry = true, showId = false }: Props) {
+export default function ForecastPanel({ match, forecast, loading, error, onRetry, canRetry = true }: Props) {
   const { t, pct, loc } = useI18n()
 
   // Bağlantıyla açılan maç: bilgisi tahminle gelir; o ana kadar yükleniyor/hata mesajı gösterilir.
@@ -213,11 +193,8 @@ export default function ForecastPanel({ match, forecast, loading, error, onRetry
   return (
     <article className="forecast">
       <header className="fixture-head">
-        <p className="fixture-league">
-          {match.league}
-          {showId && <FixtureId id={match.id} />}
-          <ShareLink id={match.id} />
-        </p>
+        {/* Başlıkta yalnızca lig adı; bağlantı kopyalama alttaki işlemlerde, fikstür ID'si (Admin) maç listesinde. */}
+        <p className="fixture-league">{match.league}</p>
         <h2 className="fixture-title">
           <span>{match.homeTeam}</span>
           <span className="vs">–</span>
@@ -271,7 +248,10 @@ export default function ForecastPanel({ match, forecast, loading, error, onRetry
 
           <footer className="forecast-foot">
             <span>{t(absenceFootnote(forecast.absences))}</span>
-            {canRetry && <button type="button" className="link-btn" onClick={onRetry}>{t('forecast.reanalyze')}</button>}
+            <span className="forecast-actions">
+              <ShareLink id={forecast.match.id} />
+              {canRetry && <button type="button" className="link-btn" onClick={onRetry}>{t('forecast.reanalyze')}</button>}
+            </span>
           </footer>
           <p className="disclaimer">{t('forecast.disclaimer')}</p>
         </>

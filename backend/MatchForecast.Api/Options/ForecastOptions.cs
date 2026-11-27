@@ -6,6 +6,7 @@ namespace MatchForecast.Api.Options;
  * - MinPickProbability / MaxPickProbability: Önce bu banttaki seçenekler seçilir. %85 üstü seçenekler (ör. Çifte Şans 1X)
  *   çok güvenli ama az bilgi verir, %55 altı ise zayıftır. Bantta yeterli seçenek yoksa liste banda en yakın
  *   seçeneklerle tamamlanır. Bandı kapatmak için 0 ve 100 verin.
+ * - MinShownProbability: Kesin alt sınır; bu olasılığın altındaki seçenekler (ör. %44) tamamlama aşamasında da hiç listelenmez. Varsayılan 51: yalnızca %50'nin üzerindekiler. Yeterli seçenek yoksa liste PredictionCount'tan kısa olur.
  * - Max*: Modelden gelen beklenen değerlerin üst sınırları. Gerçekçi maç değerlerinin çok üzerindedir; amaç yalnızca
  *   modelin bariz hatalarını (ör. 25 korner) yakalamak.
  */
@@ -15,7 +16,8 @@ public sealed class ForecastOptions
 
     public int PredictionCount { get; set; } = 10;
     public int MinPickProbability { get; set; } = 55;
-    public int MaxPickProbability { get; set; } = 92;
+    public int MaxPickProbability { get; set; } = 95;
+    public int MinShownProbability { get; set; } = 51;
 
     public double MaxTeamGoals { get; set; } = 5;
     public double MaxFirstHalfGoals { get; set; } = 4;

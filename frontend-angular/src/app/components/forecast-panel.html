@@ -19,18 +19,8 @@
 } @else {
   <article class="forecast">
     <header class="fixture-head">
-      <p class="fixture-league">
-        {{ m.league }}
-        @if (showId()) {
-          <span class="fixture-id" [title]="i18n.t('fixture.id')">
-            <code>#{{ m.id }}</code>
-            <button type="button" class="link-btn" (click)="copyId(m.id)">{{ i18n.t(copied() ? 'fixture.copied' : 'fixture.copy') }}</button>
-          </span>
-        }
-        <button type="button" class="link-btn share-link" (click)="copyLink(m.id)" [title]="i18n.t('share.title')">
-          {{ i18n.t(linkCopied() ? 'share.copied' : 'share.copy') }}
-        </button>
-      </p>
+      <!-- Başlıkta yalnızca lig adı; bağlantı kopyalama alttaki işlemlerde, fikstür ID'si (Admin) maç listesinde. -->
+      <p class="fixture-league">{{ m.league }}</p>
       <h2 class="fixture-title">
         <span>{{ m.homeTeam }}</span>
         <span class="vs">–</span>
@@ -203,9 +193,14 @@
 
       <footer class="forecast-foot">
         <span>{{ i18n.t(absenceFootnote(f.absences)) }}</span>
-        @if (canRetry()) {
-          <button type="button" class="link-btn" (click)="retry.emit()">{{ i18n.t('forecast.reanalyze') }}</button>
-        }
+        <span class="forecast-actions">
+          <button type="button" class="link-btn share-link" (click)="copyLink(f.match.id)" [title]="i18n.t('share.title')">
+            {{ i18n.t(linkCopied() ? 'share.copied' : 'share.copy') }}
+          </button>
+          @if (canRetry()) {
+            <button type="button" class="link-btn" (click)="retry.emit()">{{ i18n.t('forecast.reanalyze') }}</button>
+          }
+        </span>
       </footer>
       <p class="disclaimer">{{ i18n.t('forecast.disclaimer') }}</p>
     }

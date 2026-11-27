@@ -114,6 +114,17 @@ public class PredictionSelectorTests
     }
 
     [Fact]
+    public void Select_NeverListsOptionsAt50PercentOrBelow_EvenWhenListIsShort()
+    {
+        // Bant boş ve 20 seçenek isteniyor: tamamlama aşaması bile %50 ve altını almaz, liste kısa kalır.
+        var picks = PredictionSelector.Select(Build(Sample()), new ForecastOptions { PredictionCount = 20, MinPickProbability = 99, MaxPickProbability = 100 });
+
+        Assert.NotEmpty(picks);
+        Assert.All(picks, p => Assert.True(p.Confidence > 50, $"{p.Label.Tr} %{p.Confidence}"));
+        Assert.True(picks.Count < 20);
+    }
+
+    [Fact]
     public void Select_UsesMetricReasoning()
     {
         var picks = PredictionSelector.Select(Build(Sample()), DefaultOptions);

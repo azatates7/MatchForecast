@@ -15,7 +15,8 @@ import { canOpenAdmin, clearHash, parseAdminHash } from './AdminView'
 import { istanbulDate, matchHash, parseMatchHash, replaceHash } from './MatchRoute'
 import { useI18n } from './i18n/useI18n'
 
-// Canlı maç varken listenin arka planda yenilenme aralığı. API kotasını korumak için kısa tutulmadı; aradaki dakikalar matchStatus.minuteLabel içinde yerelde ilerletilir.
+// Canlı maç varken listenin arka planda yenilenme aralığı. API kotasını korumak için
+// kısa tutulmadı; aradaki dakikalar matchStatus.minuteLabel içinde yerelde ilerletilir.
 const LIVE_REFRESH_MS = 5 * 60_000
 // Ekrandaki dakika etiketinin güncellenme aralığı (ağ isteği yapmaz)
 const CLOCK_TICK_MS = 30_000
@@ -393,7 +394,6 @@ export default function App() {
               error={forecastState.error}
               onRetry={() => selectedId && analyze(selectedId, true)}
               canRetry={!isGuest}
-              showId={isAdmin}
             />
           </section>
         </main>

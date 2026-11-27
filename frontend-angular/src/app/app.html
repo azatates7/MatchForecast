@@ -98,7 +98,6 @@
             [loading]="forecastState().loading"
             [error]="forecastState().error"
             [canRetry]="!isGuest()"
-            [showId]="isAdmin()"
             (retry)="retry()"
           />
         </section>

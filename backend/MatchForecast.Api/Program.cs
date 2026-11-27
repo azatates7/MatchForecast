@@ -270,6 +270,7 @@ try
         .Validate(o => o.MinPickProbability is >= 0 and <= 100 && o.MaxPickProbability is >= 0 and <= 100
                        && o.MinPickProbability <= o.MaxPickProbability,
             "Forecast:MinPickProbability/MaxPickProbability 0-100 arasında olmalı ve Min <= Max olmalı.")
+        .Validate(o => o.MinShownProbability is >= 0 and <= 100, "Forecast:MinShownProbability 0-100 arasında olmalı.")
         .ValidateOnStart();
     /*
      * Tahminlerin kalıcı kaydı. Kafka kapalıyken (varsayılan) ForecastService doğrudan ForecastStore'a yazar.

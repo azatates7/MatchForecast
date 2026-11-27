@@ -23,17 +23,6 @@ export class ForecastPanel {
   protected readonly absenceFootnote = absenceFootnote;
   protected readonly sourceLabel = sourceLabel;
 
-  /** true: başlıkta fikstür ID'si ve kopyala butonu (yalnızca Admin) */
-  readonly showId = input(false);
-  protected readonly copied = signal(false);
-
-  // Panoya kopyalar; clipboard izni yoksa ID yine elle seçilebilir.
-  protected copyId(id: number) {
-    navigator.clipboard?.writeText(String(id)).then(() => {
-      this.copied.set(true);
-      setTimeout(() => this.copied.set(false), 1500);
-    }, () => undefined);
-  }
   // Maçın paylaşılabilir adresini (#match/<id>) panoya kopyalar; herkese görünür. Açan kişinin yetkisini API denetler.
   protected readonly linkCopied = signal(false);
   protected copyLink(id: number) {
