@@ -26,12 +26,14 @@ public class AiUsageTests(WebApplicationFactory<Program> factory) : IClassFixtur
         ai.Gemini.OutputPricePer1M = 2.50m;
 
         await using (var db = new AppDbContext(options))
-            await new AiUsageStore(db, Options.Create(ai))
+            await new AiUsageStore(db, Options.Create(ai), Options.Create(new AbsencesOptions()))
                 .RecordAsync(7, new AiCompletion("{}", 1_000, 2_000), null, TimeSpan.FromMilliseconds(1500), CancellationToken.None);
 
         await using var check = new AppDbContext(options);
         var usage = await check.AiUsages.SingleAsync();
         Assert.Equal(("Gemini", "test-flash"), (usage.Provider, usage.Model));
+        Assert.Equal(AiUsagePurpose.Forecast, usage.Purpose);
+        Assert.Equal(0, usage.SearchQueries);
         Assert.True(usage.Success);
         Assert.Equal(1_000, usage.InputTokens);
         Assert.Equal(2_000, usage.OutputTokens);
@@ -48,7 +50,7 @@ public class AiUsageTests(WebApplicationFactory<Program> factory) : IClassFixtur
         ai.Gemini.InputPricePer1M = 0.30m;
 
         await using (var db = new AppDbContext(options))
-            await new AiUsageStore(db, Options.Create(ai)).RecordAsync(7, null, 429, TimeSpan.FromSeconds(1), CancellationToken.None);
+            await new AiUsageStore(db, Options.Create(ai), Options.Create(new AbsencesOptions())).RecordAsync(7, null, 429, TimeSpan.FromSeconds(1), CancellationToken.None);
 
         await using var check = new AppDbContext(options);
         var usage = await check.AiUsages.SingleAsync();
@@ -56,6 +58,63 @@ public class AiUsageTests(WebApplicationFactory<Program> factory) : IClassFixtur
         Assert.Equal(429, usage.StatusCode);
         Assert.Null(usage.InputTokens);
         Assert.Equal(0m, usage.EstimatedCostUsd);
+    }
+
+    [Fact]
+    public async Task RecordSearchAsync_UsesGeminiPrices_AndChargesOnlySearchesBeyondMonthlyFreeQuota()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
+        // Tahmin sağlayıcısı Claude olsa da arama Gemini ile yapılır ve Gemini fiyatıyla hesaplanır.
+        var ai = new AiOptions { Provider = "Claude" };
+        ai.Gemini.InputPricePer1M = 0.30m;
+        ai.Gemini.OutputPricePer1M = 2.50m;
+        var absences = new AbsencesOptions { SearchPricePer1K = 14m, FreeSearchesPerMonth = 10 };
+
+        await using (var db = new AppDbContext(options))
+        {
+            // Bu ay 8 sorgu yapılmış (kota 10); geçen ayın sorguları sayılmaz.
+            db.AiUsages.AddRange(
+                new AiUsage { Purpose = AiUsagePurpose.Absences, SearchQueries = 8, CreatedAt = DateTime.Now },
+                new AiUsage { Purpose = AiUsagePurpose.Absences, SearchQueries = 50, CreatedAt = DateTime.Now.AddMonths(-1).AddDays(-1) });
+            await db.SaveChangesAsync();
+
+            var store = new AiUsageStore(db, Options.Create(ai), Options.Create(absences));
+            // 5 sorgunun 2'si kotada, 3'ü ücretli. Ardından 4 sorgunun hepsi ücretli.
+            await store.RecordSearchAsync(7, "gemini-search", new AiCompletion("", 1_000, 2_000), 5, null, TimeSpan.FromSeconds(3), CancellationToken.None);
+            await store.RecordSearchAsync(8, "gemini-search", new AiCompletion("", null, null), 4, null, TimeSpan.FromSeconds(3), CancellationToken.None);
+        }
+
+        await using var check = new AppDbContext(options);
+        var first = await check.AiUsages.SingleAsync(x => x.FixtureId == 7);
+        Assert.Equal((AiUsagePurpose.Absences, "Gemini", "gemini-search", 5), (first.Purpose, first.Provider, first.Model, first.SearchQueries));
+        // Token: 0.0003 + 0.005; arama: 3 * 14 / 1000 = 0.042
+        Assert.Equal(0.0473m, first.EstimatedCostUsd);
+        var second = await check.AiUsages.SingleAsync(x => x.FixtureId == 8);
+        Assert.Equal(0.056m, second.EstimatedCostUsd);
+    }
+
+    [Fact]
+    public async Task Report_SeparatesAbsenceSearches_AndSumsSearchQueries()
+    {
+        var testFactory = factory.WithTestJwt();
+        var marker = DateTime.Now.AddDays(-2);
+        using (var scope = testFactory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var search = Usage(marker, success: true, input: 300, output: 100, cost: 0.014m);
+            search.Purpose = AiUsagePurpose.Absences;
+            search.SearchQueries = 3;
+            db.AiUsages.AddRange(Usage(marker, success: true, input: 800, output: 600, cost: 0.002m), search);
+            await db.SaveChangesAsync();
+        }
+
+        var admin = testFactory.CreateClientFor(1, [RoleNames.Admin]);
+        var report = (await admin.GetFromJsonAsync<AiUsageReportResponse>("/api/ai-usage?days=30"))!;
+
+        var day = report.Daily.Where(x => x.Date == DateOnly.FromDateTime(marker)).ToList();
+        Assert.Contains(day, x => x.Purpose == AiUsagePurpose.Absences && x.SearchQueries == 3 && x.Calls == 1);
+        Assert.Contains(day, x => x.Purpose == AiUsagePurpose.Forecast && x.SearchQueries == 0);
+        Assert.Equal(3, report.Totals.SearchQueries);
     }
 
     [Fact]

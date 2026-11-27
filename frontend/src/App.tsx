@@ -12,6 +12,7 @@ import BrandLogo from './components/BrandLogo'
 import LanguageToggle from './components/LanguageToggle'
 import AdminPanel from './components/admin/AdminPanel'
 import { canOpenAdmin, clearHash, parseAdminHash } from './AdminView'
+import { istanbulDate, matchHash, parseMatchHash, replaceHash } from './components/MatchRoute'
 import { useI18n } from './i18n/useI18n'
 
 // Canlı maç varken listenin arka planda yenilenme aralığı. API kotasını korumak için kısa tutulmadı; aradaki dakikalar matchStatus.minuteLabel içinde yerelde ilerletilir.
@@ -27,12 +28,7 @@ const toIsoDate = (d: Date) => {
 }
 
 // "Bugün" tarayıcının saat diliminden bağımsız olarak İstanbul'a göre (API ve fikstürler bu saat diliminde) YYYY-MM-DD
-const todayInIstanbul = () => {
-  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit' })
-    .formatToParts(new Date())
-  const get = (type: string) => parts.find(p => p.type === type)?.value ?? ''
-  return `${get('year')}-${get('month')}-${get('day')}`
-}
+const todayInIstanbul = () => istanbulDate(new Date())
 
 const shiftDate = (iso: string, days: number) => {
   const d = new Date(`${iso}T12:00:00`)
@@ -87,7 +83,21 @@ export default function App() {
   const showAdmin = adminRoute.admin && canAdmin
 
   const openAdmin = () => { window.location.hash = 'admin' }
-  const backToMatches = () => { clearHash(); setHash('') }
+  // Adresi temizler (maç seçimi de kalkar); logo ve çıkışta kullanılır.
+  const resetHash = () => { clearHash(); setHash('') }
+
+  // Adresteki maç (#match/<id>): paylaşılan bağlantı ve tarayıcının geri/ileri tuşu buradan çalışır.
+  const routeMatchId = parseMatchHash(hash)
+  // Listeden seçim adrese yazılır; seçimi adresteki değişiklik açar. Aynı maça tekrar tıklanırsa yeniden yüklenir.
+  const selectMatch = (id: number) => {
+    if (parseMatchHash(window.location.hash) === id) analyze(id)
+    else window.location.hash = matchHash(id)
+  }
+  // Yönetimden dönüşte açık maç varsa onun adresine dönülür, yoksa adres temizlenir.
+  const backToMatches = () => {
+    if (selectedId !== null) window.location.hash = matchHash(selectedId)
+    else resetHash()
+  }
 
   // silent=true: arka plan yenilemesi; listeyi "yükleniyor" durumuna sokmaz, hata olursa eski listeyi korur.
   const loadMatches = useCallback((silent: boolean, isCancelled: () => boolean = () => false) => {
@@ -195,10 +205,15 @@ export default function App() {
   // Lig filtresi ve favoriler korunur (kullanıcının kendi tercihi). Devam eden analiz cevabı yok sayılır.
   const goHome = (e: MouseEvent) => {
     e.preventDefault()
-    requestSeq.current++
-    backToMatches()
+    resetHash()
+    clearSelection()
     setDate(todayInIstanbul())
     setQuery('')
+  }
+
+  // Seçili maç kapatılır; devam eden analiz cevabı gelirse yok sayılır.
+  const clearSelection = () => {
+    requestSeq.current++
     setSelectedId(null)
     setForecast(null)
     setForecastState({ loading: false })
@@ -214,6 +229,11 @@ export default function App() {
       if (seq !== requestSeq.current) return
       setForecast(result)
       setForecastState({ loading: false })
+      // Bağlantı veya geri tuşuyla başka günün maçı açıldıysa liste o güne geçer (maç listede seçili görünsün).
+      if (!refresh) {
+        const day = istanbulDate(new Date(result.match.kickoff))
+        setDate(prev => (prev === day ? prev : day))
+      }
     } catch (e) {
       if (seq !== requestSeq.current) return
       setForecastState({ loading: false, error: (e as Error).message })
@@ -223,11 +243,24 @@ export default function App() {
   // Misafirin bugün tek maçı varsa beklemeden o maçın tahmini açılır (listeden seçim gerekmez).
   // Yalnızca hiç maç seçilmemişken çalışır; arama sonucu tek maça düşünce tetiklenmesin diye tüm liste (matches) kullanılır.
   useEffect(() => {
-    if (!isGuest || matchesState.loading || matchesState.error || selectedId !== null || matches.length !== 1) return
-    analyze(matches[0].id)
-    // analyze her render'da yeniden oluşur; bağımlılığa eklenirse etki gereksiz yere tekrar çalışır.
+    if (!isGuest || matchesState.loading || matchesState.error || selectedId !== null || routeMatchId !== null || matches.length !== 1) return
+    // Geçmişe kayıt eklenmez: geri tuşu kullanıcıyı boş ekrana değil, bir önceki sayfaya götürsün.
+    replaceHash(matchHash(matches[0].id))
+    setHash(window.location.hash)
+  }, [isGuest, matchesState, selectedId, routeMatchId, matches])
+
+  // Adres değişince ekran ona uyar: #match/<id> o maçı açar; adres boşalırsa (geri tuşu) seçim kalkar.
+  // Yönetim açıkken (#admin) seçim korunur ki geri dönüldüğünde aynı maç görünsün.
+  useEffect(() => {
+    if (!loggedIn) return
+    if (routeMatchId !== null) {
+      if (routeMatchId !== selectedId) analyze(routeMatchId)
+    } else if (!adminRoute.admin && selectedId !== null) {
+      clearSelection()
+    }
+    // Yalnızca adres (ve giriş) değişince çalışır; selectedId/analyze eklenirse her seçimde tekrar tetiklenir.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isGuest, matchesState, selectedId, matches])
+  }, [loggedIn, routeMatchId, adminRoute.admin])
 
   // Cache silindikten sonra maç listesi API'den taze çekilir; ekrandaki tahmin korunur, sonraki analiz AI'dan yeniden üretilir.
   const handleClearCache = async () => {
@@ -251,7 +284,7 @@ export default function App() {
   // Ekrandaki veriler temizlenir; başka bir kullanıcı giriş yaparsa önceki oturumun verisini görmesin.
   const handleLogout = async () => {
     await logout()
-    backToMatches()
+    resetHash()
     setLoggedIn(false)
     setMe(null)
     setMeFailed(false)
@@ -261,7 +294,8 @@ export default function App() {
     setForecast(null)
   }
 
-  const selected = matches.find(m => m.id === selectedId) ?? null
+  // Bağlantıyla açılan maç o anki listede olmayabilir (başka gün, liste henüz yüklenmedi); bilgisi tahminden alınır.
+  const selected = matches.find(m => m.id === selectedId) ?? (forecast?.match.id === selectedId ? forecast.match : null)
 
   // Giriş, kayıt veya Google ile giriş başarılı olunca AuthPanel haber verir.
   if (!loggedIn) return <AuthPanel onAuthenticated={() => setLoggedIn(true)} />
@@ -343,7 +377,7 @@ export default function App() {
               loading={matchesState.loading}
               error={matchesState.error}
               selectedId={selectedId}
-              onSelect={id => analyze(id)}
+              onSelect={selectMatch}
               fetchedAt={fetchedAt}
               now={now}
               emptyText={isGuest ? t('guest.noMatches') : undefined}

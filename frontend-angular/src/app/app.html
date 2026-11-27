@@ -87,7 +87,7 @@
             [now]="now()"
             [emptyText]="isGuest() ? i18n.t('guest.noMatches') : undefined"
             [showIds]="isAdmin()"
-            (select)="analyze($event)"
+            (select)="selectMatch($event)"
           />
         </section>
 

@@ -3,6 +3,7 @@ import type { AbsenceReport, ForecastResult, MatchSummary, OutcomeProbabilities 
 import StatsTable from './StatsTable'
 import { useI18n } from '../i18n/useI18n'
 import { ABSENCE_LABEL, absenceFootnote, groupAbsences, sourceLabel } from '../Absences'
+import { matchUrl } from '../MatchRoute'
 
 interface Props {
   match: MatchSummary | null
@@ -132,8 +133,35 @@ function FixtureId({ id }: { id: number }) {
   )
 }
 
+// Maçın paylaşılabilir adresini (#match/<id>) panoya kopyalar; herkese görünür. Açan kişinin yetkisini API denetler.
+function ShareLink({ id }: { id: number }) {
+  const { t } = useI18n()
+  const [copied, setCopied] = useState(false)
+  const copy = () => {
+    navigator.clipboard?.writeText(matchUrl(id)).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    }, () => undefined)
+  }
+  return (
+    <button type="button" className="link-btn share-link" onClick={copy} title={t('share.title')}>
+      {t(copied ? 'share.copied' : 'share.copy')}
+    </button>
+  )
+}
+
 export default function ForecastPanel({ match, forecast, loading, error, onRetry, canRetry = true, showId = false }: Props) {
   const { t, pct, loc } = useI18n()
+
+  // Bağlantıyla açılan maç: bilgisi tahminle gelir; o ana kadar yükleniyor/hata mesajı gösterilir.
+  if (!match && (loading || error)) {
+    return (
+      <div className="empty">
+        {loading && <p className="note pulse">{t('forecast.loading')}</p>}
+        {error && <p className="note note-error">{error}</p>}
+      </div>
+    )
+  }
 
   if (!match) {
     return (
@@ -152,6 +180,7 @@ export default function ForecastPanel({ match, forecast, loading, error, onRetry
         <p className="fixture-league">
           {match.league}
           {showId && <FixtureId id={match.id} />}
+          <ShareLink id={match.id} />
         </p>
         <h2 className="fixture-title">
           <span>{match.homeTeam}</span>

@@ -11,10 +11,10 @@ import { LanguageToggle } from './components/language-toggle';
 import { BrandLogo } from './components/brand-logo';
 import { AdminPanel } from './components/admin-panel';
 import { canOpenAdmin, clearHash, parseAdminHash } from './core/admin-view';
+import { istanbulDate, matchHash, parseMatchHash, replaceHash } from './core/match-route';
 import { I18nService } from './core/i18n/i18n.service';
 
-// Canlı maç varken listenin arka planda yenilenme aralığı. API kotasını korumak için
-// kısa tutulmadı; aradaki dakikalar minuteLabel içinde yerelde ilerletilir.
+// Canlı maç varken listenin arka planda yenilenme aralığı. API kotasını korumak için kısa tutulmadı; aradaki dakikalar minuteLabel içinde yerelde ilerletilir.
 const LIVE_REFRESH_MS = 5 * 60_000;
 // Ekrandaki dakika etiketinin güncellenme aralığı (ağ isteği yapmaz)
 const CLOCK_TICK_MS = 30_000;
@@ -27,12 +27,7 @@ const toIsoDate = (d: Date) => {
 };
 
 // "Bugün" tarayıcının saat diliminden bağımsız olarak İstanbul'a göre (API ve fikstürler bu saat diliminde) YYYY-MM-DD
-const todayInIstanbul = () => {
-  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit' })
-    .formatToParts(new Date());
-  const get = (type: string) => parts.find(p => p.type === type)?.value ?? '';
-  return `${get('year')}-${get('month')}-${get('day')}`;
-};
+const todayInIstanbul = () => istanbulDate(new Date());
 
 const shiftDate = (iso: string, days: number) => {
   const d = new Date(`${iso}T12:00:00`);
@@ -96,9 +91,26 @@ export class App {
 
   protected openAdmin() { location.hash = 'admin'; }
 
-  protected backToMatches() {
+  // Adresi temizler (maç seçimi de kalkar); logo ve çıkışta kullanılır.
+  private resetHash() {
     clearHash();
     this.hash.set('');
+  }
+
+  // Adresteki maç (#match/<id>): paylaşılan bağlantı ve tarayıcının geri/ileri tuşu buradan çalışır.
+  protected readonly routeMatchId = computed(() => parseMatchHash(this.hash()));
+
+  // Listeden seçim adrese yazılır; seçimi adresteki değişiklik açar. Aynı maça tekrar tıklanırsa yeniden yüklenir.
+  protected selectMatch(id: number) {
+    if (parseMatchHash(location.hash) === id) this.analyze(id);
+    else location.hash = matchHash(id);
+  }
+
+  // Yönetimden dönüşte açık maç varsa onun adresine dönülür, yoksa adres temizlenir.
+  protected backToMatches() {
+    const id = this.selectedId();
+    if (id !== null) location.hash = matchHash(id);
+    else this.resetHash();
   }
 
   protected readonly hasLive = computed(() => this.matches().some(isLive));
@@ -126,7 +138,12 @@ export class App {
     return leagues.length > 0 ? this.searched().filter(m => leagues.includes(leagueKey(m))) : this.searched();
   });
 
-  protected readonly selected = computed(() => this.matches().find(m => m.id === this.selectedId()) ?? null);
+  // Bağlantıyla açılan maç o anki listede olmayabilir (başka gün, liste henüz yüklenmedi); bilgisi tahminden alınır.
+  protected readonly selected = computed(() => {
+    const id = this.selectedId();
+    const f = this.forecast();
+    return this.matches().find(m => m.id === id) ?? (f?.match.id === id ? f.match : null);
+  });
 
   // Hızlı art arda tıklamalarda eski cevabın yenisini ezmemesi için
   private requestSeq = 0;
@@ -171,8 +188,25 @@ export class App {
     effect(() => {
       const state = this.matchesState();
       const matches = this.matches();
-      if (!this.isGuest() || state.loading || state.error || this.selectedId() !== null || matches.length !== 1) return;
-      untracked(() => this.analyze(matches[0].id));
+      if (!this.isGuest() || state.loading || state.error || this.selectedId() !== null || this.routeMatchId() !== null || matches.length !== 1) return;
+      // Geçmişe kayıt eklenmez: geri tuşu kullanıcıyı boş ekrana değil, bir önceki sayfaya götürsün.
+      replaceHash(matchHash(matches[0].id));
+      this.hash.set(location.hash);
+    });
+
+    // Adres değişince ekran ona uyar: #match/<id> o maçı açar; adres boşalırsa (geri tuşu) seçim kalkar.
+    // Yönetim açıkken (#admin) seçim korunur ki geri dönüldüğünde aynı maç görünsün.
+    effect(() => {
+      if (!this.loggedIn()) return;
+      const id = this.routeMatchId();
+      const admin = this.adminRoute().admin;
+      untracked(() => {
+        if (id !== null) {
+          if (id !== this.selectedId()) this.analyze(id);
+        } else if (!admin && this.selectedId() !== null) {
+          this.clearSelection();
+        }
+      });
     });
 
     // Canlı maç varsa: listeyi periyodik yenile ve dakika etiketini ilerlet
@@ -200,7 +234,7 @@ export class App {
   // Ekrandaki veriler temizlenir; başka bir kullanıcı giriş yaparsa önceki oturumun verisini görmesin.
   protected async handleLogout() {
     await logout();
-    this.backToMatches();
+    this.resetHash();
     this.loggedIn.set(false);
     this.me.set(null);
     this.meFailed.set(false);
@@ -231,10 +265,15 @@ export class App {
   // Lig filtresi ve favoriler korunur (kullanıcının kendi tercihi). Devam eden analiz cevabı yok sayılır.
   protected goHome(e: Event) {
     e.preventDefault();
-    this.requestSeq++;
-    this.backToMatches();
+    this.resetHash();
+    this.clearSelection();
     this.date.set(todayInIstanbul());
     this.query.set('');
+  }
+
+  // Seçili maç kapatılır; devam eden analiz cevabı gelirse yok sayılır.
+  private clearSelection() {
+    this.requestSeq++;
     this.selectedId.set(null);
     this.forecast.set(null);
     this.forecastState.set({ loading: false });
@@ -275,6 +314,11 @@ export class App {
       if (seq !== this.requestSeq) return;
       this.forecast.set(result);
       this.forecastState.set({ loading: false });
+      // Bağlantı veya geri tuşuyla başka günün maçı açıldıysa liste o güne geçer (maç listede seçili görünsün).
+      if (!refresh) {
+        const day = istanbulDate(new Date(result.match.kickoff));
+        if (this.date() !== day) this.date.set(day);
+      }
     } catch (e) {
       if (seq !== this.requestSeq) return;
       this.forecastState.set({ loading: false, error: (e as Error).message });

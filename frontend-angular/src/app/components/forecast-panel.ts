@@ -2,6 +2,7 @@ import { Component, inject, input, output, signal } from '@angular/core';
 import { I18nService } from '../core/i18n/i18n.service';
 import type { ForecastResult, MatchSummary } from '../core/types';
 import { ABSENCE_LABEL, absenceFootnote, groupAbsences, sourceLabel } from '../core/absences';
+import { matchUrl } from '../core/match-route';
 import { StatsTable } from './stats-table';
 
 interface ResultBar {
@@ -33,6 +34,15 @@ export class ForecastPanel {
       setTimeout(() => this.copied.set(false), 1500);
     }, () => undefined);
   }
+  // Maçın paylaşılabilir adresini (#match/<id>) panoya kopyalar; herkese görünür. Açan kişinin yetkisini API denetler.
+  protected readonly linkCopied = signal(false);
+  protected copyLink(id: number) {
+    navigator.clipboard?.writeText(matchUrl(id)).then(() => {
+      this.linkCopied.set(true);
+      setTimeout(() => this.linkCopied.set(false), 1500);
+    }, () => undefined);
+  }
+
   protected absences(f: ForecastResult) {
     return f.absences ? groupAbsences(f.match, f.absences.players) : [];
   }

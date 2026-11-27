@@ -221,19 +221,26 @@ export interface AiUsageTotals {
   outputTokens: number
   estimatedCostUsd: number
   averageDurationMs: number
+  /** Google araması (eksik oyuncu araştırması) sorgu sayısı */
+  searchQueries: number
 }
 
 export interface AiUsageDaily {
   /** İstanbul tarihi, "yyyy-MM-dd" */
   date: string
+  /** "Forecast" tahmin üretimi | "Absences" eksik oyuncu araması */
+  purpose: AiUsagePurpose
   provider: string
   model: string
   calls: number
   failures: number
   inputTokens: number
   outputTokens: number
+  searchQueries: number
   estimatedCostUsd: number
 }
+
+export type AiUsagePurpose = 'Forecast' | 'Absences'
 
 export interface AiUsageReport {
   from: string

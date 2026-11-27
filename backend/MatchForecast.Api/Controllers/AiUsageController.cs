@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace MatchForecast.Api.Controllers;
 
 /*
- * AI kullanım ve tahmini maliyet raporu. Yalnızca ai-usage.view yetkisi (Admin örtük olarak sahip) ile açılır;
+ * AI kullanım ve tahmini maliyet raporu (tahmin üretimi ve eksik oyuncu araması; arama maliyeti dahil). Yalnızca ai-usage.view yetkisi (Admin örtük olarak sahip) ile açılır;
  * misafir ve normal kullanıcılar 403 alır.
  * Gruplama bellekte yapılır: CreatedAt İstanbul saatine dönüştürülerek okunur, gün sınırı DB'deki UTC'ye göre kaymaz.
  * Satır sayısı küçüktür (günde birkaç yüz çağrı, en fazla 90 gün).
@@ -31,21 +31,23 @@ public sealed class AiUsageController(AppDbContext db) : ControllerBase
 
         var rows = await db.AiUsages.AsNoTracking()
             .Where(x => x.CreatedAt >= fromTime)
-            .Select(x => new { x.CreatedAt, x.Provider, x.Model, x.Success, x.InputTokens, x.OutputTokens, x.DurationMs, x.EstimatedCostUsd })
+            .Select(x => new { x.CreatedAt, x.Purpose, x.Provider, x.Model, x.Success, x.InputTokens, x.OutputTokens, x.SearchQueries, x.DurationMs, x.EstimatedCostUsd })
             .ToListAsync(ct);
 
         var daily = rows
-            .GroupBy(x => (Date: DateOnly.FromDateTime(x.CreatedAt), x.Provider, x.Model))
+            .GroupBy(x => (Date: DateOnly.FromDateTime(x.CreatedAt), x.Purpose, x.Provider, x.Model))
             .Select(g => new AiUsageDailyResponse(
                 g.Key.Date,
+                g.Key.Purpose,
                 g.Key.Provider,
                 g.Key.Model,
                 g.Count(),
                 g.Count(x => !x.Success),
                 g.Sum(x => (long)(x.InputTokens ?? 0)),
                 g.Sum(x => (long)(x.OutputTokens ?? 0)),
+                g.Sum(x => x.SearchQueries),
                 g.Sum(x => x.EstimatedCostUsd)))
-            .OrderByDescending(x => x.Date).ThenBy(x => x.Provider).ThenBy(x => x.Model)
+            .OrderByDescending(x => x.Date).ThenBy(x => x.Purpose).ThenBy(x => x.Provider).ThenBy(x => x.Model)
             .ToList();
 
         var totals = new AiUsageTotalsResponse(
@@ -54,7 +56,8 @@ public sealed class AiUsageController(AppDbContext db) : ControllerBase
             rows.Sum(x => (long)(x.InputTokens ?? 0)),
             rows.Sum(x => (long)(x.OutputTokens ?? 0)),
             rows.Sum(x => x.EstimatedCostUsd),
-            rows.Count == 0 ? 0 : (int)rows.Average(x => x.DurationMs));
+            rows.Count == 0 ? 0 : (int)rows.Average(x => x.DurationMs),
+            rows.Sum(x => x.SearchQueries));
 
         return new AiUsageReportResponse(from, to, totals, daily);
     }

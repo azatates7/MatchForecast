@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text.Json;
 using MatchForecast.Api.Options;
+using MatchForecast.Api.Services.Forecast;
 using MatchForecast.Api.Services.Redis;
 using MatchForecast.Models.Common;
 using MatchForecast.Models.Response;
@@ -20,16 +22,20 @@ public interface IAbsenceResearcher
  * - Kaynakta açıkça yazmayan oyuncu eklenmez; kesinleşmeyen her durum "Doubtful" (şüpheli) olarak yazılır.
  * - Sonuç Absences:CacheMinutes kadar önbellekte kalır; başarısız deneme 15 dk önbelleğe alınır (ücretli aramayı tekrarlamamak için).
  * - Fail-open: kapalı, anahtar yok, ücretsiz katman (400), kota veya geçersiz cevap → "Unavailable"; tahmin akışı durmaz.
- * Not: Bu çağrı AI kullanım raporuna (ai_usages) yazılmaz; Google araması Gemini faturasında ayrıca görünür.
+ * - Her gerçek arama (önbellekten gelmeyen) AI kullanım raporuna (ai_usages, Purpose=Absences) token ve sorgu sayısıyla yazılır.
+ * - Kaynaklar: Google'ın döndürdüğü arama kaynakları (groundingChunks); Gemini bazen bunları göndermediği için yoksa modelin cevabına yazdığı adresler açılabilir olduğu denetlenerek kullanılır (ISourceLinkChecker).
  */
 public sealed class GeminiAbsenceResearcher(
     HttpClient http,
     IRedisCacheService cache,
     IOptions<AiOptions> aiOptions,
     IOptions<AbsencesOptions> absenceOptions,
+    IAiUsageStore usageStore,
+    ISourceLinkChecker linkChecker,
     ILogger<GeminiAbsenceResearcher> logger) : IAbsenceResearcher
 {
     private const int MaxPlayersPerTeam = 20;
+    private const int MaxSources = 5;
     private static readonly TimeSpan FailureCacheTtl = TimeSpan.FromMinutes(15);
 
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
@@ -54,10 +60,13 @@ public sealed class GeminiAbsenceResearcher(
         - team alanına SADECE kullanıcı mesajındaki iki takım adından birini birebir yaz.
         - reason: kısa Türkçe neden (ör. "Diz sakatlığı", "Sarı kart cezası", "UEFA listesinde yok").
           reasonEn: aynı nedenin İngilizcesi.
+        - sources: bilgiyi aldığın sayfaların tam adresleri (en fazla 5; kulüp, federasyon, UEFA veya haber sitesi).
+          Yalnızca aramada gerçekten gördüğün adresleri yaz; adres uydurma. title: sitenin adı.
         - Cevabın SADECE geçerli JSON olsun; açıklama, markdown veya kod bloğu ekleme.
 
         JSON şeması:
-        { "players": [ { "team": "...", "player": "...", "status": "Suspended|NotInSquad|Injured|Doubtful", "reason": "...", "reasonEn": "..." } ] }
+        { "players": [ { "team": "...", "player": "...", "status": "Suspended|NotInSquad|Injured|Doubtful", "reason": "...", "reasonEn": "..." } ],
+          "sources": [ { "title": "...", "url": "https://..." } ] }
         """;
 
     public async Task<AbsenceReport> GetAsync(MatchSummary match, CancellationToken ct)
@@ -76,11 +85,14 @@ public sealed class GeminiAbsenceResearcher(
         if (cached is not null)
             return cached;
 
+        var model = string.IsNullOrWhiteSpace(opt.Model) ? gemini.Model : opt.Model;
+        var usage = new SearchUsage();
+        var started = Stopwatch.GetTimestamp();
         AbsenceReport report;
         TimeSpan ttl;
         try
         {
-            report = await SearchAsync(match, string.IsNullOrWhiteSpace(opt.Model) ? gemini.Model : opt.Model, ct);
+            report = await SearchAsync(match, model, usage, ct);
             ttl = TimeSpan.FromMinutes(Math.Max(1, opt.CacheMinutes));
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
@@ -90,11 +102,36 @@ public sealed class GeminiAbsenceResearcher(
             ttl = FailureCacheTtl;
         }
 
+        await RecordUsageAsync(match.Id, model, usage, Stopwatch.GetElapsedTime(started));
         await cache.SetAsync(key, report, ttl);
         return report;
     }
 
-    private async Task<AbsenceReport> SearchAsync(MatchSummary match, string model, CancellationToken ct)
+    // Gemini cevap verdiyse (cevap sonradan ayrıştırılamasa bile token ve arama faturalanır) başarılı sayılır.
+    // Fail-open ve CancellationToken.None: kayıt yazılamasa da, istemci bağlantıyı kapatsa da rapor dönülür.
+    private async Task RecordUsageAsync(int fixtureId, string model, SearchUsage usage, TimeSpan duration)
+    {
+        try
+        {
+            var completion = usage.Completion;
+            await usageStore.RecordSearchAsync(fixtureId, model, completion, completion is null ? 0 : usage.SearchQueries,
+                usage.FailedStatusCode, duration, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Absence search usage for fixture {FixtureId} could not be recorded.", fixtureId);
+        }
+    }
+
+    // SearchAsync'in faturalanan kısmı; exception olsa da GetAsync kaydedebilsin diye ayrı tutulur.
+    private sealed class SearchUsage
+    {
+        public AiCompletion? Completion { get; set; }
+        public int SearchQueries { get; set; }
+        public int? FailedStatusCode { get; set; }
+    }
+
+    private async Task<AbsenceReport> SearchAsync(MatchSummary match, string model, SearchUsage usage, CancellationToken ct)
     {
         var tr = System.Globalization.CultureInfo.GetCultureInfo("tr-TR");
         var user = $"""
@@ -115,10 +152,15 @@ public sealed class GeminiAbsenceResearcher(
         using var res = await http.PostAsJsonAsync($"models/{model}:generateContent", body, ct);
         var raw = await res.Content.ReadAsStringAsync(ct);
         if (!res.IsSuccessStatusCode)
+        {
+            usage.FailedStatusCode = (int)res.StatusCode;
             throw new InvalidOperationException($"Gemini search returned HTTP {(int)res.StatusCode}: {(raw.Length > 300 ? raw[..300] : raw)}");
+        }
 
         using var doc = JsonDocument.Parse(raw);
+        usage.Completion = ReadCompletion(doc.RootElement);
         var candidate = doc.RootElement.GetProperty("candidates")[0];
+        usage.SearchQueries = CountSearchQueries(candidate);
         var text = candidate.TryGetProperty("content", out var content) && content.TryGetProperty("parts", out var parts)
             ? string.Concat(parts.EnumerateArray()
                 .Where(p => p.TryGetProperty("text", out _)
@@ -126,20 +168,73 @@ public sealed class GeminiAbsenceResearcher(
                 .Select(p => p.GetProperty("text").GetString()))
             : "";
 
-        return new AbsenceReport(AbsenceReport.Ready, ParsePlayers(text, match), ParseSources(candidate), DateTimeOffset.Now);
+        var parsed = ParseResponse(text);
+        var players = ParsePlayers(parsed, match);
+        var sources = ParseSources(candidate);
+        if (sources.Count == 0)
+            sources = await linkChecker.FilterReachableAsync(ModelSources(parsed), ct);
+
+        return new AbsenceReport(AbsenceReport.Ready, players, sources, DateTimeOffset.Now);
     }
 
-    // Model metninden JSON'u ayıklar; takım adını fikstürle eşler, durumu normalize eder, tekrarları atar.
-    public static IReadOnlyList<TeamAbsence> ParsePlayers(string text, MatchSummary match)
+    /*
+     * Token sayıları (usageMetadata): arama sonuçları modele girdi olarak verildiği için toolUsePromptTokenCount girdiye, düşünme (thoughtsTokenCount) çıktıya eklenir; ikisi de böyle faturalanır.
+     */
+    private static AiCompletion ReadCompletion(JsonElement root)
+    {
+        var u = root.TryGetProperty("usageMetadata", out var meta) ? meta : default;
+        int? Sum(string a, string b)
+        {
+            var x = AiCompletion.ReadInt(u, a);
+            var y = AiCompletion.ReadInt(u, b);
+            return x is null && y is null ? null : (x ?? 0) + (y ?? 0);
+        }
+        return new AiCompletion("", Sum("promptTokenCount", "toolUsePromptTokenCount"), Sum("candidatesTokenCount", "thoughtsTokenCount"));
+    }
+
+    /*
+     * Faturalanan Google araması sayısı: groundingMetadata.webSearchQueries içindeki boş olmayan, benzersiz sorgular
+     * (Google boş sorguları saymaz). Gemini düşünme sırasında arama yaptığında groundingMetadata hiç gelmeyebiliyor; istem aramayı zorunlu tuttuğu için bu durumda en az 1 sorgu yapıldığı varsayılır (maliyet eksik görünmesin).
+     */
+    public static int CountSearchQueries(JsonElement candidate)
+    {
+        if (!candidate.TryGetProperty("groundingMetadata", out var meta) || meta.ValueKind != JsonValueKind.Object)
+            return 1;
+        if (!meta.TryGetProperty("webSearchQueries", out var queries) || queries.ValueKind != JsonValueKind.Array)
+            return meta.TryGetProperty("groundingChunks", out _) ? 1 : 0;
+
+        return queries.EnumerateArray()
+            .Where(q => q.ValueKind == JsonValueKind.String)
+            .Select(q => q.GetString()!.Trim())
+            .Where(q => q.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+    }
+
+    // Model metninden JSON'u ayıklar (kod bloğu veya önündeki açıklama atlanır).
+    private static RawResponse ParseResponse(string text)
     {
         var start = text.IndexOf('{');
         var end = text.LastIndexOf('}');
         if (start < 0 || end <= start)
             throw new JsonException("Absence response contains no JSON object.");
 
-        var parsed = JsonSerializer.Deserialize<RawResponse>(text[start..(end + 1)], JsonOpts)
-                     ?? throw new JsonException("Empty absence response.");
+        return JsonSerializer.Deserialize<RawResponse>(text[start..(end + 1)], JsonOpts)
+               ?? throw new JsonException("Empty absence response.");
+    }
 
+    // Modelin yazdığı kaynaklar (yalnızca groundingChunks yoksa kullanılır, sonra açılabilirliği denetlenir).
+    private static IReadOnlyList<AbsenceSource> ModelSources(RawResponse parsed) =>
+        (parsed.Sources ?? [])
+            .Where(x => !string.IsNullOrWhiteSpace(x.Url))
+            .Select(x => new AbsenceSource(x.Title?.Trim() ?? "", x.Url!.Trim()))
+            .DistinctBy(x => x.Url, StringComparer.OrdinalIgnoreCase)
+            .Take(MaxSources)
+            .ToList();
+
+    // Takım adını fikstürle eşler, durumu normalize eder, tekrarları atar.
+    private static IReadOnlyList<TeamAbsence> ParsePlayers(RawResponse parsed, MatchSummary match)
+    {
         return (parsed.Players ?? [])
             .Select(p => (Team: ResolveTeam(p.Team, match), p))
             .Where(x => x.Team is not null && !string.IsNullOrWhiteSpace(x.p.Player))
@@ -174,7 +269,7 @@ public sealed class GeminiAbsenceResearcher(
         _ => TeamAbsence.Doubtful
     };
 
-    // groundingMetadata.groundingChunks[].web { uri, title }; en fazla 5 benzersiz kaynak.
+    // groundingMetadata.groundingChunks[].web { uri, title }; en fazla MaxSources benzersiz kaynak.
     private static IReadOnlyList<AbsenceSource> ParseSources(JsonElement candidate)
     {
         if (!candidate.TryGetProperty("groundingMetadata", out var meta)
@@ -190,10 +285,11 @@ public sealed class GeminiAbsenceResearcher(
                 w.TryGetProperty("uri", out var u) ? u.GetString() ?? "" : ""))
             .Where(s => s.Url.Length > 0)
             .DistinctBy(s => s.Title.Length > 0 ? s.Title : s.Url)
-            .Take(5)
+            .Take(MaxSources)
             .ToList();
     }
 
-    private sealed record RawResponse(List<RawPlayer>? Players);
+    private sealed record RawResponse(List<RawPlayer>? Players, List<RawSource>? Sources);
+    private sealed record RawSource(string? Title, string? Url);
     private sealed record RawPlayer(string? Team, string? Player, string? Status, string? Reason, string? ReasonEn);
 }

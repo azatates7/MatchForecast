@@ -216,6 +216,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             e.ToTable("ai_usages");
             e.Property(x => x.Provider).HasMaxLength(50);
             e.Property(x => x.Model).HasMaxLength(100);
+            // Mevcut satırlar tahmin çağrısıdır; migration onları "Forecast" ile doldurur.
+            e.Property(x => x.Purpose).HasMaxLength(20).HasDefaultValue(AiUsagePurpose.Forecast);
             e.Property(x => x.EstimatedCostUsd).HasPrecision(12, 6);
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
             e.HasIndex(x => x.CreatedAt);

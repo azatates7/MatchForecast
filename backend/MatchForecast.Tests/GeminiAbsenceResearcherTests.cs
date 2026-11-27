@@ -2,14 +2,16 @@ using System.Net;
 using System.Text;
 using MatchForecast.Api.Options;
 using MatchForecast.Api.Services.Absences;
+using MatchForecast.Api.Services.Forecast;
 using MatchForecast.Api.Services.Redis;
 using MatchForecast.Models.Response;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Moq;
 
 namespace MatchForecast.Tests;
 
-// Maç günü kuralı, Google araması isteği, cevabın ayrıştırılması (takım eşleme, durum normalizasyonu, kaynaklar) ve fail-open.
+// Maç günü kuralı, Google araması isteği, cevabın ayrıştırılması (takım eşleme, durum normalizasyonu, kaynaklar), kullanım kaydı (token ve arama sayısı) ve fail-open.
 public class GeminiAbsenceResearcherTests
 {
     private static MatchSummary Match(DateTimeOffset kickoff) =>
@@ -19,15 +21,35 @@ public class GeminiAbsenceResearcherTests
         {
           "candidates": [{
             "content": { "parts": [ { "text": "```json\n{\"players\":[{\"team\":\"Trabzonspor\",\"player\":\"Okay Yokuşlu\",\"status\":\"Injured\",\"reason\":\"Darbe\",\"reasonEn\":\"Knock\"},{\"team\":\"Trabzonspor A.Ş.\",\"player\":\"Umut Nayir\",\"status\":\"NotInSquad\",\"reason\":\"UEFA listesinde yok\",\"reasonEn\":\"Not in UEFA list\"},{\"team\":\"CSKA Sofia\",\"player\":\"X. Player\",\"status\":\"maybe\",\"reason\":\"Belirsiz\"},{\"team\":\"Başka Takım\",\"player\":\"Y\",\"status\":\"Injured\"},{\"team\":\"Trabzonspor\",\"player\":\"okay yokuşlu\",\"status\":\"Injured\"}]}\n```" } ] },
-            "groundingMetadata": { "groundingChunks": [
+            "groundingMetadata": { "webSearchQueries": ["Trabzonspor sakat", "CSKA Sofia eksik", "", "trabzonspor sakat"], "groundingChunks": [
               { "web": { "uri": "https://vertexaisearch.example/a", "title": "trabzonspor.org.tr" } },
               { "web": { "uri": "https://vertexaisearch.example/b", "title": "uefa.com" } },
               { "web": { "uri": "https://vertexaisearch.example/c", "title": "trabzonspor.org.tr" } } ] }
+          }],
+          "usageMetadata": { "promptTokenCount": 400, "toolUsePromptTokenCount": 600, "candidatesTokenCount": 150, "thoughtsTokenCount": 50 }
+        }
+        """;
+
+    // groundingChunks yok (Gemini bazen göndermiyor); kaynaklar modelin JSON'undan alınır.
+    private const string ResponseWithModelSources = """
+        {
+          "candidates": [{
+            "content": { "parts": [ { "text": "{\"players\":[],\"sources\":[{\"title\":\"Kulüp\",\"url\":\"https://club.example/news\"},{\"title\":\"Uydurma\",\"url\":\"https://club.example/missing\"},{\"title\":\"Kulüp\",\"url\":\"https://club.example/news\"}]}" } ] }
           }]
         }
         """;
 
-    private static (GeminiAbsenceResearcher Researcher, List<string> Bodies) Create(
+    private readonly Mock<IAiUsageStore> _usage = new();
+    private readonly Mock<ISourceLinkChecker> _links = new();
+
+    public GeminiAbsenceResearcherTests()
+    {
+        // Adresinde "missing" geçen kaynak açılamıyor sayılır.
+        _links.Setup(x => x.FilterReachableAsync(It.IsAny<IReadOnlyList<AbsenceSource>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<AbsenceSource> s, CancellationToken _) => (IReadOnlyList<AbsenceSource>)s.Where(x => !x.Url.Contains("missing")).ToList());
+    }
+
+    private (GeminiAbsenceResearcher Researcher, List<string> Bodies) Create(
         Func<HttpResponseMessage> responder, bool enabled = true, string apiKey = "test-key")
     {
         var bodies = new List<string>();
@@ -36,7 +58,8 @@ public class GeminiAbsenceResearcherTests
         ai.Gemini.ApiKey = apiKey;
         ai.Gemini.Model = "gemini-test";
         var researcher = new GeminiAbsenceResearcher(http, new InMemoryRedisCacheService(), Options.Create(ai),
-            Options.Create(new AbsencesOptions { Enabled = enabled, CacheMinutes = 240 }), NullLogger<GeminiAbsenceResearcher>.Instance);
+            Options.Create(new AbsencesOptions { Enabled = enabled, CacheMinutes = 240 }), _usage.Object, _links.Object,
+            NullLogger<GeminiAbsenceResearcher>.Instance);
         return (researcher, bodies);
     }
 
@@ -83,6 +106,60 @@ public class GeminiAbsenceResearcherTests
             p => Assert.Equal(("CSKA Sofia", "X. Player", TeamAbsence.Doubtful), (p.Team, p.Player, p.Status)));
         Assert.Equal(new[] { "trabzonspor.org.tr", "uefa.com" }, report.Sources.Select(s => s.Title));
         Assert.NotNull(report.CheckedAt);
+        // Google kaynakları geldiği için model adresleri denetlenmez.
+        _links.Verify(x => x.FilterReachableAsync(It.IsAny<IReadOnlyList<AbsenceSource>>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RecordsUsage_WithSearchToolTokens_AndUniqueNonEmptyQueries()
+    {
+        var (researcher, _) = Create(() => Json(HttpStatusCode.OK, GroundedResponse));
+
+        await researcher.GetAsync(Match(DateTimeOffset.Now), CancellationToken.None);
+
+        // Girdi: 400 + 600 (arama sonuçları); çıktı: 150 + 50 (düşünme). Boş ve tekrar eden (büyük/küçük harf) sorgu sayılmaz.
+        _usage.Verify(x => x.RecordSearchAsync(1636402, "gemini-test",
+            It.Is<AiCompletion>(c => c.InputTokens == 1000 && c.OutputTokens == 200), 2, null,
+            It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task WithoutGroundingChunks_UsesModelSources_OnlyIfReachable_AndAssumesOneSearch()
+    {
+        var (researcher, _) = Create(() => Json(HttpStatusCode.OK, ResponseWithModelSources));
+
+        var report = await researcher.GetAsync(Match(DateTimeOffset.Now), CancellationToken.None);
+
+        Assert.Equal(AbsenceReport.Ready, report.State);
+        var source = Assert.Single(report.Sources); // tekrar eden adres bir kez, açılamayan adres hiç gösterilmez
+        Assert.Equal(("Kulüp", "https://club.example/news"), (source.Title, source.Url));
+        _usage.Verify(x => x.RecordSearchAsync(1636402, "gemini-test", It.IsNotNull<AiCompletion>(), 1, null,
+            It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RecordsFailedSearch_WithStatusCode_AndNoQueries()
+    {
+        var (researcher, _) = Create(() => Json(HttpStatusCode.TooManyRequests, """{"error":{"message":"quota"}}"""));
+
+        await researcher.GetAsync(Match(DateTimeOffset.Now), CancellationToken.None);
+
+        _usage.Verify(x => x.RecordSearchAsync(1636402, "gemini-test", null, 0, 429,
+            It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task DoesNotRecordUsage_WhenServedFromCache_OrBeforeMatchDay()
+    {
+        var (researcher, _) = Create(() => Json(HttpStatusCode.OK, GroundedResponse));
+        var match = Match(DateTimeOffset.Now);
+
+        await researcher.GetAsync(match, CancellationToken.None);
+        await researcher.GetAsync(match, CancellationToken.None);
+        await researcher.GetAsync(Match(DateTimeOffset.Now.AddDays(2)), CancellationToken.None);
+
+        _usage.Verify(x => x.RecordSearchAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<AiCompletion?>(), It.IsAny<int>(),
+            It.IsAny<int?>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

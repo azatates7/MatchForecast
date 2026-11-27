@@ -1,7 +1,17 @@
 @let m = match();
 @let f = forecast();
 
-@if (!m) {
+@if (!m && (loading() || error())) {
+  <!-- Bağlantıyla açılan maç: bilgisi tahminle gelir; o ana kadar yükleniyor/hata mesajı gösterilir. -->
+  <div class="empty">
+    @if (loading()) {
+      <p class="note pulse">{{ i18n.t('forecast.loading') }}</p>
+    }
+    @if (error()) {
+      <p class="note note-error">{{ error() }}</p>
+    }
+  </div>
+} @else if (!m) {
   <div class="empty">
     <p class="empty-title">{{ i18n.t('forecast.emptyTitle') }}</p>
     <p>{{ i18n.t('forecast.emptyText') }}</p>
@@ -17,6 +27,9 @@
             <button type="button" class="link-btn" (click)="copyId(m.id)">{{ i18n.t(copied() ? 'fixture.copied' : 'fixture.copy') }}</button>
           </span>
         }
+        <button type="button" class="link-btn share-link" (click)="copyLink(m.id)" [title]="i18n.t('share.title')">
+          {{ i18n.t(linkCopied() ? 'share.copied' : 'share.copy') }}
+        </button>
       </p>
       <h2 class="fixture-title">
         <span>{{ m.homeTeam }}</span>

@@ -314,6 +314,21 @@ try
         if (!string.IsNullOrWhiteSpace(g.ApiKey))
             c.DefaultRequestHeaders.Add("x-goog-api-key", g.ApiKey);
     });
+
+    // Modelin yazdığı kaynak adreslerini denetler. Gemini anahtarı taşımayan ayrı istemci; yerel/özel IP'lere bağlanmaz, yönlendirme izlemez, proxy kullanmaz (SSRF koruması: SourceLinkChecker).
+    builder.Services.AddHttpClient<ISourceLinkChecker, SourceLinkChecker>(c =>
+    {
+        c.Timeout = TimeSpan.FromSeconds(5);
+        c.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (compatible; MatchForecastLinkCheck/1.0; +https://matchforecast.online)");
+    })
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+    {
+        AllowAutoRedirect = false,
+        UseProxy = false,
+        UseCookies = false,
+        ConnectTimeout = TimeSpan.FromSeconds(3),
+        ConnectCallback = SourceLinkChecker.ConnectPublicOnlyAsync
+    });
     builder.Services.AddScoped<ForecastService>();
 
     // Girişte günün Süper Lig tahminlerini arka planda önceden üretir (Forecast:PrewarmOnLogin).
