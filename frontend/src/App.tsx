@@ -12,7 +12,7 @@ import BrandLogo from './components/BrandLogo'
 import LanguageToggle from './components/LanguageToggle'
 import AdminPanel from './components/admin/AdminPanel'
 import { canOpenAdmin, clearHash, parseAdminHash } from './AdminView'
-import { istanbulDate, matchHash, parseMatchHash, replaceHash } from './components/MatchRoute'
+import { istanbulDate, matchHash, parseMatchHash, replaceHash } from './MatchRoute'
 import { useI18n } from './i18n/useI18n'
 
 // Canlı maç varken listenin arka planda yenilenme aralığı. API kotasını korumak için kısa tutulmadı; aradaki dakikalar matchStatus.minuteLabel içinde yerelde ilerletilir.
