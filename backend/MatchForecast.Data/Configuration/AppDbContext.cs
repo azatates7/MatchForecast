@@ -37,6 +37,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<UserFavoriteLeague> UserFavoriteLeagues => Set<UserFavoriteLeague>();
     public DbSet<ForecastRecord> Forecasts => Set<ForecastRecord>();
     public DbSet<AiUsage> AiUsages => Set<AiUsage>();
+    public DbSet<MatchResult> MatchResults => Set<MatchResult>();
 
     // Program.cs (DI kaydı) ve açılıştaki ayar yükleyici aynı Npgsql ayarlarını kullansın.
     public static void UseDatabase(DbContextOptionsBuilder options, string? connectionString) =>
@@ -221,6 +222,15 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             e.Property(x => x.EstimatedCostUsd).HasPrecision(12, 6);
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
             e.HasIndex(x => x.CreatedAt);
+        });
+
+        // Tahmin edilen maçların kesin sonucu (isabet takibi); maç başına tek satır.
+        modelBuilder.Entity<MatchResult>(e =>
+        {
+            e.ToTable("match_results");
+            e.Property(x => x.Status).HasMaxLength(10);
+            e.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
+            e.HasIndex(x => x.FixtureId).IsUnique();
         });
 
         modelBuilder.Entity<AppSetting>(e =>

@@ -1,4 +1,5 @@
 import type {
+  AccuracyReport,
   AiUsageReport,
   AuthConfigResponse, CacheClearResponse, CreatePermissionRequest, CreateUserRequest, ForecastResult, GroupRequest, GroupResponse,
   MatchSummary, MeResponse, PasswordResponse, PermissionResponse, RoleRequest, RoleResponse, TokenResponse, UpdatePermissionRequest,
@@ -218,3 +219,6 @@ export const generatePassword = async (length = 16): Promise<PasswordResponse> =
 
 // AI kullanım raporu (yalnızca ai-usage.view; Admin örtük olarak sahip)
 export const getAiUsage = (days: number) => request<AiUsageReport>(`/api/ai-usage?days=${days}`)
+
+// Tahmin isabet raporu (yalnızca accuracy.view; Admin örtük olarak sahip)
+export const getAccuracy = (days: number) => request<AccuracyReport>(`/api/accuracy?days=${days}`)

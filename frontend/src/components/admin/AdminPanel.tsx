@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { useI18n } from '../../i18n/useI18n'
 import { adminHash, visibleAdminTabs, type AdminTab } from '../../AdminView'
 import type { MeResponse } from '../../types'
@@ -6,6 +7,7 @@ import RolesTab from './RolesTab'
 import GroupsTab from './GroupsTab'
 import PermissionsTab from './PermissionsTab'
 import UsageTab from './UsageTab'
+import AccuracyTab from './AccuracyTab'
 
 interface Props {
   me: MeResponse
@@ -22,11 +24,22 @@ export default function AdminPanel({ me, tab }: Props) {
   const { t } = useI18n()
   const tabs = visibleAdminTabs(me)
   const active = tabs.find(x => x.id === tab) ?? tabs[0]
+  const navRef = useRef<HTMLElement>(null)
+
+  // Dar ekranda sekmeler sığmayınca çubuk yatay kayar; aktif sekme görünür alana (ortaya) getirilir.
+  // Yalnızca çubuğun scrollLeft'i değişir, sayfa dikey kaymaz (scrollIntoView'in aksine).
+  useEffect(() => {
+    const nav = navRef.current
+    const el = nav?.querySelector<HTMLElement>('[aria-selected="true"]')
+    if (!nav || !el) return
+    const offset = el.getBoundingClientRect().left - nav.getBoundingClientRect().left
+    nav.scrollLeft += offset - (nav.clientWidth - el.offsetWidth) / 2
+  }, [active?.id])
 
   return (
     <main className="admin">
       <h2 className="admin-title">{t('admin.title')}</h2>
-      <nav className="admin-tabs" role="tablist" aria-label={t('admin.tabs')}>
+      <nav ref={navRef} className="admin-tabs" role="tablist" aria-label={t('admin.tabs')}>
         {tabs.map(x => (
           <a
             key={x.id}
@@ -46,6 +59,7 @@ export default function AdminPanel({ me, tab }: Props) {
           : active.id === 'roles' ? <RolesTab />
           : active.id === 'groups' ? <GroupsTab me={me} />
           : active.id === 'usage' ? <UsageTab />
+          : active.id === 'accuracy' ? <AccuracyTab />
           : <PermissionsTab />}
       </section>
     </main>

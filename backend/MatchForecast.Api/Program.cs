@@ -19,6 +19,7 @@ using MatchForecast.Api.Services.Security;
 using MatchForecast.Api.Services.ApiFootball;
 using MatchForecast.Api.Services.Forecast;
 using MatchForecast.Api.Services.Absences;
+using MatchForecast.Api.Services.Accuracy;
 using MatchForecast.Api.Services.AI.Gemini;
 using MatchForecast.Api.Services.AI.Claude;
 using MatchForecast.Api.Services.AI.Ollama;
@@ -71,6 +72,7 @@ try
     builder.Services.Configure<OddsProviderOptions>(builder.Configuration.GetSection(OddsProviderOptions.Section));
     builder.Services.Configure<AiOptions>(builder.Configuration.GetSection(AiOptions.Section));
     builder.Services.Configure<AbsencesOptions>(builder.Configuration.GetSection(AbsencesOptions.Section));
+    builder.Services.Configure<AccuracyOptions>(builder.Configuration.GetSection(AccuracyOptions.Section));
 
     // JWT ayarları: eksik/kısa SecretKey ile uygulama hiç ayağa kalkmasın (ilk istekte değil, startup'ta hata).
     builder.Services.AddOptions<JwtOptions>()
@@ -317,23 +319,33 @@ try
 
     // Modelin yazdığı kaynak adreslerini denetler. Gemini anahtarı taşımayan ayrı istemci; yerel/özel IP'lere bağlanmaz, yönlendirme izlemez, proxy kullanmaz (SSRF koruması: SourceLinkChecker).
     builder.Services.AddHttpClient<ISourceLinkChecker, SourceLinkChecker>(c =>
-    {
-        c.Timeout = TimeSpan.FromSeconds(5);
-        c.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (compatible; MatchForecastLinkCheck/1.0; +https://matchforecast.online)");
-    })
-    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
-    {
-        AllowAutoRedirect = false,
-        UseProxy = false,
-        UseCookies = false,
-        ConnectTimeout = TimeSpan.FromSeconds(3),
-        ConnectCallback = SourceLinkChecker.ConnectPublicOnlyAsync
-    });
+        {
+            c.Timeout = TimeSpan.FromSeconds(5);
+            c.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (compatible; MatchForecastLinkCheck/1.0; +https://matchforecast.online)");
+        })
+        .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+        {
+            AllowAutoRedirect = false,
+            UseProxy = false,
+            UseCookies = false,
+            ConnectTimeout = TimeSpan.FromSeconds(3),
+            ConnectCallback = SourceLinkChecker.ConnectPublicOnlyAsync
+        });
     builder.Services.AddScoped<ForecastService>();
 
     // Girişte günün Süper Lig tahminlerini arka planda önceden üretir (Forecast:PrewarmOnLogin).
     builder.Services.AddSingleton<ForecastPrewarmQueue>();
     builder.Services.AddHostedService<ForecastPrewarmWorker>();
+
+    // İsabet takibi: biten maçların sonucu API-Football'dan toplanır (Accuracy:*). Fikstür sağlayıcısından ayrı istemci.
+    builder.Services.AddHttpClient<IMatchResultProvider, ApiFootballResultProvider>((sp, c) =>
+    {
+        var o = sp.GetRequiredService<IOptions<OddsProviderOptions>>().Value;
+        c.BaseAddress = new Uri(o.BaseUrl);
+        c.Timeout = TimeSpan.FromSeconds(30);
+        c.DefaultRequestHeaders.Add("x-apisports-key", o.ApiKey);
+    });
+    builder.Services.AddHostedService<ResultSettlementWorker>();
 
     // Süresi dolmuş refresh token'ları ve kullanılmış/süresi dolmuş şifre sıfırlama kayıtlarını günde bir siler.
     builder.Services.AddHostedService<TokenCleanUpWorker>();

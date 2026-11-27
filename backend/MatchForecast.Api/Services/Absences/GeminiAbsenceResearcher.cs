@@ -23,6 +23,7 @@ public interface IAbsenceResearcher
  * - Sonuç Absences:CacheMinutes kadar önbellekte kalır; başarısız deneme 15 dk önbelleğe alınır (ücretli aramayı tekrarlamamak için).
  * - Fail-open: kapalı, anahtar yok, ücretsiz katman (400), kota veya geçersiz cevap → "Unavailable"; tahmin akışı durmaz.
  * - Her gerçek arama (önbellekten gelmeyen) AI kullanım raporuna (ai_usages, Purpose=Absences) token ve sorgu sayısıyla yazılır.
+ * - Absences:MonthlySearchLimit: bu ayki sorgu sayısı sınıra ulaştıysa arama yapılmaz ("Unavailable"), ay başında açılır.
  * - Kaynaklar: Google'ın döndürdüğü arama kaynakları (groundingChunks); Gemini bazen bunları göndermediği için yoksa modelin cevabına yazdığı adresler açılabilir olduğu denetlenerek kullanılır (ISourceLinkChecker).
  */
 public sealed class GeminiAbsenceResearcher(
@@ -85,6 +86,14 @@ public sealed class GeminiAbsenceResearcher(
         if (cached is not null)
             return cached;
 
+        if (await MonthlyLimitReachedAsync(opt, ct))
+        {
+            // Sınır dolu: her istekte DB'ye sorulmasın diye kısa süre önbelleğe alınır (başarısızlıkla aynı süre).
+            var limited = AbsenceReport.UnavailableReport();
+            await cache.SetAsync(key, limited, FailureCacheTtl);
+            return limited;
+        }
+
         var model = string.IsNullOrWhiteSpace(opt.Model) ? gemini.Model : opt.Model;
         var usage = new SearchUsage();
         var started = Stopwatch.GetTimestamp();
@@ -105,6 +114,28 @@ public sealed class GeminiAbsenceResearcher(
         await RecordUsageAsync(match.Id, model, usage, Stopwatch.GetElapsedTime(started));
         await cache.SetAsync(key, report, ttl);
         return report;
+    }
+
+    // Sayaç okunamazsa (DB hatası) arama engellenmez: maliyet koruması, özelliği tamamen durdurmamalı.
+    private async Task<bool> MonthlyLimitReachedAsync(AbsencesOptions opt, CancellationToken ct)
+    {
+        if (opt.MonthlySearchLimit <= 0)
+            return false;
+        try
+        {
+            var used = await usageStore.SearchQueriesThisMonthAsync(ct);
+            if (used < opt.MonthlySearchLimit)
+                return false;
+
+            logger.LogWarning("Absence search skipped: monthly Google search limit reached ({Used}/{Limit}). Absences:MonthlySearchLimit",
+                used, opt.MonthlySearchLimit);
+            return true;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Monthly search count could not be read; searching anyway.");
+            return false;
+        }
     }
 
     // Gemini cevap verdiyse (cevap sonradan ayrıştırılamasa bile token ve arama faturalanır) başarılı sayılır.
@@ -178,7 +209,8 @@ public sealed class GeminiAbsenceResearcher(
     }
 
     /*
-     * Token sayıları (usageMetadata): arama sonuçları modele girdi olarak verildiği için toolUsePromptTokenCount girdiye, düşünme (thoughtsTokenCount) çıktıya eklenir; ikisi de böyle faturalanır.
+     * Token sayıları (usageMetadata): arama sonuçları modele girdi olarak verildiği için toolUsePromptTokenCount girdiye,
+     * düşünme (thoughtsTokenCount) çıktıya eklenir; ikisi de böyle faturalanır.
      */
     private static AiCompletion ReadCompletion(JsonElement root)
     {

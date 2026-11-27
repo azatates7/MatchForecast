@@ -119,11 +119,12 @@ public class ForecastServiceTests
     }
 
     [Fact]
-    public async Task GetForecastAsync_RecordsFailedAiCall_WithStatusCode()
+    public async Task GetForecastAsync_RecordsFailedAiCall_WithProviderStatusCode()
     {
         SetupMatch();
+        // İstemciye 503 döner, kayda sağlayıcının gerçek kodu (429) yazılır.
         _mockAi.Setup(a => a.CompleteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new ForecastException("quota", 429));
+            .ThrowsAsync(new ForecastException("quota", 503, 429));
 
         await Assert.ThrowsAsync<ForecastException>(() => CreateService().GetForecastAsync(1, false, CancellationToken.None));
 

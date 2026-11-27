@@ -149,6 +149,20 @@ public class GeminiAbsenceResearcherTests
     }
 
     [Fact]
+    public async Task SkipsSearch_WhenMonthlySearchLimitIsReached()
+    {
+        _usage.Setup(x => x.SearchQueriesThisMonthAsync(It.IsAny<CancellationToken>())).ReturnsAsync(5000); // varsayılan sınır 5000
+        var (researcher, bodies) = Create(() => Json(HttpStatusCode.OK, GroundedResponse));
+
+        var report = await researcher.GetAsync(Match(DateTimeOffset.Now), CancellationToken.None);
+
+        Assert.Equal(AbsenceReport.Unavailable, report.State);
+        Assert.Empty(bodies); // Gemini'ye istek gitmedi
+        _usage.Verify(x => x.RecordSearchAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<AiCompletion?>(), It.IsAny<int>(),
+            It.IsAny<int?>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task DoesNotRecordUsage_WhenServedFromCache_OrBeforeMatchDay()
     {
         var (researcher, _) = Create(() => Json(HttpStatusCode.OK, GroundedResponse));

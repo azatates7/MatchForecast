@@ -109,7 +109,8 @@ export const PERMISSIONS = {
   cacheClear: 'cache.clear',
   forecastRefresh: 'forecast.refresh',
   appSettingsManage: 'app-settings.manage',
-  aiUsageView: 'ai-usage.view'
+  aiUsageView: 'ai-usage.view',
+  accuracyView: 'accuracy.view'
 } as const
 
 // ---- Admin paneli (kullanıcı / rol / grup / yetki yönetimi) ----
@@ -242,14 +243,23 @@ export interface AiUsageDaily {
 
 export type AiUsagePurpose = 'Forecast' | 'Absences'
 
+/** Bu ayın Google araması sayacı (dönemden bağımsız). limit 0 = sınırsız; used >= limit iken eksik oyuncu araması durur. */
+export interface AiUsageSearchMonth {
+  used: number
+  limit: number
+  freeQuota: number
+}
+
 export interface AiUsageReport {
   from: string
   to: string
   totals: AiUsageTotals
   daily: AiUsageDaily[]
+  searchMonth: AiUsageSearchMonth
 }
 
-// Eksik oyuncu raporu (maç günü resmi açıklamalardan; backend: AbsenceReport). state: "Pending" maç günü değil (eksikler maç günü netleşir) | "Ready" tarandı | "Unavailable" alınamadı
+// Eksik oyuncu raporu (maç günü resmi açıklamalardan; backend: AbsenceReport).
+// state: "Pending" maç günü değil (eksikler maç günü netleşir) | "Ready" tarandı | "Unavailable" alınamadı
 export interface AbsenceReport {
   state: 'Pending' | 'Ready' | 'Unavailable'
   players: TeamAbsence[]
@@ -268,4 +278,80 @@ export interface TeamAbsence {
 export interface AbsenceSource {
   title: string
   url: string
+}
+
+// ---- Tahmin isabeti (GET /api/accuracy, accuracy.view) ----
+// Oranlar yüzde (0-100, 1 ondalık); örnek yoksa null. Brier: 0 kusursuz, 0,667 tahminsiz, 2 en kötü.
+export interface AccuracyTotals {
+  forecasts: number
+  evaluated: number
+  pending: number
+  void: number
+  excluded: number
+  resultHits: number
+  resultAccuracy: number | null
+  brierScore: number | null
+  picks: number
+  pickHits: number
+  pickHitRate: number | null
+  averageConfidence: number | null
+  unsettledPicks: number
+}
+
+export interface AccuracyBucket {
+  from: number
+  to: number
+  picks: number
+  hits: number
+  hitRate: number | null
+  averageConfidence: number | null
+}
+
+export interface AccuracyMarket {
+  market: string
+  label: LocalizedText
+  picks: number
+  hits: number
+  hitRate: number | null
+  averageConfidence: number | null
+}
+
+export type AccuracyGroupKey = 'WithAbsences' | 'WithoutAbsences'
+
+export interface AccuracyGroup {
+  key: AccuracyGroupKey
+  matches: number
+  resultHits: number
+  resultAccuracy: number | null
+  picks: number
+  pickHits: number
+  pickHitRate: number | null
+}
+
+export type ResultOutcome = 'Home' | 'Draw' | 'Away'
+
+export interface AccuracyMatch {
+  fixtureId: number
+  kickoff: string
+  league: string
+  homeTeam: string
+  awayTeam: string
+  score: string
+  halfTimeScore: string | null
+  predictedResult: ResultOutcome
+  predictedProbability: number
+  resultHit: boolean
+  picks: number
+  pickHits: number
+  hadAbsences: boolean
+}
+
+export interface AccuracyReport {
+  from: string
+  to: string
+  totals: AccuracyTotals
+  calibration: AccuracyBucket[]
+  markets: AccuracyMarket[]
+  byAbsences: AccuracyGroup[]
+  recent: AccuracyMatch[]
 }

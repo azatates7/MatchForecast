@@ -2,7 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { I18nService } from '../core/i18n/i18n.service';
 import { getPermissions, getRoles } from '../core/api';
 import type { PermissionResponse, RoleResponse } from '../core/types';
-import { PermissionDialog } from './admin-permissions-tab';
+import { PermissionDialog } from './admin-permission-dialog';
 
 /*
  * Yetkiler sekmesi (permissions.manage). Sistem yetkileri kodun kontrol ettiği anahtarlardır (adı/açıklaması

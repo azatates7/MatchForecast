@@ -1,9 +1,11 @@
+using MatchForecast.Api.Options;
 using MatchForecast.Api.Services.Security;
 using MatchForecast.Data.Configuration;
 using MatchForecast.Data.Seed;
 using MatchForecast.Models.Response;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace MatchForecast.Api.Controllers;
 
@@ -16,7 +18,7 @@ namespace MatchForecast.Api.Controllers;
 [ApiController]
 [Route("api/ai-usage")]
 [RequirePermission(PermissionKeys.AiUsageView)]
-public sealed class AiUsageController(AppDbContext db) : ControllerBase
+public sealed class AiUsageController(AppDbContext db, IOptions<AbsencesOptions> absenceOptions) : ControllerBase
 {
     private const int MaxDays = 90;
 
@@ -59,6 +61,12 @@ public sealed class AiUsageController(AppDbContext db) : ControllerBase
             rows.Count == 0 ? 0 : (int)rows.Average(x => x.DurationMs),
             rows.Sum(x => x.SearchQueries));
 
-        return new AiUsageReportResponse(from, to, totals, daily);
+        // Aylık arama sayacı seçilen dönemden bağımsızdır (ör. 7 gün seçiliyken de ayın tamamı).
+        var monthStart = new DateTime(to.Year, to.Month, 1);
+        var monthSearches = await db.AiUsages.AsNoTracking().Where(x => x.CreatedAt >= monthStart).SumAsync(x => x.SearchQueries, ct);
+        var opt = absenceOptions.Value;
+
+        return new AiUsageReportResponse(from, to, totals, daily,
+            new AiUsageSearchMonthResponse(monthSearches, Math.Max(0, opt.MonthlySearchLimit), Math.Max(0, opt.FreeSearchesPerMonth)));
     }
 }

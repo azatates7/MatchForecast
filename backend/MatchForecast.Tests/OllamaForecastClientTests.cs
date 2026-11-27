@@ -62,6 +62,22 @@ public class OllamaForecastClientTests
         Assert.Equal(503, ex.StatusCode);
     }
 
+    [Theory]
+    [InlineData(HttpStatusCode.TooManyRequests, 503)]
+    [InlineData(HttpStatusCode.Unauthorized, 502)]
+    [InlineData(HttpStatusCode.BadRequest, 502)]
+    public async Task CompleteAsync_DoesNotLeakRawProviderError(HttpStatusCode status, int expectedStatus)
+    {
+        var client = CreateClient(_ => Json(status, """{"error":"quota for project secret-project-42 exceeded"}"""));
+
+        var ex = await Assert.ThrowsAsync<ForecastException>(() => client.CompleteAsync("s", "u", CancellationToken.None));
+
+        // Kullanıcıya ham cevap gösterilmez; kullanım kaydı için sağlayıcının gerçek kodu taşınır.
+        Assert.DoesNotContain("secret-project", ex.Message);
+        Assert.Equal(expectedStatus, ex.StatusCode);
+        Assert.Equal((int)status, ex.UpstreamStatusCode);
+    }
+
     [Fact]
     public async Task CompleteAsync_ThrowsTokenLimit_WhenDoneReasonIsLength()
     {

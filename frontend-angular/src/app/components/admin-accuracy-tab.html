@@ -1,0 +1,176 @@
+<p class="admin-hint admin-note admin-intro">{{ i18n.t('accuracy.intro') }}</p>
+<div class="admin-toolbar">
+  <label class="admin-muted usage-range">
+    {{ i18n.t('admin.usage.range') }}
+    <select [value]="days()" (change)="setDays($any($event.target).value)">
+      @for (n of ranges; track n) {
+        <option [value]="n" [selected]="n === days()">{{ i18n.t('admin.usage.days', { n }) }}</option>
+      }
+    </select>
+  </label>
+  <button type="button" class="cache-btn" (click)="reload()" [disabled]="state().loading">{{ i18n.t('admin.usage.refresh') }}</button>
+</div>
+
+@if (state().loading) {
+  <p class="admin-placeholder pulse">{{ i18n.t('admin.loading') }}</p>
+} @else if (state().error) {
+  <p class="note-error" role="alert">{{ state().error }}</p>
+} @else if (report(); as r) {
+  @if (r.totals.evaluated === 0) {
+    <dl class="usage-stats">
+      <div><dt>{{ i18n.t('accuracy.pendingVoid') }}</dt><dd>{{ num(r.totals.pending) }} / {{ num(r.totals.void) }}</dd></div>
+    </dl>
+    <p class="admin-placeholder">{{ i18n.t('accuracy.empty') }}</p>
+  } @else {
+    <dl class="usage-stats">
+      <div>
+        <dt>{{ i18n.t('accuracy.evaluated') }}</dt>
+        <dd>{{ num(r.totals.evaluated) }}</dd>
+        <dd class="acc-sub">{{ i18n.t('accuracy.evaluatedOf', { n: num(r.totals.forecasts) }) }}</dd>
+      </div>
+      <div>
+        <dt>{{ i18n.t('accuracy.resultAccuracy') }}</dt>
+        <dd>{{ rate(r.totals.resultAccuracy) }}</dd>
+        <dd class="acc-sub">{{ i18n.t('accuracy.hitsOf', { hits: num(r.totals.resultHits), total: num(r.totals.evaluated) }) }}</dd>
+      </div>
+      <div>
+        <dt>{{ i18n.t('accuracy.brier') }}</dt>
+        <dd>{{ brier(r.totals.brierScore) }}</dd>
+        <dd class="acc-sub">{{ i18n.t('accuracy.brierHint') }}</dd>
+      </div>
+      <div>
+        <dt>{{ i18n.t('accuracy.pickRate') }}</dt>
+        <dd>{{ rate(r.totals.pickHitRate) }}</dd>
+        <dd class="acc-sub">{{ i18n.t('accuracy.hitsOf', { hits: num(r.totals.pickHits), total: num(r.totals.picks) }) }}</dd>
+      </div>
+      <div><dt>{{ i18n.t('accuracy.avgConfidence') }}</dt><dd>{{ rate(r.totals.averageConfidence) }}</dd></div>
+      <div><dt>{{ i18n.t('accuracy.pendingVoid') }}</dt><dd>{{ num(r.totals.pending) }} / {{ num(r.totals.void) }}</dd></div>
+    </dl>
+
+    <section class="acc-section">
+      <h3>{{ i18n.t('accuracy.calibration') }}</h3>
+      <p class="admin-hint">{{ i18n.t('accuracy.calibrationHint') }}</p>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>{{ i18n.t('accuracy.col.range') }}</th>
+              <th class="usage-num">{{ i18n.t('accuracy.col.picks') }}</th>
+              <th class="usage-num">{{ i18n.t('accuracy.col.hits') }}</th>
+              <th class="usage-num">{{ i18n.t('accuracy.col.confidence') }}</th>
+              <th class="usage-num">{{ i18n.t('accuracy.col.rate') }}</th>
+              <th class="usage-num">{{ i18n.t('accuracy.col.diff') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (b of r.calibration; track b.from) {
+              @let d = diff(b.hitRate, b.averageConfidence);
+              <tr>
+                <td class="admin-nowrap">{{ i18n.pct(b.from) }} – {{ i18n.pct(b.to) }}</td>
+                <td class="usage-num">{{ num(b.picks) }}</td>
+                <td class="usage-num">{{ num(b.hits) }}</td>
+                <td class="usage-num">{{ rate(b.averageConfidence) }}</td>
+                <td class="usage-num">{{ rate(b.hitRate) }}</td>
+                <td [class]="'usage-num ' + d.cls">{{ d.text }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="acc-section">
+      <h3>{{ i18n.t('accuracy.markets') }}</h3>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>{{ i18n.t('accuracy.col.market') }}</th>
+              <th class="usage-num">{{ i18n.t('accuracy.col.picks') }}</th>
+              <th class="usage-num">{{ i18n.t('accuracy.col.hits') }}</th>
+              <th class="usage-num">{{ i18n.t('accuracy.col.confidence') }}</th>
+              <th class="usage-num">{{ i18n.t('accuracy.col.rate') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (m of r.markets; track m.market) {
+              <tr>
+                <td>{{ i18n.loc(m.label) }}</td>
+                <td class="usage-num">{{ num(m.picks) }}</td>
+                <td class="usage-num">{{ num(m.hits) }}</td>
+                <td class="usage-num">{{ rate(m.averageConfidence) }}</td>
+                <td class="usage-num">{{ rate(m.hitRate) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="acc-section">
+      <h3>{{ i18n.t('accuracy.absences') }}</h3>
+      <p class="admin-hint">{{ i18n.t('accuracy.absencesHint') }}</p>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>{{ i18n.t('accuracy.col.group') }}</th>
+              <th class="usage-num">{{ i18n.t('accuracy.col.matches') }}</th>
+              <th class="usage-num">{{ i18n.t('accuracy.col.result') }}</th>
+              <th class="usage-num">{{ i18n.t('accuracy.col.pickRate') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (g of r.byAbsences; track g.key) {
+              <tr>
+                <td>{{ group(g.key) }}</td>
+                <td class="usage-num">{{ num(g.matches) }}</td>
+                <td class="usage-num">{{ rate(g.resultAccuracy) }}</td>
+                <td class="usage-num">{{ rate(g.pickHitRate) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="acc-section">
+      <h3>{{ i18n.t('accuracy.recent') }}</h3>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>{{ i18n.t('accuracy.col.date') }}</th>
+              <th>{{ i18n.t('accuracy.col.match') }}</th>
+              <th>{{ i18n.t('accuracy.col.score') }}</th>
+              <th>{{ i18n.t('accuracy.col.predicted') }}</th>
+              <th class="usage-num">{{ i18n.t('accuracy.col.picksHit') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (m of r.recent; track m.fixtureId) {
+              <tr>
+                <td class="admin-nowrap">{{ date(m.kickoff) }}</td>
+                <td>
+                  {{ m.homeTeam }} – {{ m.awayTeam }}
+                  <div class="admin-sub">{{ m.league }}</div>
+                </td>
+                <td class="admin-nowrap">
+                  {{ m.score }}
+                  @if (m.halfTimeScore) {
+                    <span class="admin-sub"> ({{ m.halfTimeScore }})</span>
+                  }
+                </td>
+                <td class="admin-nowrap">
+                  <span [class]="m.resultHit ? 'acc-hit' : 'acc-miss'" aria-hidden="true">{{ m.resultHit ? '✓' : '✗' }}</span>
+                  {{ outcome(m.predictedResult) }} {{ i18n.pct(m.predictedProbability) }}
+                </td>
+                <td class="usage-num">{{ num(m.pickHits) }} / {{ num(m.picks) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+}

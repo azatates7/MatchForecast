@@ -179,7 +179,9 @@ public sealed class ForecastService(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            await RecordUsageAsync(fixtureId, null, (ex as ForecastException)?.StatusCode, started);
+            // Sağlayıcının gerçek kodu (ör. 429) kaydedilir; istemciye dönen kod farklı olabilir (429 → 503).
+            var fe = ex as ForecastException;
+            await RecordUsageAsync(fixtureId, null, fe?.UpstreamStatusCode ?? fe?.StatusCode, started);
             throw;
         }
     }

@@ -70,7 +70,7 @@ public sealed class OllamaForecastClient(
                 logger.LogError("Ollama API call failed with status code {StatusCode}. Model: {Model}. Raw response: {Raw}", (int)res.StatusCode, _opt.Model, raw);
                 throw res.StatusCode == System.Net.HttpStatusCode.NotFound
                     ? new ForecastException(Lang.T($"Ollama modeli bulunamadı: '{_opt.Model}'. 'ollama pull {_opt.Model}' ile indirin.", $"Ollama model not found: '{_opt.Model}'. Download it with 'ollama pull {_opt.Model}'."))
-                    : new ForecastException(Lang.T($"AI servisi (Ollama) HTTP {(int)res.StatusCode}: {Truncate(raw, 300)}", $"AI service (Ollama) HTTP {(int)res.StatusCode}: {Truncate(raw, 300)}"));
+                    : AiUpstreamError.Create("Ollama", (int)res.StatusCode);
             }
 
             using var doc = JsonDocument.Parse(raw);

@@ -9,6 +9,7 @@ namespace MatchForecast.Api.Options;
  *   tahmin önbelleği de maç günü bu süreyi aşmaz (tahmin yeni eksik listesiyle yeniden üretilir).
  * - SearchPricePer1K / FreeSearchesPerMonth: Google araması maliyeti (AI kullanım raporu için). Gemini 3 modelleri her arama sorgusunu ayrı faturalar; ayın ilk FreeSearchesPerMonth sorgusu ücretsizdir. Token maliyeti ayrıca
  *   Ai:Gemini:InputPricePer1M / OutputPricePer1M ile hesaplanır. Fiyat değişirse yalnızca bu ayarlar güncellenir.
+ * - MonthlySearchLimit: Bu ay yapılan Google araması sorgusu bu sayıya ulaşınca arama durur (rapor "Unavailable", tahminler aramasız üretilir), ay başında kendiliğinden açılır. Varsayılan ücretsiz kota kadardır (ücret çıkmaz); 0 = sınırsız. Sayaç ai_usages tablosundan okunur (AI kullanım raporundaki "Google araması" ile aynı sayı).
  */
 public sealed class AbsencesOptions
 {
@@ -19,4 +20,5 @@ public sealed class AbsencesOptions
     public int CacheMinutes { get; set; } = 240;
     public decimal SearchPricePer1K { get; set; } = 14m;
     public int FreeSearchesPerMonth { get; set; } = 5000;
+    public int MonthlySearchLimit { get; set; } = 5000;
 }

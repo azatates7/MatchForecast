@@ -115,6 +115,7 @@ public class AiUsageTests(WebApplicationFactory<Program> factory) : IClassFixtur
         Assert.Contains(day, x => x.Purpose == AiUsagePurpose.Absences && x.SearchQueries == 3 && x.Calls == 1);
         Assert.Contains(day, x => x.Purpose == AiUsagePurpose.Forecast && x.SearchQueries == 0);
         Assert.Equal(3, report.Totals.SearchQueries);
+        Assert.Equal((5000, 5000), (report.SearchMonth.Limit, report.SearchMonth.FreeQuota));
     }
 
     [Fact]

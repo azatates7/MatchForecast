@@ -6,7 +6,14 @@ public sealed record AiUsageReportResponse(
     DateOnly From,
     DateOnly To,
     AiUsageTotalsResponse Totals,
-    IReadOnlyList<AiUsageDailyResponse> Daily);
+    IReadOnlyList<AiUsageDailyResponse> Daily,
+    AiUsageSearchMonthResponse SearchMonth);
+
+/// <summary>
+/// Bu ayın (seçilen dönemden bağımsız) Google araması sayacı. Limit: Absences:MonthlySearchLimit (0 = sınırsız);
+/// Used >= Limit iken eksik oyuncu araması durur. FreeQuota: Absences:FreeSearchesPerMonth (ücretsiz kota).
+/// </summary>
+public sealed record AiUsageSearchMonthResponse(int Used, int Limit, int FreeQuota);
 
 public sealed record AiUsageTotalsResponse(
     int Calls,

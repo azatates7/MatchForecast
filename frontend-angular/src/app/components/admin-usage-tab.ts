@@ -1,7 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { I18nService } from '../core/i18n/i18n.service';
 import { getAiUsage } from '../core/api';
-import type { AiUsagePurpose, AiUsageReport } from '../core/types';
+import type { AiUsagePurpose, AiUsageReport, AiUsageSearchMonth } from '../core/types';
 import type { MessageKey } from '../core/i18n/messages';
 
 const PURPOSE_LABEL: Record<AiUsagePurpose, MessageKey> = {
@@ -57,6 +57,11 @@ export class UsageTab {
 
   protected date(d: string): string {
     return new Date(`${d}T00:00:00`).toLocaleDateString(this.i18n.locale());
+  }
+
+  // Bu ayın Google araması sayacı: sınırın %90'ına gelince uyarı, dolunca arama durur (Absences:MonthlySearchLimit).
+  protected monthLevel(m: AiUsageSearchMonth): 'ok' | 'near' | 'full' {
+    return m.limit <= 0 ? 'ok' : m.used >= m.limit ? 'full' : m.used >= m.limit * 0.9 ? 'near' : 'ok';
   }
 
   protected purpose(p: AiUsagePurpose): string {

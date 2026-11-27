@@ -38,7 +38,7 @@ public sealed class ClaudeForecastClient(
         if (!res.IsSuccessStatusCode)
         {
             logger.LogError("Claude API call failed with status code {StatusCode}. ApiKey: {ApiKey}. Raw response: {Raw}", (int)res.StatusCode, _opt.MaskedApiKey(), raw);
-            throw new ForecastException($"AI servisi (Claude, anahtar: {_opt.MaskedApiKey()}) HTTP {(int)res.StatusCode}: {Truncate(raw, 300)}");
+            throw AiUpstreamError.Create("Claude", (int)res.StatusCode);
         }
 
         using var doc = JsonDocument.Parse(raw);

@@ -21,6 +21,7 @@ public static class PermissionKeys
     public const string ForecastRefresh = "forecast.refresh";
     public const string AppSettingsManage = "app-settings.manage";
     public const string AiUsageView = "ai-usage.view";
+    public const string AccuracyView = "accuracy.view";
 }
 
 /*
@@ -40,7 +41,8 @@ public static class PermissionSeed
         Define(PermissionKeys.CacheClear, "Önbelleği silme", "Clear cache", "Maç ekranındaki Önbelleği Sil işlemi."),
         Define(PermissionKeys.ForecastRefresh, "Tahmini yeniden üretme", "Regenerate forecasts", "Tahmin isteklerinde refresh=true ile önbelleği atlar."),
         Define(PermissionKeys.AppSettingsManage, "Uygulama ayarlarını yönetme", "Manage app settings", "/api/app-settings uçları (yalnızca API)."),
-        Define(PermissionKeys.AiUsageView, "AI kullanımını görüntüleme", "View AI usage", "Yönetim panelindeki AI kullanım ve tahmini maliyet raporu.")
+        Define(PermissionKeys.AiUsageView, "AI kullanımını görüntüleme", "View AI usage", "Yönetim panelindeki AI kullanım ve tahmini maliyet raporu."),
+        Define(PermissionKeys.AccuracyView, "Tahmin isabetini görüntüleme", "View forecast accuracy", "Yönetim panelindeki tahmin isabet raporu (biten maçların sonuçlarıyla karşılaştırma).")
     ];
 
     private static Permission Define(string key, string name, string nameEn, string description) =>

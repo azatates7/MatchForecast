@@ -14,6 +14,9 @@ public interface IAiUsageStore
     /// <summary>Eksik oyuncu araması (Gemini + Google araması). completion null ise çağrı başarısızdır.</summary>
     Task RecordSearchAsync(int fixtureId, string model, AiCompletion? completion, int searchQueries, int? failedStatusCode,
         TimeSpan duration, CancellationToken ct);
+
+    /// <summary>Bu ay (İstanbul takvimi) yapılan Google araması sorgusu sayısı (Absences:MonthlySearchLimit için).</summary>
+    Task<int> SearchQueriesThisMonthAsync(CancellationToken ct);
 }
 
 public sealed class AiUsageStore(AppDbContext db, IOptions<AiOptions> aiOptions, IOptions<AbsencesOptions> absenceOptions) : IAiUsageStore
@@ -78,15 +81,21 @@ public sealed class AiUsageStore(AppDbContext db, IOptions<AiOptions> aiOptions,
         if (queries == 0 || opt.SearchPricePer1K <= 0)
             return 0m;
 
-        var monthStart = new DateTime(now.Year, now.Month, 1);
-        var usedThisMonth = await db.AiUsages.AsNoTracking()
-            .Where(x => x.CreatedAt >= monthStart)
-            .SumAsync(x => x.SearchQueries, ct);
+        var usedThisMonth = await SearchQueriesSinceAsync(new DateTime(now.Year, now.Month, 1), ct);
 
         var free = Math.Max(0, opt.FreeSearchesPerMonth);
         var billable = Math.Max(0, usedThisMonth + queries - free) - Math.Max(0, usedThisMonth - free);
         return Math.Round(billable * opt.SearchPricePer1K / 1000m, 6);
     }
+
+    public Task<int> SearchQueriesThisMonthAsync(CancellationToken ct)
+    {
+        var now = DateTime.Now;
+        return SearchQueriesSinceAsync(new DateTime(now.Year, now.Month, 1), ct);
+    }
+
+    private Task<int> SearchQueriesSinceAsync(DateTime from, CancellationToken ct) =>
+        db.AiUsages.AsNoTracking().Where(x => x.CreatedAt >= from).SumAsync(x => x.SearchQueries, ct);
 
     private async Task SaveAsync(AiUsage usage, CancellationToken ct)
     {

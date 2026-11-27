@@ -7,7 +7,7 @@ import { hasPermission, PERMISSIONS, type MeResponse } from './types'
  * maç ekranında kalır. Asıl kontrol API'dedir; bu yalnızca görünüm içindir.
  * Not: frontend/src/adminView.ts ile bu dosya birbirinin kopyasıdır, birlikte güncelleyin.
  */
-export type AdminTab = 'users' | 'roles' | 'groups' | 'permissions' | 'usage'
+export type AdminTab = 'users' | 'roles' | 'groups' | 'permissions' | 'usage' | 'accuracy'
 
 export interface AdminTabDef {
   id: AdminTab
@@ -20,7 +20,8 @@ export const ADMIN_TABS: readonly AdminTabDef[] = [
   { id: 'roles', permission: PERMISSIONS.rolesManage, label: 'admin.tab.roles' },
   { id: 'groups', permission: PERMISSIONS.groupsManage, label: 'admin.tab.groups' },
   { id: 'permissions', permission: PERMISSIONS.permissionsManage, label: 'admin.tab.permissions' },
-  { id: 'usage', permission: PERMISSIONS.aiUsageView, label: 'admin.tab.usage' }
+  { id: 'usage', permission: PERMISSIONS.aiUsageView, label: 'admin.tab.usage' },
+  { id: 'accuracy', permission: PERMISSIONS.accuracyView, label: 'admin.tab.accuracy' }
 ]
 
 export const adminHash = (tab?: AdminTab) => (tab ? `#admin/${tab}` : '#admin')

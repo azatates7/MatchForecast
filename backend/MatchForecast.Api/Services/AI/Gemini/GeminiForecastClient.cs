@@ -38,9 +38,7 @@ public sealed class GeminiForecastClient(
         if (status is < 200 or >= 300)
         {
             logger.LogError("Gemini API call failed with status code {StatusCode}. ApiKey: {ApiKey}. Raw response: {Raw}", status, _opt.MaskedApiKey(), raw);
-            throw status == StatusCodes.Status503ServiceUnavailable
-                ? new ForecastException(Lang.T("AI servisi şu an yoğun. Birkaç dakika sonra tekrar deneyin.", "The AI service is busy right now. Please try again in a few minutes."), StatusCodes.Status503ServiceUnavailable)
-                : new ForecastException(Lang.T($"AI servisi (Gemini, anahtar: {_opt.MaskedApiKey()}) HTTP {status}: {Truncate(raw, 300)}", $"AI service (Gemini, key: {_opt.MaskedApiKey()}) HTTP {status}: {Truncate(raw, 300)}"));
+            throw AiUpstreamError.Create("Gemini", status);
         }
 
         using var doc = JsonDocument.Parse(raw);

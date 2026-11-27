@@ -1,6 +1,6 @@
 <main class="admin">
   <h2 class="admin-title">{{ i18n.t('admin.title') }}</h2>
-  <nav class="admin-tabs" role="tablist" [attr.aria-label]="i18n.t('admin.tabs')">
+  <nav #nav class="admin-tabs" role="tablist" [attr.aria-label]="i18n.t('admin.tabs')">
     @for (x of tabs(); track x.id) {
       <a
         [id]="'admin-tab-' + x.id"
@@ -21,6 +21,8 @@
       <app-groups-tab [me]="me()" />
     } @else if (active().id === 'usage') {
       <app-usage-tab />
+    } @else if (active().id === 'accuracy') {
+      <app-accuracy-tab />
     } @else {
       <app-permissions-tab />
     }
