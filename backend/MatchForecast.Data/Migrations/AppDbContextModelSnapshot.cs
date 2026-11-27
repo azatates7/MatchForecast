@@ -71,6 +71,18 @@ namespace MatchForecast.Data.Migrations
                         .HasColumnType("character varying(50)")
                         .HasColumnName("provider");
 
+                    b.Property<string>("Purpose")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("Forecast")
+                        .HasColumnName("purpose");
+
+                    b.Property<int>("SearchQueries")
+                        .HasColumnType("integer")
+                        .HasColumnName("search_queries");
+
                     b.Property<int?>("StatusCode")
                         .HasColumnType("integer")
                         .HasColumnName("status_code");
