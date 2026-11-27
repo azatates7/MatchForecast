@@ -357,6 +357,55 @@ namespace MatchForecast.Data.Migrations
                     b.ToTable("group_roles", "matchforecast");
                 });
 
+            modelBuilder.Entity("MatchForecast.Data.Entity.MatchResult", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("AwayGoals")
+                        .HasColumnType("integer")
+                        .HasColumnName("away_goals");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<int>("FixtureId")
+                        .HasColumnType("integer")
+                        .HasColumnName("fixture_id");
+
+                    b.Property<int?>("HalfTimeAwayGoals")
+                        .HasColumnType("integer")
+                        .HasColumnName("half_time_away_goals");
+
+                    b.Property<int?>("HalfTimeHomeGoals")
+                        .HasColumnType("integer")
+                        .HasColumnName("half_time_home_goals");
+
+                    b.Property<int?>("HomeGoals")
+                        .HasColumnType("integer")
+                        .HasColumnName("home_goals");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FixtureId")
+                        .IsUnique();
+
+                    b.ToTable("match_results", "matchforecast");
+                });
+
             modelBuilder.Entity("MatchForecast.Data.Entity.PasswordResetToken", b =>
                 {
                     b.Property<Guid>("Id")
