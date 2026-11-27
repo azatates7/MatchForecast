@@ -3,8 +3,7 @@ using MatchForecast.Models.Common;
 namespace MatchForecast.Api.Services.Forecast;
 
 /*
- * AI sağlayıcısı başarısız HTTP durum kodu döndürdüğünde kullanıcıya gösterilecek hata. Ham cevap ve anahtar bilgisi
- * mesaja konmaz (sağlayıcının iç hata metni, proje / kota ayrıntısı ekranda görünmesin); ayrıntı istemcide zaten loglanır.
+ * AI sağlayıcısı başarısız HTTP durum kodu döndürdüğünde kullanıcıya gösterilecek hata. Ham cevap ve anahtar bilgisi mesaja konmaz (sağlayıcının iç hata metni, proje / kota ayrıntısı ekranda görünmesin); ayrıntı istemcide zaten loglanır.
  * UpstreamStatusCode, AI kullanım kaydına (ai_usages.status_code) sağlayıcının gerçek kodunu (ör. 429) yazmak içindir.
  */
 public static class AiUpstreamError

@@ -5,8 +5,7 @@ namespace MatchForecast.Api.Services.Security;
 
 /*
  * Kullanıcıların etkin yetkileri: doğrudan rollerinin ve üyesi oldukları grupların rollerinin yetkileri.
- * Admin (doğrudan veya grup üzerinden) tablodaki tüm yetkilere sahiptir. Token (AuthService) ve kullanıcı listesi
- * (UsersController) aynı kuralı buradan kullanır.
+ * Admin (doğrudan veya grup üzerinden) tablodaki tüm yetkilere sahiptir. Token (AuthService) ve kullanıcı listesi (UsersController) aynı kuralı buradan kullanır.
  */
 public sealed class PermissionResolver(AppDbContext db)
 {

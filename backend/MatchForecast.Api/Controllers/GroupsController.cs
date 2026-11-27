@@ -14,8 +14,7 @@ namespace MatchForecast.Api.Controllers;
 /*
  * Gruplar: kullanıcılara toplu rol vermek için (gruba verilen roller her üyeye geçer; token'a yansır).
  * Liste kullanıcıya grup atarken de gerekir: users.view VEYA groups.manage yeterli; değişiklikler groups.manage ister.
- * Admin rolü veren bir grupta silme / Admin rolünü kaldırma / üye çıkarma, Admin'liği yalnızca bu gruptan gelen
- * kullanıcıları etkiler: isteği yapan kişi bunlardan biriyse veya hiç aktif Admin kalmayacaksa reddedilir (AdminGuard).
+ * Admin rolü veren bir grupta silme / Admin rolünü kaldırma / üye çıkarma, Admin'liği yalnızca bu gruptan gelen kullanıcıları etkiler: isteği yapan kişi bunlardan biriyse veya hiç aktif Admin kalmayacaksa reddedilir (AdminGuard).
  */
 [ApiController]
 [Route("api/groups")]

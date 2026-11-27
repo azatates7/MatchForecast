@@ -10,8 +10,7 @@ using Microsoft.Extensions.Options;
 namespace MatchForecast.Api.Controllers;
 
 /*
- * AI kullanım ve tahmini maliyet raporu (tahmin üretimi ve eksik oyuncu araması; arama maliyeti dahil). Yalnızca ai-usage.view yetkisi (Admin örtük olarak sahip) ile açılır;
- * misafir ve normal kullanıcılar 403 alır.
+ * AI kullanım ve tahmini maliyet raporu (tahmin üretimi ve eksik oyuncu araması; arama maliyeti dahil). Yalnızca ai-usage.view yetkisi (Admin örtük olarak sahip) ile açılır; misafir ve normal kullanıcılar 403 alır.
  * Gruplama bellekte yapılır: CreatedAt İstanbul saatine dönüştürülerek okunur, gün sınırı DB'deki UTC'ye göre kaymaz.
  * Satır sayısı küçüktür (günde birkaç yüz çağrı, en fazla 90 gün).
  */

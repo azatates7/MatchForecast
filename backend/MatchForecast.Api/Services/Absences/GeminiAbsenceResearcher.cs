@@ -33,6 +33,7 @@ public interface IAbsenceResearcher
  *   ad oradan verilir ve ekranda o ad gösterilir; modelin bulduğu hakem farklı kişiyse istatistikleri kullanılmaz.
  *   Hakem bulunamazsa Referee null'dır; makul aralık dışındaki sayılar atılır. Hakem kısmı ayrıştırılamazsa eksik oyuncu
  *   listesi yine kullanılır.
+ * - Form: aynı aramada (ek maliyet yok) iki takımın son 5 maçı, lig sırası, bu maçtaki sahaya göre gol ve xG ortalamaları istenir. Makul aralık dışındaki sayılar atılır; hiç verisi olmayan takım listeye girmez. Ayrıştırılamazsa form boş kalır, eksik oyuncu ve hakem bilgisi yine kullanılır.
  */
 public sealed class GeminiAbsenceResearcher(
     HttpClient http,
@@ -56,7 +57,7 @@ public sealed class GeminiAbsenceResearcher(
 
     public const string SystemPrompt = """
         Sen bir futbol veri asistanısın. Google araması yaparak verilen maçta iki takımın OYNAYAMAYACAK veya
-        oynaması ŞÜPHELİ oyuncularını ve maçın HAKEMİNİ bul.
+        oynaması ŞÜPHELİ oyuncularını, maçın HAKEMİNİ ve iki takımın güncel FORMUNU bul.
 
         Kaynaklar: son 7 gündeki resmi açıklamalar (kulüp, lig/federasyon, UEFA), teknik direktörün maç öncesi
         basın toplantısı ve güvenilir spor haberleri. Eski haberleri kullanma.
@@ -88,10 +89,22 @@ public sealed class GeminiAbsenceResearcher(
           styleEn: aynı cümlenin İngilizcesi. Kaynaklarda tarz bilgisi yoksa ikisini de null yaz.
         - Hakem bilgisinin kaynaklarını da sources listesine ekle.
 
+        Form (iki takım için ayrı ayrı; bu sezon, maç gününe kadar oynanmış maçlar):
+        - last5: son 5 resmi maçın sonucu, EN YENİ ÖNCE, W (galibiyet), D (beraberlik), L (yenilgi) harfleriyle (ör. "WWDLW").
+        - leaguePosition: lig tablosundaki güncel sırası (lig dışı turnuvadaysa kendi ligindeki sırası).
+        - venueMatches, venueGoalsFor, venueGoalsAgainst: bu maçtaki sahaya göre; ev sahibi için İÇ SAHA, deplasman takımı
+          için DEPLASMAN lig maçları. Maç sayısı ile maç başına attığı ve yediği gol ortalaması.
+        - xgFor, xgAgainst: aynı maçların maç başına beklenen gol (xG) ortalaması (FBref, Understat, Sofascore, FotMob vb.).
+          Bulamazsan null yaz.
+        - Bulamadığın her alanı null yaz; sayı veya sonuç uydurma. team alanına iki takım adından birini birebir yaz.
+        - Form bilgisinin kaynaklarını da sources listesine ekle.
+
         JSON şeması:
         { "players": [ { "team": "...", "player": "...", "status": "Suspended|NotInSquad|Injured|Doubtful", "reason": "...", "reasonEn": "..." } ],
           "referee": { "name": "...", "matches": 12, "yellowPerMatch": 4.8, "redPerMatch": 0.2, "penaltiesPerMatch": 0.3,
                        "foulsPerMatch": 27.5, "style": "...", "styleEn": "..." },
+          "form": [ { "team": "...", "last5": "WWDLW", "leaguePosition": 3, "venueMatches": 8, "venueGoalsFor": 2.1,
+                      "venueGoalsAgainst": 0.9, "xgFor": 1.9, "xgAgainst": 1.0 } ],
           "sources": [ { "title": "...", "url": "https://..." } ] }
         Hakem bulunamazsa: "referee": null
         """;
@@ -234,7 +247,72 @@ public sealed class GeminiAbsenceResearcher(
         if (sources.Count == 0)
             sources = await linkChecker.FilterReachableAsync(ModelSources(parsed), ct);
 
-        return new AbsenceReport(AbsenceReport.Ready, players, sources, DateTimeOffset.Now, ParseRefereeSafe(parsed, match));
+        return new AbsenceReport(AbsenceReport.Ready, players, sources, DateTimeOffset.Now, ParseRefereeSafe(parsed, match),
+            ParseFormSafe(parsed, match));
+    }
+
+    private IReadOnlyList<TeamForm> ParseFormSafe(RawResponse parsed, MatchSummary match)
+    {
+        try
+        {
+            return ParseForm(parsed.Form, match);
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException)
+        {
+            logger.LogWarning(ex, "Team form for fixture {FixtureId} could not be parsed; ignored.", match.Id);
+            return [];
+        }
+    }
+
+    /*
+     * Model cevabındaki form dizisi → TeamForm listesi (ev sahibi önce). Tanınmayan takım ve hiç geçerli verisi olmayan takım atılır. last5 yalnızca W/D/L (Türkçe G/B/M de kabul edilir, çevrilir) ve en fazla 5 harf; aralık dışı sayı null.
+     */
+    public static IReadOnlyList<TeamForm> ParseForm(JsonElement? raw, MatchSummary match)
+    {
+        if (raw is not { ValueKind: JsonValueKind.Array } arr)
+            return [];
+
+        var items = arr.EnumerateArray()
+            .Where(e => e.ValueKind == JsonValueKind.Object)
+            .Select(e => e.Deserialize<RawForm>(JsonOpts))
+            .Where(f => f is not null)
+            .Select(f => (Team: ResolveTeam(f!.Team, match), f: f!))
+            .Where(x => x.Team is not null)
+            .Select(x => new TeamForm(
+                x.Team!,
+                NormalizeLast5(x.f.Last5),
+                x.f.LeaguePosition is >= 1 and <= 40 ? (int)Math.Round(x.f.LeaguePosition.Value) : null,
+                x.f.VenueMatches is >= 1 and <= 60 ? (int)Math.Round(x.f.VenueMatches.Value) : null,
+                InRange(x.f.VenueGoalsFor, 0, 6),
+                InRange(x.f.VenueGoalsAgainst, 0, 6),
+                InRange(x.f.XgFor, 0, 5),
+                InRange(x.f.XgAgainst, 0, 5)))
+            .Where(f => f.HasData)
+            .DistinctBy(f => f.Team)
+            .ToList();
+
+        return items.OrderBy(f => f.Team == match.HomeTeam ? 0 : 1).ToList();
+    }
+
+    private static string? NormalizeLast5(string? s)
+    {
+        if (string.IsNullOrWhiteSpace(s))
+            return null;
+        var letters = new StringBuilder();
+        foreach (var c in s.ToUpperInvariant())
+        {
+            var mapped = c switch
+            {
+                'W' or 'G' => 'W',
+                'D' or 'B' => 'D',
+                'L' or 'M' => 'L',
+                ' ' or ',' or '-' or '/' => '\0',
+                _ => '?'
+            };
+            if (mapped == '?') return null; // bilinmeyen harf → sonuçlara güvenilmez
+            if (mapped != '\0') letters.Append(mapped);
+        }
+        return letters.Length is >= 1 and <= 5 ? letters.ToString() : null;
     }
 
     private RefereeInfo? ParseRefereeSafe(RawResponse parsed, MatchSummary match)
@@ -324,9 +402,7 @@ public sealed class GeminiAbsenceResearcher(
     }
 
     /*
-     * Faturalanan Google araması sayısı: groundingMetadata.webSearchQueries içindeki boş olmayan, benzersiz sorgular
-     * (Google boş sorguları saymaz). Gemini düşünme sırasında arama yaptığında groundingMetadata hiç gelmeyebiliyor;
-     * istem aramayı zorunlu tuttuğu için bu durumda en az 1 sorgu yapıldığı varsayılır (maliyet eksik görünmesin).
+     * Faturalanan Google araması sayısı: groundingMetadata.webSearchQueries içindeki boş olmayan, benzersiz sorgular (Google boş sorguları saymaz). Gemini düşünme sırasında arama yaptığında groundingMetadata hiç gelmeyebiliyor; istem aramayı zorunlu tuttuğu için bu durumda en az 1 sorgu yapıldığı varsayılır (maliyet eksik görünmesin).
      */
     public static int CountSearchQueries(JsonElement candidate)
     {
@@ -422,7 +498,9 @@ public sealed class GeminiAbsenceResearcher(
     }
 
     // Referee ham bırakılır: bozuk hakem nesnesi eksik oyuncu listesinin ayrıştırılmasını engellemesin.
-    private sealed record RawResponse(List<RawPlayer>? Players, List<RawSource>? Sources, JsonElement? Referee);
+    private sealed record RawResponse(List<RawPlayer>? Players, List<RawSource>? Sources, JsonElement? Referee, JsonElement? Form = null);
+    private sealed record RawForm(string? Team, string? Last5, double? LeaguePosition, double? VenueMatches,
+        double? VenueGoalsFor, double? VenueGoalsAgainst, double? XgFor, double? XgAgainst);
     private sealed record RawReferee(string? Name, double? Matches, double? YellowPerMatch, double? RedPerMatch,
         double? PenaltiesPerMatch, double? FoulsPerMatch, string? Style, string? StyleEn);
     private sealed record RawSource(string? Title, string? Url);

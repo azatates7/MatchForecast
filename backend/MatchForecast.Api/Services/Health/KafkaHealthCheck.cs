@@ -4,8 +4,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 namespace MatchForecast.Api.Services.Health;
 
 /*
- * Redis gibi Kafka da kritik değil: kapalıyken tahminler DB'ye doğrudan yazılır (publisher fallback). Bu yüzden
- * ulaşılamaması Unhealthy değil Degraded sayılır; fallback sessizce çalışırken sorun /healthz/ready'de görünür olur.
+ * Redis gibi Kafka da kritik değil: kapalıyken tahminler DB'ye doğrudan yazılır (publisher fallback). Bu yüzden ulaşılamaması Unhealthy değil Degraded sayılır; fallback sessizce çalışırken sorun /healthz/ready'de görünür olur.
  * Yeni bağlantı açmamak için producer'ın bağlantısını kullanan bağımlı admin client kullanılır.
  */
 public sealed class KafkaHealthCheck(IProducer<int, string> producer) : IHealthCheck

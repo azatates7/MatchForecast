@@ -17,8 +17,7 @@ namespace MatchForecast.Api.Controllers;
  * Kullanıcı yönetimi: görüntülemek users.view, değiştirmek ayrıca users.manage ister (Admin her ikisine de sahiptir).
  * Liste groups.manage ile de okunabilir (gruba üye seçmek için); bu yetki tek başına kullanıcı değiştiremez.
  * İlk admin, açılışta AdminUserBootstrapper ile oluşturulur.
- * Kilitlenme koruması: kimse kendi hesabını pasife alamaz/silemez, kendi Admin'liğini (doğrudan rol veya Admin rolü
- * veren grup) kaldıramaz; son aktif Admin de pasife alınamaz, silinemez ve Admin'liği kaldırılamaz.
+ * Kilitlenme koruması: kimse kendi hesabını pasife alamaz/silemez, kendi Admin'liğini (doğrudan rol veya Admin rolü veren grup) kaldıramaz; son aktif Admin de pasife alınamaz, silinemez ve Admin'liği kaldırılamaz.
  */
 [ApiController]
 [Route("api/users")]

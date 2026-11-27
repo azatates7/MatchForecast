@@ -31,7 +31,6 @@ public sealed class RateLimitOptions
     public int AiPermitLimit { get; set; } = 30;
     public int AiWindowMinutes { get; set; } = 10;
 
-    // Cloudflare arkasında gerçek istemci IP'si CF-Connecting-IP header'ındadır. YALNIZCA API'ye sadece Cloudflare üzerinden
-    // erişilebiliyorsa (ör. Cloudflare Tunnel) true yapılmalı; aksi halde istemci bu header'ı kendisi gönderip limiti atlatabilir.
+    // Cloudflare arkasında gerçek istemci IP'si CF-Connecting-IP header'ındadır. YALNIZCA API'ye sadece Cloudflare üzerinden erişilebiliyorsa (ör. Cloudflare Tunnel) true yapılmalı; aksi halde istemci bu header'ı kendisi gönderip limiti atlatabilir.
     public bool TrustCloudflareHeader { get; set; }
 }

@@ -13,8 +13,7 @@ namespace MatchForecast.Api.Controllers;
 
 /*
  * Yetki tanımları. Liste rol düzenlerken de gerekir: permissions.manage VEYA roles.manage yeterli.
- * Değişiklikler permissions.manage ister. Sistem yetkileri (IsSystem, seed ile gelir) kod tarafından kontrol edildiği
- * için anahtarı değiştirilemez ve silinemez; adı/açıklaması değiştirilebilir.
+ * Değişiklikler permissions.manage ister. Sistem yetkileri (IsSystem, seed ile gelir) kod tarafından kontrol edildiği için anahtarı değiştirilemez ve silinemez; adı/açıklaması değiştirilebilir.
  */
 [ApiController]
 [Route("api/permissions")]

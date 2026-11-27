@@ -160,9 +160,7 @@ public sealed partial class AuthService(
     }
 
     /*
-     * Google hesabı daha önce bağlandıysa o kullanıcıyla girer. Bağlı değilse, Google'ın DOĞRULADIĞI e-posta ile eşleşen
-     * mevcut hesaba bağlanır; o da yoksa yeni kullanıcı açılır. Doğrulanmamış e-postayla eşleştirme yapılmaz: aksi halde
-     * başkasının e-postasını yazan biri o kişinin hesabına girebilirdi.
+     * Google hesabı daha önce bağlandıysa o kullanıcıyla girer. Bağlı değilse, Google'ın DOĞRULADIĞI e-posta ile eşleşen mevcut hesaba bağlanır; o da yoksa yeni kullanıcı açılır. Doğrulanmamış e-postayla eşleştirme yapılmaz: aksi halde başkasının e-postasını yazan biri o kişinin hesabına girebilirdi.
      */
     public async Task<TokenResponse?> GoogleLoginAsync(GoogleUser google, CancellationToken ct)
     {

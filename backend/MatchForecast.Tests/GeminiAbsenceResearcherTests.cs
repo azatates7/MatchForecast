@@ -259,4 +259,51 @@ public class GeminiAbsenceResearcherTests
 
         Assert.Contains("Hakem (resmi atama): Halil Umut Meler", Assert.Single(bodies));
     }
+
+    [Fact]
+    public void ParseForm_MapsTeams_NormalizesLast5_AndDropsImplausibleNumbers()
+    {
+        var form = GeminiAbsenceResearcher.ParseForm(Referee("""
+            [ { "team": "Trabzonspor A.Ş.", "last5": "G, G, B, M, G", "leaguePosition": 3, "venueMatches": "7",
+                "venueGoalsFor": 1.4, "venueGoalsAgainst": 1.1, "xgFor": 1.3, "xgAgainst": 9.0 },
+              { "team": "CSKA Sofia", "last5": "WWDLW", "leaguePosition": 2, "venueMatches": 8, "venueGoalsFor": 2.1,
+                "venueGoalsAgainst": 0.6, "xgFor": null, "xgAgainst": null },
+              { "team": "Başka Takım", "last5": "WWWWW" } ]
+            """), Match(DateTimeOffset.Now));
+
+        // Ev sahibi önce; tanınmayan takım atılır.
+        Assert.Equal(new[] { "CSKA Sofia", "Trabzonspor" }, form.Select(f => f.Team));
+        var away = form[1];
+        Assert.Equal(("WWDLW", 3, 7, 1.4, 1.1, 1.3), (away.Last5, away.LeaguePosition, away.VenueMatches, away.VenueGoalsFor, away.VenueGoalsAgainst, away.XgFor));
+        Assert.Null(away.XgAgainst); // maç başı 9 xG makul değil
+        Assert.Null(form[0].XgFor);
+    }
+
+    [Fact]
+    public void ParseForm_SkipsTeamsWithoutData_AndInvalidLast5()
+    {
+        var form = GeminiAbsenceResearcher.ParseForm(Referee("""
+            [ { "team": "Trabzonspor", "last5": "WWXLW", "leaguePosition": 0 },
+              { "team": "CSKA Sofia", "last5": "WWDLWDL" } ]
+            """), Match(DateTimeOffset.Now));
+
+        Assert.Empty(form);
+        Assert.Empty(GeminiAbsenceResearcher.ParseForm(null, Match(DateTimeOffset.Now)));
+        Assert.Empty(GeminiAbsenceResearcher.ParseForm(Referee("null"), Match(DateTimeOffset.Now)));
+    }
+
+    [Fact]
+    public async Task OnMatchDay_ReadsForm_FromSameSearch()
+    {
+        const string body = """
+            { "candidates": [{ "content": { "parts": [ { "text": "{\"players\":[],\"form\":[{\"team\":\"Trabzonspor\",\"last5\":\"WDW\",\"leaguePosition\":4}]}" } ] } }] }
+            """;
+        var (researcher, bodies) = Create(() => Json(HttpStatusCode.OK, body));
+
+        var report = await researcher.GetAsync(Match(DateTimeOffset.Now), CancellationToken.None);
+
+        Assert.Single(bodies); // ek arama yok
+        var f = Assert.Single(report.Form!);
+        Assert.Equal(("Trabzonspor", "WDW", 4), (f.Team, f.Last5, f.LeaguePosition));
+    }
 }

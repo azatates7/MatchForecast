@@ -8,11 +8,9 @@ using Microsoft.Extensions.Options;
 namespace MatchForecast.Api.Services.Email;
 
 /*
- * API hatalarını yöneticiye e-posta ile bildirir. Hem IErrorNotifier (kuyruğa yazan taraf) hem de BackgroundService
- * (kuyruktan okuyup gönderen taraf) olarak aynı singleton instance kullanılır.
+ * API hatalarını yöneticiye e-posta ile bildirir. Hem IErrorNotifier (kuyruğa yazan taraf) hem de BackgroundService (kuyruktan okuyup gönderen taraf) olarak aynı singleton instance kullanılır.
  *
- * Neden kuyruk (Channel)? SMTP gönderimi 1-5 sn sürebilir ve başarısız olabilir. Middleware içinde await edilseydi hata alan kullanıcı cevabı geç alırdı; her hata için Task.Run ile ayrı gönderim yapılsaydı bir hata dalgasında aynı anda onlarca SMTP bağlantısı açılır, throttle kontrolü yarışa girer ve Gmail gönderim limitlerine takılınırdı. Kuyrukta istek hiç beklemez, mailler tek okuyucu tarafından sırayla gönderilir; kuyruk dolarsa yeni bildirimler düşürülür
- * (SMTP çökse bile bellek şişmez). Uygulama kapanırken kuyrukta kalan bildirimler gönderilmez; hepsi zaten loglanmıştır.
+ * Neden kuyruk (Channel)? SMTP gönderimi 1-5 sn sürebilir ve başarısız olabilir. Middleware içinde await edilseydi hata alan kullanıcı cevabı geç alırdı; her hata için Task.Run ile ayrı gönderim yapılsaydı bir hata dalgasında aynı anda onlarca SMTP bağlantısı açılır, throttle kontrolü yarışa girer ve Gmail gönderim limitlerine takılınırdı. Kuyrukta istek hiç beklemez, mailler tek okuyucu tarafından sırayla gönderilir; kuyruk dolarsa yeni bildirimler düşürülür (SMTP çökse bile bellek şişmez). Uygulama kapanırken kuyrukta kalan bildirimler gönderilmez; hepsi zaten loglanmıştır.
  */
 public sealed class EmailErrorNotifier(
     IEmailSender emailSender,

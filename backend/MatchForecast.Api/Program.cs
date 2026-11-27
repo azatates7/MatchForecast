@@ -225,9 +225,7 @@ try
     }
 
     /*
-     * SMTP ile hata bildirimi. Enabled=false iken notifier yine kayıtlıdır ama Notify hiçbir şey yapmaz; böylece
-     * testler ve yerel geliştirme mail ayarı olmadan çalışır. Enabled=true iken eksik ayarla uygulama başlamaz
-     * (ilk hatada sessizce mail gitmemesi yerine startup'ta görünür hata).
+     * SMTP ile hata bildirimi. Enabled=false iken notifier yine kayıtlıdır ama Notify hiçbir şey yapmaz; böylece testler ve yerel geliştirme mail ayarı olmadan çalışır. Enabled=true iken eksik ayarla uygulama başlamaz (ilk hatada sessizce mail gitmemesi yerine startup'ta görünür hata).
      */
     builder.Services.AddOptions<SmtpOptions>()
         .Bind(builder.Configuration.GetSection(SmtpOptions.Section))
@@ -271,6 +269,8 @@ try
                        && o.MinPickProbability <= o.MaxPickProbability,
             "Forecast:MinPickProbability/MaxPickProbability 0-100 arasında olmalı ve Min <= Max olmalı.")
         .Validate(o => o.MinShownProbability is >= 0 and <= 100, "Forecast:MinShownProbability 0-100 arasında olmalı.")
+        .Validate(o => o.DixonColesRho is >= -0.2 and <= 0, "Forecast:DixonColesRho -0,2 ile 0 arasında olmalı.")
+        .Validate(o => o.CornersDispersion >= 0 && o.YellowCardsDispersion >= 0, "Forecast:CornersDispersion ve YellowCardsDispersion negatif olamaz.")
         .ValidateOnStart();
     /*
      * Tahminlerin kalıcı kaydı. Kafka kapalıyken (varsayılan) ForecastService doğrudan ForecastStore'a yazar.
@@ -358,8 +358,7 @@ try
     var rateLimit = builder.Configuration.GetSection(RateLimitOptions.Section).Get<RateLimitOptions>() ?? new RateLimitOptions();
 
     /*
-     * İstemci IP'si. Cloudflare -> cloudflared -> nginx -> API zincirinde bağlantı adresi (ve X-Forwarded-For'un son değeri)
-     * cloudflared container'ıdır; herkes aynı IP'yi paylaşır ve limit tüm site için ortak olurdu. Cloudflare gerçek IP'yi
+     * İstemci IP'si. Cloudflare -> cloudflared -> nginx -> API zincirinde bağlantı adresi (ve X-Forwarded-For'un son değeri) cloudflared container'ıdır; herkes aynı IP'yi paylaşır ve limit tüm site için ortak olurdu. Cloudflare gerçek IP'yi
      * CF-Connecting-IP ile gönderir; nginx bu header'ı olduğu gibi iletir.
      */
     string ClientIp(HttpContext http) =>

@@ -58,9 +58,9 @@ public static class ForecastCatalog
                 return new (string, LocalizedText, Func<MatchProjection, double?>)[]
                 {
                     ($"Over {text}", L($"{trPrefix}{text} Üst", $"{enPrefix}Over {text}"),
-                        p => p.Lambdas.TryGetValue(metric, out var l) ? PoissonMath.Over(l, line) : null),
+                        p => p.Over(metric, line)),
                     ($"Under {text}", L($"{trPrefix}{text} Alt", $"{enPrefix}Under {text}"),
-                        p => p.Lambdas.TryGetValue(metric, out var l) ? 1 - PoissonMath.Over(l, line) : null),
+                        p => 1 - p.Over(metric, line)),
                 };
             }).ToArray();
             Add(marketId, market, metric.ToString(), [metric], options);

@@ -1,9 +1,9 @@
-namespace MatchForecast.Api.Services;
+namespace MatchForecast.Api.Services.Forecast;
 
 /*
- * Poisson dağılımı hesapları. Her metrik (gol, korner, kart), beklenen değeri λ olan bir Poisson dağılımı kabul edilir.
- * Bilinen zayıflıklar: bağımsız Poisson beraberliği biraz düşük, korner aralığını biraz dar hesaplar. İleride Dixon-Coles
- * düzeltmesi veya negatif binom dağılımı eklenirse yalnızca bu sınıf değişir.
+ * Poisson dağılımı hesapları (temel fonksiyonlar). Tahminde kullanılan dağılımlar CountModels.cs'tedir:
+ * goller için Dixon-Coles düzeltmeli skor tablosu (ScoreMatrix), korner ve sarı kart için negatif binom
+ * (CountDistribution.NegativeBinomial). Bu sınıftaki Outcome / BothTeamsScore düzeltmesiz (bağımsız Poisson) hâlidir.
  */
 public static class PoissonMath
 {

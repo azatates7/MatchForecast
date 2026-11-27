@@ -11,8 +11,7 @@ using Microsoft.Extensions.Options;
 namespace MatchForecast.Api.Controllers;
 
 /*
- * Kimlik bilgileri query string yerine body'de taşınır (POST): URL'ler sunucu/proxy erişim loglarına ve tarayıcı geçmişine
- * düşer, body ise LoggingMiddleware'de "password"/"refreshToken" alanları maskelenerek loglanır.
+ * Kimlik bilgileri query string yerine body'de taşınır (POST): URL'ler sunucu/proxy erişim loglarına ve tarayıcı geçmişine düşer, body ise LoggingMiddleware'de "password"/"refreshToken" alanları maskelenerek loglanır.
  */
 [ApiController]
 [Route("api/auth")]

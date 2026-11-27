@@ -81,8 +81,9 @@ public class PredictionSelectorTests
     {
         var picks = PredictionSelector.Select(Build(Sample()), DefaultOptions);
 
-        Assert.Equal(new[] { "Ev 0.5 Üst", "ÇŞ 1X", "3.5 Alt", "Dep 1.5 Alt", "İY 1.5 Alt" }, picks.Select(p => p.Label.Tr));
-        Assert.Equal(new[] { 80, 76, 74, 74, 70 }, picks.Select(p => p.Confidence));
+        // Dixon-Coles (rho -0,10) beraberliği artırdığı için ÇŞ 1X 76 → 78; toplam golde 1.5 Üst ile 3.5 Alt eşit (%74), aynı gruptan yalnızca biri seçilir.
+        Assert.Equal(new[] { "Ev 0.5 Üst", "ÇŞ 1X", "1.5 Üst", "Dep 1.5 Alt", "İY 1.5 Alt" }, picks.Select(p => p.Label.Tr));
+        Assert.Equal(new[] { 80, 78, 74, 74, 69 }, picks.Select(p => p.Confidence));
         Assert.Equal(new[] { 1, 2, 3, 4, 5 }, picks.Select(p => p.Rank));
     }
 

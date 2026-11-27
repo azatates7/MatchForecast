@@ -12,8 +12,7 @@ namespace MatchForecast.Api.Services.Kafka;
  * Kafka açıkken IForecastStore bu sınıftır. ForecastService değişmez: hâlâ store.SaveAsync çağırır, ama tahmin artık
  * doğrudan veritabanına değil "forecast.generated" topic'ine yazılır. DB'ye yazımı ForecastPersistenceConsumer yapar.
  *
- * - Key = fixtureId: aynı maçın olayları aynı partition'a düşer ve sırayla işlenir (refresh ile üretilen yeni tahmin,
- *   eskisinin üzerine yazılır, araya girmez).
+ * - Key = fixtureId: aynı maçın olayları aynı partition'a düşer ve sırayla işlenir (refresh ile üretilen yeni tahmin, eskisinin üzerine yazılır, araya girmez).
  * - ProduceAsync broker onayı (acks=all) gelene kadar bekler; dönüş = mesaj Kafka'da kalıcı.
  * - Fallback: Kafka'ya ulaşılamazsa (MessageTimeoutMs içinde onay yok) tahmin eskisi gibi doğrudan DB'ye yazılır.
  *   O da başarısız olursa exception ForecastService'e çıkar; orada zaten loglanıp yutuluyor (fail-open).

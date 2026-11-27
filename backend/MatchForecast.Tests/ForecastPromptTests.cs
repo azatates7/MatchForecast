@@ -81,4 +81,26 @@ public class ForecastPromptTests
         Assert.DoesNotContain("Hakem", ForecastPrompt.BuildUser(Match, nameOnly));
         Assert.DoesNotContain("Hakem", ForecastPrompt.BuildUser(Match, new AbsenceReport(AbsenceReport.Ready, [], [], DateTimeOffset.Now)));
     }
+
+    [Fact]
+    public void BuildUser_WritesFormLines_WithVenue_AndOnlyKnownFields()
+    {
+        var form = new[]
+        {
+            new TeamForm("Galatasaray", "WWDLW", 2, 8, 2.3, 0.8, 2.1, 0.9),
+            new TeamForm("Fenerbahce", null, 3, null, 1.6, null, null, null)
+        };
+        var prompt = ForecastPrompt.BuildUser(Match, new AbsenceReport(AbsenceReport.Ready, [], [], DateTimeOffset.Now, null, form));
+
+        Assert.Contains("Form (bu sezon, maç günü araması):", Lines(prompt));
+        Assert.Contains("- Galatasaray: son 5 maç (en yeni önce) G G B M G; ligde 2. sıra; iç sahada maç başına 2,3 gol attı, 0,8 yedi (8 maç); xG 2,1 / 0,9 (lehine / aleyhine).", Lines(prompt));
+        Assert.Contains("- Fenerbahce: ligde 3. sıra; deplasmanda maç başına 1,6 gol attı.", Lines(prompt));
+    }
+
+    [Fact]
+    public void BuildUser_OmitsFormSection_WhenNotFound()
+    {
+        Assert.DoesNotContain("Form (", ForecastPrompt.BuildUser(Match, new AbsenceReport(AbsenceReport.Ready, [], [], DateTimeOffset.Now)));
+        Assert.DoesNotContain("Form (", ForecastPrompt.BuildUser(Match, new AbsenceReport(AbsenceReport.Ready, [], [], DateTimeOffset.Now, null, [])));
+    }
 }

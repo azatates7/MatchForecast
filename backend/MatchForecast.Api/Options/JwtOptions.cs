@@ -20,9 +20,7 @@ public sealed class JwtOptions
 
     /*
      * Git geçmişinde (eski appsettings.json commit'leri) açık metin olarak duran SecretKey değerlerinin SHA-256 özetleri.
-     * Ayarlar ilk açılışta app_settings tablosuna kopyalandığı için eski anahtar DB'de kalmış olabilir; bu anahtarı bilen biri
-     * istediği rolle (Admin dahil) geçerli token üretebilir. Program.cs'te ValidateOnStart ile kontrol edilir: eşleşirse
-     * uygulama açılmaz. Değerlerin kendisi değil yalnızca özetleri tutulur.
+     * Ayarlar ilk açılışta app_settings tablosuna kopyalandığı için eski anahtar DB'de kalmış olabilir; bu anahtarı bilen biri istediği rolle (Admin dahil) geçerli token üretebilir. Program.cs'te ValidateOnStart ile kontrol edilir: eşleşirse uygulama açılmaz. Değerlerin kendisi değil yalnızca özetleri tutulur.
      */
     private static readonly HashSet<string> LeakedKeyHashes =
     [

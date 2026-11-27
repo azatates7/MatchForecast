@@ -12,14 +12,11 @@ namespace MatchForecast.Api.Services.Kafka;
 /*
  * "forecast.generated" topic'ini okuyup tahminleri veritabanına (forecasts tablosu) yazar.
  *
- * Teslim garantisi: at-least-once. Offset yalnızca kayıt başarılı olunca commit edilir; uygulama kayıttan sonra,
- * commit'ten önce kapanırsa mesaj tekrar gelir. Bu güvenlidir çünkü ForecastStore.SaveAsync idempotent'tir
- * (fixture_id başına tek satır; varsa günceller).
+ * Teslim garantisi: at-least-once. Offset yalnızca kayıt başarılı olunca commit edilir; uygulama kayıttan sonra, commit'ten önce kapanırsa mesaj tekrar gelir. Bu güvenlidir çünkü ForecastStore.SaveAsync idempotent'tir (fixture_id başına tek satır; varsa günceller).
  *
  * Hata yönetimi:
  * - Bozuk mesaj (JSON okunamıyor): tekrar denemek işe yaramaz, doğrudan DLQ'ya.
- * - DB hatası: MaxPersistAttempts kez artan beklemeyle denenir, olmazsa DLQ'ya. DLQ'ya da yazılamazsa (Kafka gitti)
- *   offset geri sarılır (Seek) ve mesaj sonra yeniden işlenir; hiçbir tahmin sessizce kaybolmaz.
+ * - DB hatası: MaxPersistAttempts kez artan beklemeyle denenir, olmazsa DLQ'ya. DLQ'ya da yazılamazsa (Kafka gitti) offset geri sarılır (Seek) ve mesaj sonra yeniden işlenir; hiçbir tahmin sessizce kaybolmaz.
  *
  * Consume() bloklayan bir çağrıdır; döngü ayrı bir thread'de çalışır ki host'un açılışı beklemesin.
  */
@@ -166,8 +163,7 @@ public sealed class ForecastPersistenceConsumer(
     }
 
     /*
-     * Topic'leri yoksa oluşturur (varsa dokunmaz). Kafka henüz ayağa kalkmadıysa (docker compose'da API önce açılabilir)
-     * erişilene kadar bekler; bu sırada API çalışmaya devam eder, publisher da DB fallback'ine düşer.
+     * Topic'leri yoksa oluşturur (varsa dokunmaz). Kafka henüz ayağa kalkmadıysa (docker compose'da API önce açılabilir) erişilene kadar bekler; bu sırada API çalışmaya devam eder, publisher da DB fallback'ine düşer.
      */
     private async Task EnsureTopicsAsync(CancellationToken ct)
     {

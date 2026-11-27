@@ -7,10 +7,8 @@ using Microsoft.EntityFrameworkCore;
 namespace MatchForecast.Api.Services.Security.Guest;
 
 /*
- * Misafir kullanıcısı. Guest:UserName / Guest:Email ayarları (.env / user-secrets) doluysa ve bu kullanıcı adıyla bir
- * kullanıcı yoksa açılışta bir kez oluşturulur ve yalnızca Guest rolü verilir. Kullanıcı varsa hiçbir şey yapmaz.
- * Giriş ekranındaki "Misafir olarak devam et" şifre istemez (POST /api/auth/guest). Guest:Password isteğe bağlıdır:
- * boşsa kullanıcı adı/şifre formundan misafir girişi yapılamaz, yalnızca buton çalışır.
+ * Misafir kullanıcısı. Guest:UserName / Guest:Email ayarları (.env / user-secrets) doluysa ve bu kullanıcı adıyla bir kullanıcı yoksa açılışta bir kez oluşturulur ve yalnızca Guest rolü verilir. Kullanıcı varsa hiçbir şey yapmaz.
+ * Giriş ekranındaki "Misafir olarak devam et" şifre istemez (POST /api/auth/guest). Guest:Password isteğe bağlıdır: boşsa kullanıcı adı/şifre formundan misafir girişi yapılamaz, yalnızca buton çalışır.
  * E-posta gerçek olmamalı (ör. misafir@matchforecast.online): şifre sıfırlama maili kimseye gitmez, Google girişiyle çakışmaz.
  * "Guest" bölümü app_settings tablosuna taşınmaz; değerler yalnızca ortamdan okunur.
  */

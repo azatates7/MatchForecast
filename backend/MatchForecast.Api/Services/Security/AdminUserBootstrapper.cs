@@ -7,8 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace MatchForecast.Api.Services.Security;
 
 /*
- * İlk admin kullanıcısı. Token artık kullanıcı adı/şifre istediği ve /api/users yalnızca Admin'e açık olduğu için,
- * ilk kullanıcıyı oluşturacak birinin olması gerekir. Admin rolünde hiç kullanıcı yoksa ve Admin:UserName / Admin:Email /
+ * İlk admin kullanıcısı. Token artık kullanıcı adı/şifre istediği ve /api/users yalnızca Admin'e açık olduğu için, ilk kullanıcıyı oluşturacak birinin olması gerekir. Admin rolünde hiç kullanıcı yoksa ve Admin:UserName / Admin:Email /
  * Admin:Password ayarları (user-secrets / .env) doluysa açılışta bir kez oluşturulur. Admin varsa hiçbir şey yapmaz.
  * Şifre yalnızca ilk oluşturmada kullanılır; sonradan ayarı değiştirmek mevcut şifreyi değiştirmez.
  */

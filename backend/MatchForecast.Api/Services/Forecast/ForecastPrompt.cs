@@ -37,6 +37,11 @@ public static class ForecastPrompt
         - Kullanıcı mesajında hakem satırı varsa yellowCards ve redCards beklentisini hakemin maç başı ortalamalarına ve
           tarzına göre ayarla (lig ve takım etkisini de koruyarak); kart reasoning'inde hakemi kısaca an.
           Hakem satırı yoksa hakem hakkında hiçbir varsayım yapma ve hakemden söz etme.
+        - Kullanıcı mesajında form satırları varsa bunlar bu sezonun güncel verisidir; gol beklentisinde kendi genel
+          bilginden ÖNCE bunları kullan. Ev sahibinin iç saha ve deplasman takımının deplasman gol/xG ortalamalarını
+          rakibin yediği gol/xG ile birlikte değerlendir; xG varsa gerçekleşen golden daha güvenilir say. Son 5 maç ve lig
+          sırası kısa vadeli eğilimi gösterir, aşırı ağırlık verme. Az maça (ör. 5'ten az) dayanan ortalamaları lig
+          ortalamasına doğru çek. Form satırı olmayan takım için veri uydurma.
         - reasoning: en fazla 1 cümle, Türkçe. reasoningEn: aynı cümlenin İngilizcesi.
         - summary: maçın 1-2 cümlelik genel değerlendirmesi, Türkçe. summaryEn: aynı metnin İngilizcesi.
         - Cevabın SADECE geçerli JSON olsun; açıklama, markdown veya kod bloğu ekleme.
@@ -63,11 +68,46 @@ public static class ForecastPrompt
         sb.AppendLine($"Lig: {match.League} ({match.Country})");
         sb.AppendLine($"Başlama: {match.Kickoff.ToString("dd MMMM yyyy HH:mm", tr)}");
         sb.AppendLine();
+        AppendForm(sb, match, absences?.Form);
         AppendReferee(sb, absences?.Referee);
         AppendAbsences(sb, match, absences);
         sb.AppendLine();
         sb.AppendLine("Bu maç için metriklerin beklenen değerlerini JSON olarak döndür.");
         return sb.ToString();
+    }
+
+    /*
+     * Yalnızca bulunan alanlar yazılır; hiç form verisi yoksa bölüm eklenmez. Ör: Galatasaray: son 5 maç (en yeni önce) G G B M G; ligde 2. sıra; iç sahada maç başına 2,3 gol attı, 0,8 yedi (8 maç); xG 2,1 / 0,9."
+     */
+    private static void AppendForm(StringBuilder sb, MatchSummary match, IReadOnlyList<TeamForm>? form)
+    {
+        var teams = form?.Where(f => f.HasData).ToList();
+        if (teams is null || teams.Count == 0)
+            return;
+
+        var tr = CultureInfo.GetCultureInfo("tr-TR");
+        string N(double v) => v.ToString("0.0#", tr);
+        sb.AppendLine("Form (bu sezon, maç günü araması):");
+        foreach (var f in teams)
+        {
+            var venue = f.Team == match.HomeTeam ? "iç sahada" : "deplasmanda";
+            var parts = new List<string>();
+            if (f.Last5 is { } l5)
+                parts.Add($"son {l5.Length} maç (en yeni önce) {string.Join(' ', l5.Select(c => c switch { 'W' => 'G', 'D' => 'B', _ => 'M' }))}");
+            if (f.LeaguePosition is { } pos)
+                parts.Add($"ligde {pos}. sıra");
+            if (f.VenueGoalsFor is not null || f.VenueGoalsAgainst is not null)
+            {
+                var goals = new List<string>();
+                if (f.VenueGoalsFor is { } gf) goals.Add($"{N(gf)} gol attı");
+                if (f.VenueGoalsAgainst is { } ga) goals.Add($"{N(ga)} yedi");
+                parts.Add($"{venue} maç başına {string.Join(", ", goals)}{(f.VenueMatches is { } m ? $" ({m} maç)" : "")}");
+            }
+            if (f.XgFor is not null || f.XgAgainst is not null)
+                parts.Add($"xG {(f.XgFor is { } xf ? N(xf) : "?")} / {(f.XgAgainst is { } xa ? N(xa) : "?")} (lehine / aleyhine)");
+            sb.AppendLine($"- {f.Team}: {string.Join("; ", parts)}.");
+        }
+        sb.AppendLine();
     }
 
     /*

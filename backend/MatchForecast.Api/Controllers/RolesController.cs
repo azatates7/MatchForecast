@@ -12,11 +12,9 @@ using Microsoft.EntityFrameworkCore;
 namespace MatchForecast.Api.Controllers;
 
 /*
- * Roller. Liste kullanıcıya veya gruba rol atarken ve yetkinin hangi rollerde olduğunu gösterirken de gerekir:
- * users.view, roles.manage, groups.manage VEYA permissions.manage yeterli; değişiklikler roles.manage ister.
+ * Roller. Liste kullanıcıya veya gruba rol atarken ve yetkinin hangi rollerde olduğunu gösterirken de gerekir: users.view, roles.manage, groups.manage VEYA permissions.manage yeterli; değişiklikler roles.manage ister.
  * Sistem rolleri (Admin, User, Guest) kodda adıyla kullanıldığı için yeniden adlandırılamaz ve silinemez.
- * Admin tüm yetkilere örtük olarak sahiptir; yetki listesi düzenlenemez. Yetki değişiklikleri kullanıcılara bir sonraki
- * token yenilemesinde yansır.
+ * Admin tüm yetkilere örtük olarak sahiptir; yetki listesi düzenlenemez. Yetki değişiklikleri kullanıcılara bir sonraki token yenilemesinde yansır.
  */
 [ApiController]
 [Route("api/roles")]

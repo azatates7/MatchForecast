@@ -5,8 +5,7 @@ using Swashbuckle.AspNetCore.SwaggerGen;
 namespace MatchForecast.Api.Filter;
 
 /// <summary>
-/// [AllowAnonymous] olmayan her operasyona Bearer gereksinimi ekler; Swagger UI'da kilit ikonu sadece korunan endpoint'lerde görünür
-/// ve "Authorize" ile girilen token bu isteklere otomatik eklenir. GetToken kilitsiz kalır.
+/// [AllowAnonymous] olmayan her operasyona Bearer gereksinimi ekler; Swagger UI'da kilit ikonu sadece korunan endpoint'lerde görünür ve "Authorize" ile girilen token bu isteklere otomatik eklenir. GetToken kilitsiz kalır.
 /// </summary>
 public sealed class BearerSecurityOperationFilter : IOperationFilter
 {

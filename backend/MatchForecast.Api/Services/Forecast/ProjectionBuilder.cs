@@ -19,8 +19,8 @@ public sealed record AiStatsResponse(
 public sealed record AiMetric(double? Expected, string? Reasoning, string? ReasoningEn = null);
 
 /*
- * Doğrulanmış λ'lar ve bunlardan türetilen tüm olasılıklar. Result/BothTeamsScore/FirstHalf yuvarlanmamış değerlerdir;
- * tahmin seçimi bunlarla yapılır, ekranda gösterilen yüzdeler Outcomes ve Stats içindedir.
+ * Doğrulanmış λ'lar ve bunlardan türetilen tüm olasılıklar. Result/BothTeamsScore/FirstHalf yuvarlanmamış değerlerdir; tahmin seçimi bunlarla yapılır, ekranda gösterilen yüzdeler Outcomes ve Stats içindedir.
+ * Distributions: her metriğin dağılımı (üst/alt ve aralık bunlardan hesaplanır): ev/deplasman gol → Poisson, toplam ve ilk yarı gol → Dixon-Coles skor tablosu, korner/sarı kart → negatif binom.
  */
 public sealed record MatchProjection(
     IReadOnlyDictionary<StatMetric, double> Lambdas,
@@ -29,7 +29,11 @@ public sealed record MatchProjection(
     double BothTeamsScore,
     (double Home, double Draw, double Away)? FirstHalf,
     OutcomeProbabilities Outcomes,
-    IReadOnlyList<StatProjection> Stats);
+    IReadOnlyList<StatProjection> Stats,
+    IReadOnlyDictionary<StatMetric, CountDistribution> Distributions)
+{
+    public double? Over(StatMetric metric, decimal line) => Distributions.TryGetValue(metric, out var d) ? d.Over(line) : null;
+}
 
 /*
  * Model çıktısını doğrular ve olasılıklara çevirir.
@@ -86,8 +90,17 @@ public static class ProjectionBuilder
         lambdas[StatMetric.TotalGoals] = total;
         reasons[StatMetric.TotalGoals] = Join(reasons[StatMetric.HomeGoals], reasons[StatMetric.AwayGoals]);
 
-        var result = PoissonMath.Outcome(home, away);
-        var btts = PoissonMath.BothTeamsScore(home, away);
+        var rho = Math.Clamp(opt.DixonColesRho, -0.2, 0);
+        var scores = new ScoreMatrix(home, away, rho);
+        var result = scores.Outcome();
+        var btts = scores.BothTeamsScore();
+
+        var distributions = new Dictionary<StatMetric, CountDistribution>
+        {
+            [StatMetric.HomeGoals] = CountDistribution.Poisson(home),
+            [StatMetric.AwayGoals] = CountDistribution.Poisson(away),
+            [StatMetric.TotalGoals] = scores.Total()
+        };
 
         (double Home, double Draw, double Away)? firstHalf = null;
         if (lambdas.TryGetValue(StatMetric.FirstHalfGoals, out var fh))
@@ -96,8 +109,17 @@ public static class ProjectionBuilder
             lambdas[StatMetric.FirstHalfGoals] = fh;
             // İlk yarı golü takımlara tam maçtaki gol beklentisi oranında bölünür.
             var homeShare = total > 0 ? home / total : 0.5;
-            firstHalf = PoissonMath.Outcome(fh * homeShare, fh * (1 - homeShare));
+            var firstHalfScores = new ScoreMatrix(fh * homeShare, fh * (1 - homeShare), rho);
+            firstHalf = firstHalfScores.Outcome();
+            distributions[StatMetric.FirstHalfGoals] = firstHalfScores.Total();
         }
+
+        if (lambdas.TryGetValue(StatMetric.Corners, out var corners))
+            distributions[StatMetric.Corners] = CountDistribution.NegativeBinomial(corners, opt.CornersDispersion);
+        if (lambdas.TryGetValue(StatMetric.YellowCards, out var yellow))
+            distributions[StatMetric.YellowCards] = CountDistribution.NegativeBinomial(yellow, opt.YellowCardsDispersion);
+        if (lambdas.TryGetValue(StatMetric.RedCards, out var red))
+            distributions[StatMetric.RedCards] = CountDistribution.Poisson(red);
 
         var (h, d, a) = PoissonMath.ToPercents(result);
         var fhPercents = firstHalf is { } f ? PoissonMath.ToPercents(f) : ((int, int, int)?)null;
@@ -108,18 +130,18 @@ public static class ProjectionBuilder
 
         var stats = Defs
             .Where(def => lambdas.ContainsKey(def.Metric))
-            .Select(def => ToStat(def, lambdas[def.Metric], reasons[def.Metric]))
+            .Select(def => ToStat(def, lambdas[def.Metric], distributions[def.Metric], reasons[def.Metric]))
             .ToList();
 
-        return new MatchProjection(lambdas, reasons, result, btts, firstHalf, outcomes, stats);
+        return new MatchProjection(lambdas, reasons, result, btts, firstHalf, outcomes, stats, distributions);
     }
 
-    private static StatProjection ToStat(MetricDef def, double lambda, LocalizedText reasoning)
+    private static StatProjection ToStat(MetricDef def, double lambda, CountDistribution dist, LocalizedText reasoning)
     {
         var lines = def.Lines
             .Select(line =>
             {
-                var over = PoissonMath.ToPercent(PoissonMath.Over(lambda, line));
+                var over = PoissonMath.ToPercent(dist.Over(line));
                 return new LineProbability(line, over, 100 - over);
             })
             .ToList();
@@ -128,8 +150,8 @@ public static class ProjectionBuilder
             def.Metric,
             def.Label,
             (decimal)Math.Round(lambda, 2),
-            PoissonMath.Quantile(lambda, 0.10),
-            PoissonMath.Quantile(lambda, 0.90),
+            dist.Quantile(0.10),
+            dist.Quantile(0.90),
             lines,
             reasoning);
     }

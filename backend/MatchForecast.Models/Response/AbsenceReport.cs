@@ -10,13 +10,15 @@ namespace MatchForecast.Models.Response;
  *   - "Ready": maç günü tarandı; Players boş olabilir (resmi açıklamada eksik bulunamadı).
  *   - "Unavailable": özellik kapalı ya da arama başarısız; model ve ekran bu konuda varsayım yapmaz.
  * Referee: aynı maç günü aramasında bulunan hakem bilgisi (ek arama yapılmaz). Bulunamadıysa null; o durumda ekranda hakem bölümü ve prompt'ta hakem satırı olmaz. Sources her ikisinin kaynaklarını içerir.
+ * Form: aynı aramada bulunan takımların güncel form verisi (ek arama yapılmaz). Bulunamayan takım listede yer almaz; liste boşsa prompt'ta form satırı olmaz.
  */
 public sealed record AbsenceReport(
     string State,
     IReadOnlyList<TeamAbsence> Players,
     IReadOnlyList<AbsenceSource> Sources,
     DateTimeOffset? CheckedAt,
-    RefereeInfo? Referee = null)
+    RefereeInfo? Referee = null,
+    IReadOnlyList<TeamForm>? Form = null)
 {
     public const string Pending = "Pending";
     public const string Ready = "Ready";
@@ -64,6 +66,26 @@ public sealed record RefereeInfo(
         < 3.5 => Lenient,
         _ => Balanced
     };
+}
+
+/*
+ * Takımın bu sezonki güncel formu (maç günü araması). Team dışındaki her alan bulunamadıysa null'dır (uydurulmaz).
+ * - Last5: son 5 resmi maç, en yeni önce, W/D/L harfleriyle (ör. "WWDLW").
+ * - Venue*: bu maçtaki sahaya göre; ev sahibi için iç saha, deplasman takımı için deplasman maçları.
+ *   VenueMatches bu ortalamaların dayandığı maç sayısı. Xg* aynı maçların beklenen gol (xG) ortalamaları.
+ */
+public sealed record TeamForm(
+    string Team,
+    string? Last5,
+    int? LeaguePosition,
+    int? VenueMatches,
+    double? VenueGoalsFor,
+    double? VenueGoalsAgainst,
+    double? XgFor,
+    double? XgAgainst)
+{
+    public bool HasData => Last5 is not null || LeaguePosition is not null || VenueGoalsFor is not null
+                           || VenueGoalsAgainst is not null || XgFor is not null || XgAgainst is not null;
 }
 
 /// <summary>Aramanın dayandığı web kaynağı (Gemini grounding). Url, Google'ın yönlendirme adresi olabilir.</summary>

@@ -1,4 +1,4 @@
-using MatchForecast.Api.Services;
+using MatchForecast.Api.Services.Forecast;
 
 namespace MatchForecast.Tests;
 
