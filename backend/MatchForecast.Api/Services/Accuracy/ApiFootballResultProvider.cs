@@ -5,7 +5,9 @@ using Microsoft.Extensions.Options;
 namespace MatchForecast.Api.Services.Accuracy;
 
 /// <param name="HomeGoals">Normal süre (90 dk) skoru; maç oynanmadıysa (ertelendi, iptal) null.</param>
-public sealed record FixtureResult(int FixtureId, string Status, int? HomeGoals, int? AwayGoals, int? HalfTimeHomeGoals, int? HalfTimeAwayGoals);
+/// <param name="HomeYellowCards">Maç istatistiğindeki sarı kart; istatistik yoksa veya maç uzatmaya gittiyse null.</param>
+public sealed record FixtureResult(int FixtureId, string Status, int? HomeGoals, int? AwayGoals, int? HalfTimeHomeGoals, int? HalfTimeAwayGoals,
+    int? HomeYellowCards = null, int? AwayYellowCards = null);
 
 public interface IMatchResultProvider
 {
@@ -18,6 +20,7 @@ public interface IMatchResultProvider
  * o arayüzün sahte/ESPN uygulamaları da var, sonuç toplama yalnızca API-Football ile yapılır.
  * Skor kaynağı score.fulltime / score.halftime: uzatmalı (AET) ve penaltılı (PEN) maçlarda da 90 dakikanın skorudur;
  * "goals" alanı uzatma gollerini de içerdiği için kullanılmaz.
+ * Sarı kartlar: ids ile yapılan sorguda her maçın "statistics" dizisi de gelir (ek istek yok). İstatistik tüm maçı kapsar; uzatmalı maçlarda 90 dakikaya ayrılamadığı için kullanılmaz (null).
  */
 public sealed class ApiFootballResultProvider(HttpClient http, IOptions<OddsProviderOptions> options, ILogger<ApiFootballResultProvider> logger)
     : IMatchResultProvider
@@ -53,13 +56,54 @@ public sealed class ApiFootballResultProvider(HttpClient http, IOptions<OddsProv
     {
         var fixture = item.GetProperty("fixture");
         var score = item.TryGetProperty("score", out var s) ? s : default;
+        var status = fixture.GetProperty("status").GetProperty("short").GetString() ?? "";
+        var regularTime = status is "FT";
         return new FixtureResult(
             fixture.GetProperty("id").GetInt32(),
-            fixture.GetProperty("status").GetProperty("short").GetString() ?? "",
+            status,
             Goal(score, "fulltime", "home"),
             Goal(score, "fulltime", "away"),
             Goal(score, "halftime", "home"),
-            Goal(score, "halftime", "away"));
+            Goal(score, "halftime", "away"),
+            regularTime ? YellowCards(item, "home") : null,
+            regularTime ? YellowCards(item, "away") : null);
+    }
+
+    // statistics[] içinden takımın (teams.home/away.id) "Yellow Cards" değeri. Kart görmeyen takımda değer null gelir → 0.
+    // İstatistik hiç yoksa (küçük ligler) null.
+    private static int? YellowCards(JsonElement item, string side)
+    {
+        if (!item.TryGetProperty("statistics", out var stats) || stats.ValueKind != JsonValueKind.Array || stats.GetArrayLength() == 0)
+            return null;
+        if (!item.TryGetProperty("teams", out var teams) || !teams.TryGetProperty(side, out var team)
+            || !team.TryGetProperty("id", out var idEl) || idEl.ValueKind != JsonValueKind.Number)
+            return null;
+        var teamId = idEl.GetInt32();
+
+        foreach (var entry in stats.EnumerateArray())
+        {
+            if (!entry.TryGetProperty("team", out var t) || !t.TryGetProperty("id", out var tid)
+                || tid.ValueKind != JsonValueKind.Number || tid.GetInt32() != teamId)
+                continue;
+            if (!entry.TryGetProperty("statistics", out var list) || list.ValueKind != JsonValueKind.Array)
+                return null;
+            foreach (var stat in list.EnumerateArray())
+            {
+                if (stat.TryGetProperty("type", out var type) && type.GetString() == "Yellow Cards")
+                {
+                    if (!stat.TryGetProperty("value", out var v)) return null;
+                    return v.ValueKind switch
+                    {
+                        JsonValueKind.Number => v.GetInt32(),
+                        JsonValueKind.Null => 0,
+                        JsonValueKind.String when int.TryParse(v.GetString(), out var n) => n,
+                        _ => null
+                    };
+                }
+            }
+            return null; // takımın istatistiği var ama sarı kart satırı yok
+        }
+        return null;
     }
 
     private static int? Goal(JsonElement score, string period, string side) =>

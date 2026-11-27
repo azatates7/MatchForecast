@@ -10,8 +10,7 @@ namespace MatchForecast.Api.Services.Accuracy;
 public sealed record AccuracyForecast(int FixtureId, DateTime Kickoff, string League, string HomeTeam, string AwayTeam, DateTime GeneratedAt, string ResultJson);
 
 /*
- * Seçilen tahmin (Prediction.Market + Selection) gerçekleşti mi? ForecastCatalog'daki market adlarıyla eşleşir.
- * null: skordan çıkarılamıyor (sarı kart), ilk yarı skoru yok veya bilinmeyen market.
+ * Seçilen tahmin (Prediction.Market + Selection) gerçekleşti mi? ForecastCatalog'daki market adlarıyla eşleşir. null: ilk yarı skoru veya sarı kart istatistiği yok ya da bilinmeyen market.
  */
 public static class PredictionSettler
 {
@@ -37,6 +36,7 @@ public static class PredictionSettler
             "Goals Over/Under First Half" => hh is null || ha is null ? null : OverUnder(selection, hh.Value + ha.Value),
             "Home Team Goals" => OverUnder(selection, h),
             "Away Team Goals" => OverUnder(selection, a),
+            "Yellow Cards Over/Under" => r.HomeYellowCards is { } hy && r.AwayYellowCards is { } ay ? OverUnder(selection, hy + ay) : null,
             _ => null
         };
     }
@@ -81,6 +81,7 @@ public static class AccuracyReportBuilder
         ["Goals Over/Under First Half"] = new("İlk yarı gol alt/üst", "First-half goals over/under"),
         ["Home Team Goals"] = new("Ev sahibi gol", "Home team goals"),
         ["Away Team Goals"] = new("Deplasman gol", "Away team goals"),
+        ["Yellow Cards Over/Under"] = new("Sarı kart alt/üst", "Yellow cards over/under"),
     };
 
     private sealed record StoredForecast(StoredOutcomes? Outcomes, List<StoredPrediction>? Predictions, StoredAbsences? Absences);

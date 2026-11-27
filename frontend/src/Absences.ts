@@ -1,4 +1,4 @@
-import type { AbsenceReport, AbsenceSource, LocalizedText, MatchSummary, TeamAbsence } from './types'
+import type { AbsenceReport, AbsenceSource, LocalizedText, MatchSummary, RefereeInfo, TeamAbsence } from './types'
 
 /*
  * Eksik oyuncuları ev/deplasman takımına göre gruplar ve etiketler. Saf mantık; React ve Angular aynı dosyayı kullanır
@@ -38,11 +38,44 @@ export function groupAbsences(match: MatchSummary, players: TeamAbsence[]): { te
   }))
 }
 
-// Dipnot: tahminin hangi eksik oyuncu bilgisiyle üretildiğini söyler.
+// Dipnot: tahminin hangi eksik oyuncu (ve hakem) bilgisiyle üretildiğini söyler.
 export function absenceFootnote(report: AbsenceReport | null | undefined) {
+  if (report?.state === 'Ready' && refereeUsedInForecast(report.referee)) return 'forecast.footnoteReferee' as const
   if (report?.state === 'Ready') return 'forecast.footnote' as const
   if (report?.state === 'Pending') return 'forecast.footnotePending' as const
   return 'forecast.footnoteNoAbsences' as const
+}
+
+// ---- Hakem ----
+export const STRICTNESS_LABEL = {
+  Strict: 'referee.strict',
+  Balanced: 'referee.balanced',
+  Lenient: 'referee.lenient'
+} as const
+
+export const STRICTNESS_CLASS = {
+  Strict: 'referee-strict',
+  Balanced: 'referee-balanced',
+  Lenient: 'referee-lenient'
+} as const
+
+const STAT_LABEL = {
+  yellowPerMatch: 'referee.yellow',
+  redPerMatch: 'referee.red',
+  penaltiesPerMatch: 'referee.penalties',
+  foulsPerMatch: 'referee.fouls'
+} as const
+
+// Bulunan maç başı ortalamalar, gösterim sırasıyla (sarı, kırmızı, penaltı, faul); bulunmayanlar atlanır.
+export function refereeStats(r: RefereeInfo): { label: (typeof STAT_LABEL)[keyof typeof STAT_LABEL]; value: number }[] {
+  return (Object.keys(STAT_LABEL) as (keyof typeof STAT_LABEL)[])
+    .filter(k => r[k] !== null && r[k] !== undefined)
+    .map(k => ({ label: STAT_LABEL[k], value: r[k] as number }))
+}
+
+// Backend yalnızca istatistik veya tarz bulunduysa hakemi prompt'a koyar; dipnot da buna göre değişir.
+export function refereeUsedInForecast(r: RefereeInfo | null | undefined): boolean {
+  return !!r && (refereeStats(r).length > 0 || !!r.style?.tr)
 }
 
 // Kaynak adı: başlık (genelde alan adı) yoksa URL'nin host'u.

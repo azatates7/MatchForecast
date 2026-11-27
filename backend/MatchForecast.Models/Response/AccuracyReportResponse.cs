@@ -9,7 +9,7 @@ namespace MatchForecast.Models.Response;
  *   üç sonuca da %33 veren tahminci 0,667 alır, bunun altı tahminin işe yaradığını gösterir).
  * - Seçilen tahminler: "En olası N tahmin" listesindeki her seçenek ayrı sayılır. Kalibrasyon: güven aralığına göre
  *   gerçekleşme oranı; iyi kalibre edilmiş bir modelde "%70" denen seçeneklerin ~%70'i tutar.
- * - Sarı kart gibi skordan çıkarılamayan seçenekler değerlendirilmez (UnsettledPicks).
+ * - Karar verilemeyen seçenekler (sarı kart istatistiği veya ilk yarı skoru olmayan maçlar) sayılmaz (UnsettledPicks).
  */
 public sealed record AccuracyReportResponse(
     DateOnly From,

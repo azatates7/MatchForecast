@@ -41,12 +41,24 @@ public class AccuracyTests(WebApplicationFactory<Program> factory) : IClassFixtu
     }
 
     [Theory]
-    [InlineData("Yellow Cards Over/Under", "Over 3.5")] // skordan çıkarılamaz
+    [InlineData("Yellow Cards Over/Under", "Over 3.5")] // sarı kart istatistiği yok
     [InlineData("First Half Winner", "Home")]           // ilk yarı skoru yok
     [InlineData("Unknown", "Home")]
     public void Settle_ReturnsNull_WhenItCannotBeDecided(string market, string selection)
     {
         Assert.Null(PredictionSettler.Settle(market, selection, Result(1, 1, 0)));
+    }
+
+    [Theory]
+    [InlineData("Over 3.5", true)]   // 2 + 3 = 5 sarı
+    [InlineData("Under 4.5", false)]
+    public void Settle_YellowCards_UsesBothTeamsCards(string selection, bool expected)
+    {
+        var result = Result(1, 1, 0);
+        result.HomeYellowCards = 2;
+        result.AwayYellowCards = 3;
+
+        Assert.Equal(expected, PredictionSettler.Settle("Yellow Cards Over/Under", selection, result));
     }
 
     // ---------- AccuracyReportBuilder ----------
@@ -144,6 +156,37 @@ public class AccuracyTests(WebApplicationFactory<Program> factory) : IClassFixtu
         var r = ApiFootballResultProvider.Parse(doc.RootElement);
 
         Assert.Equal(new FixtureResult(77, "AET", 1, 1, 0, 1), r);
+    }
+
+    [Fact]
+    public void ResultProvider_ReadsYellowCardsFromStatistics_ForRegularTimeMatches()
+    {
+        using var doc = JsonDocument.Parse("""
+            { "fixture": { "id": 78, "status": { "short": "FT" } },
+              "teams": { "home": { "id": 10 }, "away": { "id": 20 } },
+              "score": { "halftime": { "home": 1, "away": 0 }, "fulltime": { "home": 2, "away": 1 } },
+              "statistics": [
+                { "team": { "id": 20 }, "statistics": [ { "type": "Fouls", "value": 14 }, { "type": "Yellow Cards", "value": 3 } ] },
+                { "team": { "id": 10 }, "statistics": [ { "type": "Yellow Cards", "value": null } ] } ] }
+            """);
+
+        var r = ApiFootballResultProvider.Parse(doc.RootElement);
+
+        Assert.Equal((0, 3), (r.HomeYellowCards, r.AwayYellowCards)); // null değer = kart yok
+    }
+
+    [Fact]
+    public void ResultProvider_LeavesYellowCardsNull_WithoutStatistics()
+    {
+        using var doc = JsonDocument.Parse("""
+            { "fixture": { "id": 79, "status": { "short": "FT" } }, "teams": { "home": { "id": 1 }, "away": { "id": 2 } },
+              "score": { "fulltime": { "home": 0, "away": 0 } }, "statistics": [] }
+            """);
+
+        var r = ApiFootballResultProvider.Parse(doc.RootElement);
+
+        Assert.Null(r.HomeYellowCards);
+        Assert.Null(r.AwayYellowCards);
     }
 
     // ---------- Endpoint ----------

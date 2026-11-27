@@ -34,6 +34,9 @@ public static class ForecastPrompt
           ilgili reasoning'de ve summary'de kısaca an.
         - Listede olmayan hiçbir oyuncunun eksik olduğunu varsayma ve isim uydurma. Eksikler henüz netleşmediyse veya
           bilgi alınamadıysa bu konuda yorum yapma.
+        - Kullanıcı mesajında hakem satırı varsa yellowCards ve redCards beklentisini hakemin maç başı ortalamalarına ve
+          tarzına göre ayarla (lig ve takım etkisini de koruyarak); kart reasoning'inde hakemi kısaca an.
+          Hakem satırı yoksa hakem hakkında hiçbir varsayım yapma ve hakemden söz etme.
         - reasoning: en fazla 1 cümle, Türkçe. reasoningEn: aynı cümlenin İngilizcesi.
         - summary: maçın 1-2 cümlelik genel değerlendirmesi, Türkçe. summaryEn: aynı metnin İngilizcesi.
         - Cevabın SADECE geçerli JSON olsun; açıklama, markdown veya kod bloğu ekleme.
@@ -60,10 +63,40 @@ public static class ForecastPrompt
         sb.AppendLine($"Lig: {match.League} ({match.Country})");
         sb.AppendLine($"Başlama: {match.Kickoff.ToString("dd MMMM yyyy HH:mm", tr)}");
         sb.AppendLine();
+        AppendReferee(sb, absences?.Referee);
         AppendAbsences(sb, match, absences);
         sb.AppendLine();
         sb.AppendLine("Bu maç için metriklerin beklenen değerlerini JSON olarak döndür.");
         return sb.ToString();
+    }
+
+    /*
+     * Yalnızca hakemin istatistiği veya tarzı bulunduysa yazılır; bilinmeyen alanlar atlanır. Yalnızca ad biliniyorsa
+     * yazılmaz: model adı görünce kendi (güncel olmayabilecek) bilgisiyle hakem hakkında varsayım yapmasın. Ör:
+     * "Hakem: Halil Umut Meler — maç başına 4,8 sarı, 0,2 kırmızı, 0,3 penaltı (12 maç). Tarz: Sert müdahaleye hızlı kart gösterir."
+     */
+    private static void AppendReferee(StringBuilder sb, RefereeInfo? r)
+    {
+        if (r is null || (r.YellowPerMatch is null && r.RedPerMatch is null && r.PenaltiesPerMatch is null
+                          && r.FoulsPerMatch is null && string.IsNullOrWhiteSpace(r.Style?.Tr)))
+            return;
+
+        var tr = CultureInfo.GetCultureInfo("tr-TR");
+        string N(double v) => v.ToString("0.0#", tr);
+        var stats = new List<string>();
+        if (r.YellowPerMatch is { } y) stats.Add($"{N(y)} sarı");
+        if (r.RedPerMatch is { } red) stats.Add($"{N(red)} kırmızı");
+        if (r.PenaltiesPerMatch is { } p) stats.Add($"{N(p)} penaltı");
+        if (r.FoulsPerMatch is { } f) stats.Add($"{N(f)} faul");
+
+        var line = new StringBuilder($"Hakem: {r.Name}");
+        if (stats.Count > 0)
+            line.Append($" — maç başına {string.Join(", ", stats)}{(r.Matches is { } m ? $" ({m} maç)" : "")}");
+        line.Append('.');
+        if (!string.IsNullOrWhiteSpace(r.Style?.Tr))
+            line.Append($" Tarz: {r.Style!.Tr.Trim().TrimEnd('.')}.");
+        sb.AppendLine(line.ToString());
+        sb.AppendLine();
     }
 
     private static void AppendAbsences(StringBuilder sb, MatchSummary match, AbsenceReport? absences)

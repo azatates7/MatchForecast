@@ -105,6 +105,8 @@ public sealed class ResultSettlementWorker(
                     AwayGoals = final ? r.AwayGoals : null,
                     HalfTimeHomeGoals = final ? r.HalfTimeHomeGoals : null,
                     HalfTimeAwayGoals = final ? r.HalfTimeAwayGoals : null,
+                    HomeYellowCards = final ? r.HomeYellowCards : null,
+                    AwayYellowCards = final ? r.AwayYellowCards : null,
                     CreatedAt = now
                 });
                 saved++;

@@ -6,6 +6,7 @@ namespace MatchForecast.Data.Entity;
  * - Status: API-Football fixture.status.short. "FT" | "AET" | "PEN" ise skorlar doludur; ertelenen/iptal edilen
  *   ("PST", "CANC", "ABD", "AWD", "WO") maçlarda skor null'dır ve değerlendirmeye girmez.
  * - Skorlar normal süre (90 dk) skorudur (score.fulltime); uzatma ve penaltılar marketleri etkilemez.
+ * - Sarı kartlar maç istatistiğinden (statistics "Yellow Cards"); istatistiği olmayan liglerde ve uzatmaya giden (AET/PEN) maçlarda null'dır, sarı kart seçenekleri o maçta değerlendirilmez.
  */
 public sealed class MatchResult
 {
@@ -17,6 +18,9 @@ public sealed class MatchResult
     public int? AwayGoals { get; set; }
     public int? HalfTimeHomeGoals { get; set; }
     public int? HalfTimeAwayGoals { get; set; }
+
+    public int? HomeYellowCards { get; set; }
+    public int? AwayYellowCards { get; set; }
 
     public DateTime CreatedAt { get; set; }
 }

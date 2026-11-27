@@ -370,6 +370,10 @@ namespace MatchForecast.Data.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("away_goals");
 
+                    b.Property<int?>("AwayYellowCards")
+                        .HasColumnType("integer")
+                        .HasColumnName("away_yellow_cards");
+
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -391,6 +395,10 @@ namespace MatchForecast.Data.Migrations
                     b.Property<int?>("HomeGoals")
                         .HasColumnType("integer")
                         .HasColumnName("home_goals");
+
+                    b.Property<int?>("HomeYellowCards")
+                        .HasColumnType("integer")
+                        .HasColumnName("home_yellow_cards");
 
                     b.Property<string>("Status")
                         .IsRequired()

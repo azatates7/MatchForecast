@@ -1,8 +1,8 @@
 import { Fragment, useState } from 'react'
-import type { AbsenceReport, ForecastResult, MatchSummary, OutcomeProbabilities } from '../types'
+import type { AbsenceReport, ForecastResult, MatchSummary, OutcomeProbabilities, RefereeInfo } from '../types'
 import StatsTable from './StatsTable'
 import { useI18n } from '../i18n/useI18n'
-import { ABSENCE_LABEL, absenceFootnote, groupAbsences, sourceLabel } from '../Absences'
+import { ABSENCE_LABEL, STRICTNESS_CLASS, STRICTNESS_LABEL, absenceFootnote, groupAbsences, refereeStats, sourceLabel } from '../Absences'
 import { matchUrl } from '../MatchRoute'
 
 interface Props {
@@ -61,6 +61,42 @@ function Outcomes({ o }: { o: OutcomeProbabilities }) {
       <p className="btts">
         {t('outcome.btts')} <strong>{t('outcome.yes')} {pct(o.bttsYes)}</strong> · {t('outcome.no')} {pct(100 - o.bttsYes)}
       </p>
+    </section>
+  )
+}
+
+// Hakem ve kart eğilimi (maç günü aramasından). Yalnızca bulunan bilgiler gösterilir; hakem bulunamadıysa bölüm hiç çıkmaz.
+function Referee({ referee }: { referee: RefereeInfo }) {
+  const { t, loc, locale } = useI18n()
+  const stats = refereeStats(referee)
+  const num = (n: number) => n.toLocaleString(locale, { maximumFractionDigits: 2 })
+  const style = referee.style ? loc(referee.style) : ''
+  return (
+    <section className="referee">
+      <h3 className="section-title">{t('referee.title')}</h3>
+      <div className="referee-card">
+        <div className="referee-head">
+          <span className="referee-name">{referee.name}</span>
+          {referee.strictness && (
+            <span className={`absence-tag ${STRICTNESS_CLASS[referee.strictness]}`} title={t('referee.strictnessHint')}>
+              {t(STRICTNESS_LABEL[referee.strictness])}
+            </span>
+          )}
+        </div>
+        {stats.length > 0 && (
+          <p className="referee-stats">
+            {t('referee.perMatch')}:{' '}
+            {stats.map((s, i) => (
+              <Fragment key={s.label}>
+                {i > 0 && <span className="referee-sep" aria-hidden="true">·</span>}
+                {t(s.label, { n: num(s.value) })}
+              </Fragment>
+            ))}
+            {referee.matches !== null && <> <span className="referee-matches">{t('referee.matches', { n: referee.matches })}</span></>}
+          </p>
+        )}
+        {style && <p className="referee-style">{style}</p>}
+      </div>
     </section>
   )
 }
@@ -202,6 +238,7 @@ export default function ForecastPanel({ match, forecast, loading, error, onRetry
         <>
           {summary && <p className="summary">{summary}</p>}
 
+          {forecast.absences?.referee && <Referee referee={forecast.absences.referee} />}
           {forecast.absences && <Absences match={forecast.match} report={forecast.absences} />}
 
           <Outcomes o={forecast.outcomes} />

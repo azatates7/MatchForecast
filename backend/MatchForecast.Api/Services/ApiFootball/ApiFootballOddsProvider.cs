@@ -126,7 +126,16 @@ public sealed class ApiFootballOddsProvider(
             teams.GetProperty("away").GetProperty("name").GetString() ?? "",
             status.GetProperty("short").GetString() ?? "",
             OptionalInt(status, "elapsed"),
-            OptionalInt(status, "extra"));
+            OptionalInt(status, "extra"),
+            ParseReferee(fixture));
+    }
+
+    public static string? ParseReferee(JsonElement fixture)
+    {
+        if (!fixture.TryGetProperty("referee", out var r) || r.ValueKind != JsonValueKind.String)
+            return null;
+        var name = r.GetString()!.Split(',', 2)[0].Trim();
+        return name.Length == 0 ? null : name;
     }
 
     private static int? OptionalInt(JsonElement parent, string name) =>

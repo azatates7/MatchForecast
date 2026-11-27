@@ -9,12 +9,14 @@ namespace MatchForecast.Models.Response;
  *   - "Pending": maç günü gelmedi; eksikler maç günü netleşir (arama yapılmaz).
  *   - "Ready": maç günü tarandı; Players boş olabilir (resmi açıklamada eksik bulunamadı).
  *   - "Unavailable": özellik kapalı ya da arama başarısız; model ve ekran bu konuda varsayım yapmaz.
+ * Referee: aynı maç günü aramasında bulunan hakem bilgisi (ek arama yapılmaz). Bulunamadıysa null; o durumda ekranda hakem bölümü ve prompt'ta hakem satırı olmaz. Sources her ikisinin kaynaklarını içerir.
  */
 public sealed record AbsenceReport(
     string State,
     IReadOnlyList<TeamAbsence> Players,
     IReadOnlyList<AbsenceSource> Sources,
-    DateTimeOffset? CheckedAt)
+    DateTimeOffset? CheckedAt,
+    RefereeInfo? Referee = null)
 {
     public const string Pending = "Pending";
     public const string Ready = "Ready";
@@ -33,6 +35,35 @@ public sealed record TeamAbsence(string Team, string Player, string Status, Loca
     public const string NotInSquad = "NotInSquad";
     public const string Injured = "Injured";
     public const string Doubtful = "Doubtful";
+}
+
+/*
+ * Maçın hakemi ve kart eğilimi. Name dışındaki her alan bulunamadıysa null'dır (uydurulmaz, ekranda gösterilmez).
+ * Ortalamalar maç başınadır; Matches bunların dayandığı maç sayısı (tercihen bu sezon, tüm organizasyonlar).
+ * Strictness kodda sarı kart ortalamasından hesaplanır (modelin yorumuna bırakılmaz):
+ *   "Strict" (>= 5.0 sarı), "Lenient" (< 3.5 sarı), arası "Balanced"; ortalama yoksa null.
+ */
+public sealed record RefereeInfo(
+    string Name,
+    int? Matches,
+    double? YellowPerMatch,
+    double? RedPerMatch,
+    double? PenaltiesPerMatch,
+    double? FoulsPerMatch,
+    LocalizedText? Style,
+    string? Strictness)
+{
+    public const string Strict = "Strict";
+    public const string Balanced = "Balanced";
+    public const string Lenient = "Lenient";
+
+    public static string? StrictnessFor(double? yellowPerMatch) => yellowPerMatch switch
+    {
+        null => null,
+        >= 5.0 => Strict,
+        < 3.5 => Lenient,
+        _ => Balanced
+    };
 }
 
 /// <summary>Aramanın dayandığı web kaynağı (Gemini grounding). Url, Google'ın yönlendirme adresi olabilir.</summary>

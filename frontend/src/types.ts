@@ -265,6 +265,23 @@ export interface AbsenceReport {
   players: TeamAbsence[]
   sources: AbsenceSource[]
   checkedAt: string | null
+  /** Aynı maç günü aramasında bulunan hakem; bulunamadıysa null (bölüm gösterilmez). */
+  referee?: RefereeInfo | null
+}
+
+/**
+ * Hakem ve kart eğilimi; bulunamayan alanlar null (gösterilmez). Ortalamalar maç başına, matches dayandıkları maç sayısı.
+ * strictness backend'de sarı kart ortalamasından hesaplanır: Strict >= 5, Lenient < 3.5, arası Balanced.
+ */
+export interface RefereeInfo {
+  name: string
+  matches: number | null
+  yellowPerMatch: number | null
+  redPerMatch: number | null
+  penaltiesPerMatch: number | null
+  foulsPerMatch: number | null
+  style: LocalizedText | null
+  strictness: 'Strict' | 'Balanced' | 'Lenient' | null
 }
 
 // status: "Suspended" cezalı | "NotInSquad" kadroda yok (UEFA listesi, kontenjan, teknik karar) | "Injured" sakat | "Doubtful" şüpheli

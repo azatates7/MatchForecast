@@ -1,7 +1,7 @@
 import { Component, inject, input, output, signal } from '@angular/core';
 import { I18nService } from '../core/i18n/i18n.service';
 import type { ForecastResult, MatchSummary } from '../core/types';
-import { ABSENCE_LABEL, absenceFootnote, groupAbsences, sourceLabel } from '../core/absences';
+import { ABSENCE_LABEL, STRICTNESS_CLASS, STRICTNESS_LABEL, absenceFootnote, groupAbsences, refereeStats, sourceLabel } from '../core/absences';
 import { matchUrl } from '../core/match-route';
 import { StatsTable } from './stats-table';
 
@@ -41,6 +41,15 @@ export class ForecastPanel {
       this.linkCopied.set(true);
       setTimeout(() => this.linkCopied.set(false), 1500);
     }, () => undefined);
+  }
+
+  // Hakem ve kart eğilimi (React: ForecastPanel içindeki Referee). Yalnızca bulunan bilgiler gösterilir.
+  protected readonly strictnessLabel = STRICTNESS_LABEL;
+  protected readonly strictnessClass = STRICTNESS_CLASS;
+  protected readonly refereeStats = refereeStats;
+
+  protected refereeNum(n: number): string {
+    return n.toLocaleString(this.i18n.locale(), { maximumFractionDigits: 2 });
   }
 
   protected absences(f: ForecastResult) {

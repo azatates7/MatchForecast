@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 using System.Text;
 using MatchForecast.Api.Options;
 using MatchForecast.Api.Services.Absences;
@@ -207,5 +208,55 @@ public class GeminiAbsenceResearcherTests
             bodies.Add(request.Content is null ? "" : await request.Content.ReadAsStringAsync(ct));
             return responder();
         }
+    }
+
+    // ---------- Hakem ----------
+
+    private static JsonElement Referee(string json) => JsonDocument.Parse(json).RootElement.Clone();
+
+    [Fact]
+    public void ParseReferee_ReadsStats_ComputesStrictness_AndDropsImplausibleNumbers()
+    {
+        var r = GeminiAbsenceResearcher.ParseReferee(Referee("""
+            { "name": "Halil Umut Meler", "matches": "12", "yellowPerMatch": 5.3, "redPerMatch": 0.2,
+              "penaltiesPerMatch": 0.3, "foulsPerMatch": 140, "style": "Kartı erken çıkarır.", "styleEn": "Books early." }
+            """), officialName: null);
+
+        Assert.NotNull(r);
+        Assert.Equal(("Halil Umut Meler", 12, 5.3, 0.2, 0.3), (r!.Name, r.Matches, r.YellowPerMatch, r.RedPerMatch, r.PenaltiesPerMatch));
+        Assert.Null(r.FoulsPerMatch); // maç başı 140 faul makul değil
+        Assert.Equal(RefereeInfo.Strict, r.Strictness);
+        Assert.Equal("Books early.", r.Style!.En);
+    }
+
+    [Fact]
+    public void ParseReferee_KeepsOfficialName_AndDropsStats_WhenModelFoundAnotherPerson()
+    {
+        var same = GeminiAbsenceResearcher.ParseReferee(Referee("""{ "name": "H. U. Meler", "yellowPerMatch": 4.0 }"""), "Halil Umut Meler");
+        var other = GeminiAbsenceResearcher.ParseReferee(Referee("""{ "name": "Cüneyt Çakır", "yellowPerMatch": 4.0 }"""), "Halil Umut Meler");
+
+        Assert.Equal(("Halil Umut Meler", 4.0, RefereeInfo.Balanced), (same!.Name, same.YellowPerMatch, same.Strictness));
+        Assert.Equal("Halil Umut Meler", other!.Name);
+        Assert.Null(other.YellowPerMatch);
+    }
+
+    [Fact]
+    public void ParseReferee_ReturnsNull_WhenNothingFound()
+    {
+        Assert.Null(GeminiAbsenceResearcher.ParseReferee(null, null));
+        Assert.Null(GeminiAbsenceResearcher.ParseReferee(Referee("null"), null));
+        // API-Football adı biliyorsa model bulamasa da ad gösterilir (istatistiksiz).
+        var nameOnly = GeminiAbsenceResearcher.ParseReferee(Referee("null"), "Halil Umut Meler");
+        Assert.Equal(("Halil Umut Meler", (double?)null), (nameOnly!.Name, nameOnly.YellowPerMatch));
+    }
+
+    [Fact]
+    public async Task SendsOfficialRefereeName_InUserPrompt()
+    {
+        var (researcher, bodies) = Create(() => Json(HttpStatusCode.OK, GroundedResponse));
+
+        await researcher.GetAsync(Match(DateTimeOffset.Now) with { Referee = "Halil Umut Meler" }, CancellationToken.None);
+
+        Assert.Contains("Hakem (resmi atama): Halil Umut Meler", Assert.Single(bodies));
     }
 }

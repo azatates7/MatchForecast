@@ -56,6 +56,39 @@
         <p class="summary">{{ summary }}</p>
       }
 
+      @if (f.absences?.referee; as referee) {
+        <section class="referee">
+          <h3 class="section-title">{{ i18n.t('referee.title') }}</h3>
+          <div class="referee-card">
+            <div class="referee-head">
+              <span class="referee-name">{{ referee.name }}</span>
+              @if (referee.strictness) {
+                <span class="absence-tag" [class]="'absence-tag ' + strictnessClass[referee.strictness]" [title]="i18n.t('referee.strictnessHint')">
+                  {{ i18n.t(strictnessLabel[referee.strictness]) }}
+                </span>
+              }
+            </div>
+            @let stats = refereeStats(referee);
+            @if (stats.length > 0) {
+              <p class="referee-stats">
+                {{ i18n.t('referee.perMatch') }}:
+                @for (s of stats; track s.label; let i = $index) {
+                  @if (i > 0) {
+                    <span class="referee-sep" aria-hidden="true">·</span>
+                  }
+                  {{ i18n.t(s.label, { n: refereeNum(s.value) }) }}
+                }
+                @if (referee.matches !== null) {
+                  <span class="referee-matches">{{ i18n.t('referee.matches', { n: referee.matches }) }}</span>
+                }
+              </p>
+            }
+            @if (referee.style && i18n.loc(referee.style)) {
+              <p class="referee-style">{{ i18n.loc(referee.style) }}</p>
+            }
+          </div>
+        </section>
+      }
       @if (f.absences; as report) {
         <section class="absences">
           <h3 class="section-title">{{ i18n.t('absences.title') }}</h3>

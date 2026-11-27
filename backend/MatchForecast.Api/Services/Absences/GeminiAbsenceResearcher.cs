@@ -1,6 +1,9 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using MatchForecast.Api.Options;
 using MatchForecast.Api.Services.Forecast;
 using MatchForecast.Api.Services.Redis;
@@ -24,7 +27,12 @@ public interface IAbsenceResearcher
  * - Fail-open: kapalı, anahtar yok, ücretsiz katman (400), kota veya geçersiz cevap → "Unavailable"; tahmin akışı durmaz.
  * - Her gerçek arama (önbellekten gelmeyen) AI kullanım raporuna (ai_usages, Purpose=Absences) token ve sorgu sayısıyla yazılır.
  * - Absences:MonthlySearchLimit: bu ayki sorgu sayısı sınıra ulaştıysa arama yapılmaz ("Unavailable"), ay başında açılır.
- * - Kaynaklar: Google'ın döndürdüğü arama kaynakları (groundingChunks); Gemini bazen bunları göndermediği için yoksa modelin cevabına yazdığı adresler açılabilir olduğu denetlenerek kullanılır (ISourceLinkChecker).
+ * - Kaynaklar: Google'ın döndürdüğü arama kaynakları (groundingChunks); Gemini bazen bunları göndermediği için yoksa
+ *   modelin cevabına yazdığı adresler açılabilir olduğu denetlenerek kullanılır (ISourceLinkChecker).
+ * - Hakem: aynı aramada (ek maliyet yok) atanan hakem ve kart eğilimi istenir. API-Football hakemi biliyorsa (MatchSummary.Referee)
+ *   ad oradan verilir ve ekranda o ad gösterilir; modelin bulduğu hakem farklı kişiyse istatistikleri kullanılmaz.
+ *   Hakem bulunamazsa Referee null'dır; makul aralık dışındaki sayılar atılır. Hakem kısmı ayrıştırılamazsa eksik oyuncu
+ *   listesi yine kullanılır.
  */
 public sealed class GeminiAbsenceResearcher(
     HttpClient http,
@@ -39,11 +47,16 @@ public sealed class GeminiAbsenceResearcher(
     private const int MaxSources = 5;
     private static readonly TimeSpan FailureCacheTtl = TimeSpan.FromMinutes(15);
 
-    private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
+    // Model sayıları bazen tırnak içinde yazar ("4.8"); bunlar da okunur.
+    private static readonly JsonSerializerOptions JsonOpts = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        NumberHandling = JsonNumberHandling.AllowReadingFromString
+    };
 
     public const string SystemPrompt = """
         Sen bir futbol veri asistanısın. Google araması yaparak verilen maçta iki takımın OYNAYAMAYACAK veya
-        oynaması ŞÜPHELİ oyuncularını bul.
+        oynaması ŞÜPHELİ oyuncularını ve maçın HAKEMİNİ bul.
 
         Kaynaklar: son 7 gündeki resmi açıklamalar (kulüp, lig/federasyon, UEFA), teknik direktörün maç öncesi
         basın toplantısı ve güvenilir spor haberleri. Eski haberleri kullanma.
@@ -65,9 +78,22 @@ public sealed class GeminiAbsenceResearcher(
           Yalnızca aramada gerçekten gördüğün adresleri yaz; adres uydurma. title: sitenin adı.
         - Cevabın SADECE geçerli JSON olsun; açıklama, markdown veya kod bloğu ekleme.
 
+        Hakem:
+        - Bu maça resmi olarak atanan orta hakemi bul (federasyon / UEFA atama duyurusu). Kullanıcı mesajında hakem adı
+          verildiyse o kişiyi ara. Atama açıklanmadıysa veya emin değilsen "referee": null yaz; tahmin etme.
+        - Hakemin bu sezonki (tüm organizasyonlar) maç başına sarı kart, kırmızı kart, penaltı ve faul ortalamalarını bul;
+          bu sezon çok az maçı varsa geçen sezonu kullan. matches: ortalamaların dayandığı maç sayısı.
+          Bulamadığın her sayıyı null yaz; sayı uydurma. Sayıları JSON sayısı olarak yaz (ör. 4.8).
+        - style: hakemin tarzı, 1 cümle Türkçe (kart eşiği, oyunu akıtıp akıtmadığı, sert müdahalelere tutumu);
+          styleEn: aynı cümlenin İngilizcesi. Kaynaklarda tarz bilgisi yoksa ikisini de null yaz.
+        - Hakem bilgisinin kaynaklarını da sources listesine ekle.
+
         JSON şeması:
         { "players": [ { "team": "...", "player": "...", "status": "Suspended|NotInSquad|Injured|Doubtful", "reason": "...", "reasonEn": "..." } ],
+          "referee": { "name": "...", "matches": 12, "yellowPerMatch": 4.8, "redPerMatch": 0.2, "penaltiesPerMatch": 0.3,
+                       "foulsPerMatch": 27.5, "style": "...", "styleEn": "..." },
           "sources": [ { "title": "...", "url": "https://..." } ] }
+        Hakem bulunamazsa: "referee": null
         """;
 
     public async Task<AbsenceReport> GetAsync(MatchSummary match, CancellationToken ct)
@@ -170,6 +196,9 @@ public sealed class GeminiAbsenceResearcher(
             Turnuva: {match.League} ({match.Country})
             Tarih: {match.Kickoff.ToLocalTime().ToString("dd MMMM yyyy HH:mm", tr)}
             Takım adları (team alanına birebir bunlardan birini yaz): "{match.HomeTeam}", "{match.AwayTeam}"
+            {(match.Referee is null
+                ? "Hakem: henüz bilinmiyor; resmi atama açıklandıysa bul, açıklanmadıysa referee alanını null yaz."
+                : $"Hakem (resmi atama): {match.Referee}. Bu hakemin istatistiklerini ve tarzını ara.")}
             """;
 
         var body = new
@@ -205,7 +234,77 @@ public sealed class GeminiAbsenceResearcher(
         if (sources.Count == 0)
             sources = await linkChecker.FilterReachableAsync(ModelSources(parsed), ct);
 
-        return new AbsenceReport(AbsenceReport.Ready, players, sources, DateTimeOffset.Now);
+        return new AbsenceReport(AbsenceReport.Ready, players, sources, DateTimeOffset.Now, ParseRefereeSafe(parsed, match));
+    }
+
+    private RefereeInfo? ParseRefereeSafe(RawResponse parsed, MatchSummary match)
+    {
+        try
+        {
+            return ParseReferee(parsed.Referee, match.Referee);
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException)
+        {
+            logger.LogWarning(ex, "Referee info for fixture {FixtureId} could not be parsed; ignored.", match.Id);
+            return match.Referee is null ? null : new RefereeInfo(match.Referee, null, null, null, null, null, null, null);
+        }
+    }
+
+    /*
+     * Model cevabındaki hakem nesnesi → RefereeInfo.
+     * - officialName (API-Football) varsa gösterilen ad odur. Modelin bulduğu ad farklı bir kişiyse (ortak soyad/ad parçası yok)
+     *   istatistik ve tarz atılır, yalnızca ad kalır (yanlış kişinin sayıları gösterilmesin).
+     * - Makul aralık dışındaki sayı null yapılır (ör. maç başı 30 sarı kart).
+     * - Ne ad ne istatistik varsa null.
+     */
+    public static RefereeInfo? ParseReferee(JsonElement? raw, string? officialName)
+    {
+        var obj = raw is { ValueKind: JsonValueKind.Object } r ? r.Deserialize<RawReferee>(JsonOpts) : null;
+        var foundName = obj?.Name?.Trim();
+        if (string.IsNullOrEmpty(foundName))
+            foundName = null;
+
+        var sameReferee = officialName is null || foundName is null || SamePerson(officialName, foundName);
+        var name = officialName ?? foundName;
+        if (name is null)
+            return null;
+        if (obj is null || !sameReferee)
+            return new RefereeInfo(name, null, null, null, null, null, null, null);
+
+        var yellow = InRange(obj.YellowPerMatch, 0, 12);
+        var style = LocalizedText.Of(obj.Style, obj.StyleEn);
+        return new RefereeInfo(
+            name,
+            obj.Matches is >= 1 and <= 200 ? (int)Math.Round(obj.Matches.Value) : null,
+            yellow,
+            InRange(obj.RedPerMatch, 0, 3),
+            InRange(obj.PenaltiesPerMatch, 0, 3),
+            InRange(obj.FoulsPerMatch, 5, 60),
+            style.Tr.Length == 0 ? null : style,
+            RefereeInfo.StrictnessFor(yellow));
+    }
+
+    private static double? InRange(double? v, double min, double max) =>
+        v is { } x && double.IsFinite(x) && x >= min && x <= max ? Math.Round(x, 2) : null;
+
+    // "Halil Umut Meler" ~ "H. U. Meler" ~ "Meler": aksan ve büyük/küçük harf yok sayılır, 3+ harfli ortak parça yeterli.
+    private static bool SamePerson(string a, string b)
+    {
+        static HashSet<string> Tokens(string s) => Normalize(s)
+            .Split([' ', '.', '-', '\''], StringSplitOptions.RemoveEmptyEntries)
+            .Where(t => t.Length >= 3)
+            .ToHashSet();
+        return Tokens(a).Overlaps(Tokens(b));
+    }
+
+    private static string Normalize(string s)
+    {
+        var d = s.Replace('ı', 'i').Replace('İ', 'I').Normalize(NormalizationForm.FormD);
+        var sb = new StringBuilder(d.Length);
+        foreach (var c in d)
+            if (CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark)
+                sb.Append(char.ToLowerInvariant(c));
+        return sb.ToString();
     }
 
     /*
@@ -226,7 +325,8 @@ public sealed class GeminiAbsenceResearcher(
 
     /*
      * Faturalanan Google araması sayısı: groundingMetadata.webSearchQueries içindeki boş olmayan, benzersiz sorgular
-     * (Google boş sorguları saymaz). Gemini düşünme sırasında arama yaptığında groundingMetadata hiç gelmeyebiliyor; istem aramayı zorunlu tuttuğu için bu durumda en az 1 sorgu yapıldığı varsayılır (maliyet eksik görünmesin).
+     * (Google boş sorguları saymaz). Gemini düşünme sırasında arama yaptığında groundingMetadata hiç gelmeyebiliyor;
+     * istem aramayı zorunlu tuttuğu için bu durumda en az 1 sorgu yapıldığı varsayılır (maliyet eksik görünmesin).
      */
     public static int CountSearchQueries(JsonElement candidate)
     {
@@ -321,7 +421,10 @@ public sealed class GeminiAbsenceResearcher(
             .ToList();
     }
 
-    private sealed record RawResponse(List<RawPlayer>? Players, List<RawSource>? Sources);
+    // Referee ham bırakılır: bozuk hakem nesnesi eksik oyuncu listesinin ayrıştırılmasını engellemesin.
+    private sealed record RawResponse(List<RawPlayer>? Players, List<RawSource>? Sources, JsonElement? Referee);
+    private sealed record RawReferee(string? Name, double? Matches, double? YellowPerMatch, double? RedPerMatch,
+        double? PenaltiesPerMatch, double? FoulsPerMatch, string? Style, string? StyleEn);
     private sealed record RawSource(string? Title, string? Url);
     private sealed record RawPlayer(string? Team, string? Player, string? Status, string? Reason, string? ReasonEn);
 }

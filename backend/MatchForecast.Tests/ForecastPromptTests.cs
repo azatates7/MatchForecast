@@ -17,16 +17,16 @@ public class ForecastPromptTests
     {
         var report = new AbsenceReport(AbsenceReport.Ready,
         [
-            new TeamAbsence("Galatasaray", "V. Osimhen", TeamAbsence.Injured, LocalizedText.Of("Diz sakatlığı", "Knee injury")),
-            new TeamAbsence("Galatasaray", "R. Leao", TeamAbsence.Doubtful, LocalizedText.Of("Kas ağrısı", "Muscle pain")),
-            new TeamAbsence("Fenerbahce", "R. Lukaku", TeamAbsence.Suspended, LocalizedText.Of("Sarı kart cezası", "Yellow card ban")),
-            new TeamAbsence("Fenerbahce", "R. Becao", TeamAbsence.NotInSquad, LocalizedText.Of("Kadro dışı", "Left out"))
+            new TeamAbsence("Galatasaray", "M. Icardi", TeamAbsence.Injured, LocalizedText.Of("Diz sakatlığı", "Knee injury")),
+            new TeamAbsence("Galatasaray", "L. Torreira", TeamAbsence.Doubtful, LocalizedText.Of("Kas ağrısı", "Muscle pain")),
+            new TeamAbsence("Fenerbahce", "F. Kadıoğlu", TeamAbsence.Suspended, LocalizedText.Of("Sarı kart cezası", "Yellow card ban")),
+            new TeamAbsence("Fenerbahce", "E. Džeko", TeamAbsence.NotInSquad, LocalizedText.Of("Kadro dışı", "Left out"))
         ], [], DateTimeOffset.Now);
 
         var prompt = ForecastPrompt.BuildUser(Match, report);
 
-        Assert.Contains("- Galatasaray: V. Osimhen (sakat, Diz sakatlığı); R. Leao (şüpheli, Kas ağrısı)", Lines(prompt));
-        Assert.Contains("- Fenerbahce: R. Lukaku (cezalı, Sarı kart cezası); R. Becao (kadroda yok, Kadro dışı)", Lines(prompt));
+        Assert.Contains("- Galatasaray: M. Icardi (sakat, Diz sakatlığı); L. Torreira (şüpheli, Kas ağrısı)", Lines(prompt));
+        Assert.Contains("- Fenerbahce: F. Kadıoğlu (cezalı, Sarı kart cezası); E. Džeko (kadroda yok, Kadro dışı)", Lines(prompt));
     }
 
     [Fact]
@@ -55,5 +55,30 @@ public class ForecastPromptTests
 
         Assert.Contains("Eksik oyuncular: bilgi alınamadı.", Lines(prompt));
         Assert.DoesNotContain(Lines(prompt), l => l.Contains("açıklanan eksik yok", StringComparison.Ordinal));
+    }
+
+    // ---------- Hakem ----------
+
+    [Fact]
+    public void BuildUser_AddsRefereeLine_WhenStatsWereFound()
+    {
+        var referee = new RefereeInfo("Halil Umut Meler", 12, 4.8, 0.2, 0.25, null,
+            LocalizedText.Of("Sert müdahaleye hızlı kart gösterir.", "Quick to book hard tackles."), RefereeInfo.Balanced);
+        var report = new AbsenceReport(AbsenceReport.Ready, [], [], DateTimeOffset.Now, referee);
+
+        var prompt = ForecastPrompt.BuildUser(Match, report);
+
+        // Faul bilinmiyor → yazılmaz; tarzın sonundaki nokta çiftlenmez.
+        Assert.Contains("Hakem: Halil Umut Meler — maç başına 4,8 sarı, 0,2 kırmızı, 0,25 penaltı (12 maç). Tarz: Sert müdahaleye hızlı kart gösterir.", Lines(prompt));
+    }
+
+    [Fact]
+    public void BuildUser_OmitsReferee_WhenNotFoundOrOnlyNameKnown()
+    {
+        var nameOnly = new AbsenceReport(AbsenceReport.Ready, [], [], DateTimeOffset.Now,
+            new RefereeInfo("Halil Umut Meler", null, null, null, null, null, null, null));
+
+        Assert.DoesNotContain("Hakem", ForecastPrompt.BuildUser(Match, nameOnly));
+        Assert.DoesNotContain("Hakem", ForecastPrompt.BuildUser(Match, new AbsenceReport(AbsenceReport.Ready, [], [], DateTimeOffset.Now)));
     }
 }
