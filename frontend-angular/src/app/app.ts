@@ -9,6 +9,7 @@ import { LeagueFilter } from './components/league-filter';
 import { ThemeToggle } from './components/theme-toggle';
 import { LanguageToggle } from './components/language-toggle';
 import { BrandLogo } from './components/brand-logo';
+import { SiteFooter } from './components/site-footer';
 import { AdminPanel } from './components/admin-panel';
 import { canOpenAdmin, clearHash, parseAdminHash } from './core/admin-view';
 import { istanbulDate, matchHash, parseMatchHash, replaceHash } from './core/match-route';
@@ -42,7 +43,7 @@ interface CacheState { clearing: boolean; message?: string; error?: boolean }
 
 @Component({
   selector: 'app-root',
-  imports: [MatchList, ForecastPanel, AuthPanel, LeagueFilter, ThemeToggle, LanguageToggle, AdminPanel, BrandLogo],
+  imports: [MatchList, ForecastPanel, AuthPanel, LeagueFilter, ThemeToggle, LanguageToggle, AdminPanel, BrandLogo, SiteFooter],
   templateUrl: './app.html',
   styleUrl: './app.css',
   host: { '(window:hashchange)': 'onHashChange()' },

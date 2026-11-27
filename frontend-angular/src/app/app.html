@@ -1,5 +1,8 @@
 @if (!loggedIn()) {
-  <app-auth-panel (authenticated)="onAuthenticated()" />
+  <div class="app">
+    <app-auth-panel (authenticated)="onAuthenticated()" />
+    <app-site-footer />
+  </div>
 } @else {
   <div class="app">
     <header class="topbar">
@@ -103,5 +106,6 @@
         </section>
       </main>
     }
+    <app-site-footer />
   </div>
 }

@@ -6,6 +6,7 @@ import { isLive } from './components/MatchStatus'
 import MatchList from './components/MatchList'
 import ForecastPanel from './components/ForecastPanel'
 import AuthPanel from './components/AuthPanel'
+import SiteFooter from './components/SiteFooter'
 import LeagueFilter from './components/LeagueFilter'
 import ThemeToggle from './components/ThemeToggle'
 import BrandLogo from './components/BrandLogo'
@@ -299,7 +300,14 @@ export default function App() {
   const selected = matches.find(m => m.id === selectedId) ?? (forecast?.match.id === selectedId ? forecast.match : null)
 
   // Giriş, kayıt veya Google ile giriş başarılı olunca AuthPanel haber verir.
-  if (!loggedIn) return <AuthPanel onAuthenticated={() => setLoggedIn(true)} />
+  if (!loggedIn) {
+    return (
+      <div className="app">
+        <AuthPanel onAuthenticated={() => setLoggedIn(true)} />
+        <SiteFooter />
+      </div>
+    )
+  }
 
   return (
     <div className="app">
@@ -398,6 +406,7 @@ export default function App() {
           </section>
         </main>
       )}
+      <SiteFooter />
     </div>
   )
 }

@@ -1,5 +1,7 @@
 /*
- * Arayüz metinleri (TR / EN). Bu dosya frontend-angular/src/app/core/i18n/messages.ts ile AYNIDIR; birini değiştirince diğerini de güncelleyin. Yeni metin: önce tr'ye ekleyin; en: Dict tipi eksik anahtarı derleme hatası olarak gösterir. {ad} biçimindeki yer tutucular t(key, { ad: değer }) ile doldurulur.
+ * Arayüz metinleri (TR / EN). Bu dosya frontend-angular/src/app/core/i18n/messages.ts ile AYNIDIR; birini değiştirince
+ * diğerini de güncelleyin. Yeni metin: önce tr'ye ekleyin; en: Dict tipi eksik anahtarı derleme hatası olarak gösterir.
+ * {ad} biçimindeki yer tutucular t(key, { ad: değer }) ile doldurulur.
  */
 export const tr = {
   brand: 'Maç Analiz',
@@ -231,7 +233,7 @@ export const tr = {
   'league.removeFavorite': 'Favorilerden çıkar',
 
   'forecast.emptyTitle': 'Bir maç seçin',
-  'forecast.emptyText': 'Yapay zeka seçtiğiniz maçın gol, korner ve kart beklentilerini çıkarır; bunlardan hesaplanan, olasılığı en yüksek 10 tahmin listelenir.',
+  'forecast.emptyText': 'Yapay zeka seçtiğiniz maçın gol, korner ve kart beklentilerini çıkarır; bunlardan hesaplanan ve olasılığı %50\'nin üzerinde olan en fazla 10 tahmin listelenir.',
   'forecast.loading': 'Maç analiz ediliyor, bu 10-30 saniye sürebilir…',
   'forecast.retry': 'Tekrar analiz et',
   'forecast.reanalyze': 'Yeniden analiz et',
@@ -270,7 +272,9 @@ export const tr = {
   'absences.doubtful': 'Şüpheli',
   'absences.checkedAt': 'Son kontrol {time}',
   'absences.sources': 'Kaynaklar',
-  'forecast.disclaimer': 'Tahminler olasılık tahminidir, sonuç garantisi vermez.',
+  'footer.notice': 'Tahminler olasılık tahminidir, sonuç garantisi vermez; bahis tavsiyesi değildir.',
+  'footer.age': '18 yaş ve üzeri içindir',
+  'footer.copyright': '© {year} Maç Analiz',
 
   'outcome.fullTime': 'Maç sonucu',
   'outcome.firstHalf': 'İlk yarı',
@@ -564,7 +568,7 @@ export const en: Dict = {
   'league.removeFavorite': 'Remove from favorites',
 
   'forecast.emptyTitle': 'Select a match',
-  'forecast.emptyText': 'The AI estimates goals, corners and cards for the selected match; the 10 most likely predictions calculated from them are listed.',
+  'forecast.emptyText': 'The AI estimates goals, corners and cards for the selected match; up to 10 predictions calculated from them with a probability above 50% are listed.',
   'forecast.loading': 'Analyzing the match, this can take 10-30 seconds…',
   'forecast.retry': 'Analyze again',
   'forecast.reanalyze': 'Re-analyze',
@@ -603,7 +607,9 @@ export const en: Dict = {
   'absences.doubtful': 'Doubtful',
   'absences.checkedAt': 'Last checked {time}',
   'absences.sources': 'Sources',
-  'forecast.disclaimer': 'Predictions are probability estimates and do not guarantee results.',
+  'footer.notice': 'Predictions are probability estimates; they do not guarantee results and are not betting advice.',
+  'footer.age': 'For ages 18 and over',
+  'footer.copyright': '© {year} Match Forecast',
 
   'outcome.fullTime': 'Full time',
   'outcome.firstHalf': 'First half',

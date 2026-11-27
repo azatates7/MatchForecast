@@ -253,7 +253,6 @@ export default function ForecastPanel({ match, forecast, loading, error, onRetry
               {canRetry && <button type="button" className="link-btn" onClick={onRetry}>{t('forecast.reanalyze')}</button>}
             </span>
           </footer>
-          <p className="disclaimer">{t('forecast.disclaimer')}</p>
         </>
       )}
     </article>
