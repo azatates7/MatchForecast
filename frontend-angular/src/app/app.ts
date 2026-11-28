@@ -12,7 +12,7 @@ import { BrandLogo } from './components/brand-logo';
 import { SiteFooter } from './components/site-footer';
 import { AdminPanel } from './components/admin-panel';
 import { canOpenAdmin, clearHash, parseAdminHash } from './core/admin-view';
-import { istanbulDate, matchHash, parseMatchHash, replaceHash } from './core/match-route';
+import { istanbulDate, matchHash, notBeforeToday, parseMatchHash, replaceHash } from './core/match-route';
 import { I18nService } from './core/i18n/i18n.service';
 
 // Canlı maç varken listenin arka planda yenilenme aralığı. API kotasını korumak için kısa tutulmadı; aradaki dakikalar minuteLabel içinde yerelde ilerletilir.
@@ -280,12 +280,20 @@ export class App {
     this.forecastState.set({ loading: false });
   }
 
-  protected shiftDay(days: number) {
-    this.date.update(d => shiftDate(d, days));
+  protected today() {
+    return todayInIstanbul();
   }
 
-  protected onDateInput(value: string) {
-    if (value) this.date.set(value);
+  protected shiftDay(days: number) {
+    this.date.update(d => notBeforeToday(shiftDate(d, days)));
+  }
+
+  // Elle geçmiş bir tarih yazılırsa bugüne çekilir; input da düzeltilen değeri göstersin diye ayrıca yazılır.
+  protected onDateInput(input: HTMLInputElement) {
+    if (!input.value) return;
+    const value = notBeforeToday(input.value);
+    input.value = value;
+    this.date.set(value);
   }
 
   // Bir lig seçilince/kaldırılınca. Hiç lig kalmazsa veya listedeki tüm ligler seçilirse "Tümü"ye dönülür (filtre kalkar).
@@ -316,8 +324,9 @@ export class App {
       this.forecast.set(result);
       this.forecastState.set({ loading: false });
       // Bağlantı veya geri tuşuyla başka günün maçı açıldıysa liste o güne geçer (maç listede seçili görünsün).
+      // Geçmiş bir maçın bağlantısında maç açılır ama liste bugünde kalır (tarihler bugünden başlar).
       if (!refresh) {
-        const day = istanbulDate(new Date(result.match.kickoff));
+        const day = notBeforeToday(istanbulDate(new Date(result.match.kickoff)));
         if (this.date() !== day) this.date.set(day);
       }
     } catch (e) {

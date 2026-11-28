@@ -1,7 +1,6 @@
 /*
  * Maç adresi: #match/<fikstürId>. Bağlantı paylaşılabilir; tarayıcının geri/ileri tuşu seçilen maçlar arasında gezer.
- * Router kullanılmaz; App hashchange'i dinler (#admin ile aynı yapı). Maçı görme yetkisini API denetler
- * (ör. misafir yalnızca bugünün Süper Lig maçlarını açabilir), burası yalnızca adresi okur/yazar.
+ * Router kullanılmaz; App hashchange'i dinler (#admin ile aynı yapı). Maçı görme yetkisini API denetler (ör. misafir yalnızca bugünün Süper Lig maçlarını açabilir), burası yalnızca adresi okur/yazar.
  * Not: frontend/src/MatchRoute.ts ile bu dosya birbirinin kopyasıdır, birlikte güncelleyin.
  */
 export const matchHash = (id: number) => `#match/${id}`;
@@ -26,4 +25,10 @@ export const istanbulDate = (d: Date) => {
     .formatToParts(d);
   const get = (type: string) => parts.find(p => p.type === type)?.value ?? '';
   return `${get('year')}-${get('month')}-${get('day')}`;
+};
+
+// Tarih seçimi bugünden (İstanbul) başlar: geçmiş bir gün verilirse bugün döner. ISO tarihler (YYYY-MM-DD) metin olarak karşılaştırılabilir.
+export const notBeforeToday = (iso: string) => {
+  const today = istanbulDate(new Date());
+  return iso < today ? today : iso;
 };

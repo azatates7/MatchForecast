@@ -1,8 +1,7 @@
 import type { AbsenceReport, AbsenceSource, LocalizedText, MatchSummary, RefereeInfo, TeamAbsence } from './types'
 
 /*
- * Eksik oyuncuları ev/deplasman takımına göre gruplar ve etiketler. Saf mantık; React ve Angular aynı dosyayı kullanır
- * (frontend/src/Absences.ts = frontend-angular/src/app/core/absences.ts).
+ * Eksik oyuncuları ev/deplasman takımına göre gruplar ve etiketler. Saf mantık; React ve Angular aynı dosyayı kullanır (frontend/src/Absences.ts = frontend-angular/src/app/core/absences.ts).
  * Liste maç günü resmi açıklamalardan backend'de çıkarılır; durumlar: Cezalı, Kadroda yok, Sakat, Şüpheli.
  */
 export type AbsenceKind = 'suspended' | 'not-in-squad' | 'injured' | 'doubtful'

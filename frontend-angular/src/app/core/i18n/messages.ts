@@ -1,7 +1,5 @@
 /*
- * Arayüz metinleri (TR / EN). Bu dosya frontend/src/i18n/messages.ts ile AYNIDIR (React); birini değiştirince
- * diğerini de güncelleyin. Yeni metin: önce tr'ye ekleyin; en: Dict tipi eksik anahtarı derleme hatası olarak gösterir.
- * {ad} biçimindeki yer tutucular t(key, { ad: değer }) ile doldurulur.
+ * Arayüz metinleri (TR / EN). Bu dosya frontend/src/i18n/messages.ts ile AYNIDIR (React); birini değiştirince diğerini de güncelleyin. Yeni metin: önce tr'ye ekleyin; en: Dict tipi eksik anahtarı derleme hatası olarak gösterir. {ad} biçimindeki yer tutucular t(key, { ad: değer }) ile doldurulur.
  */
 export const tr = {
   brand: 'Maç Analiz',

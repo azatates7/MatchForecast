@@ -13,7 +13,7 @@ import BrandLogo from './components/BrandLogo'
 import LanguageToggle from './components/LanguageToggle'
 import AdminPanel from './components/admin/AdminPanel'
 import { canOpenAdmin, clearHash, parseAdminHash } from './AdminView'
-import { istanbulDate, matchHash, parseMatchHash, replaceHash } from './MatchRoute'
+import { istanbulDate, matchHash, notBeforeToday, parseMatchHash, replaceHash } from './MatchRoute'
 import { useI18n } from './i18n/useI18n'
 
 // Canlı maç varken listenin arka planda yenilenme aralığı. API kotasını korumak için
@@ -232,8 +232,9 @@ export default function App() {
       setForecast(result)
       setForecastState({ loading: false })
       // Bağlantı veya geri tuşuyla başka günün maçı açıldıysa liste o güne geçer (maç listede seçili görünsün).
+      // Geçmiş bir maçın bağlantısında maç açılır ama liste bugünde kalır (tarihler bugünden başlar).
       if (!refresh) {
-        const day = istanbulDate(new Date(result.match.kickoff))
+        const day = notBeforeToday(istanbulDate(new Date(result.match.kickoff)))
         setDate(prev => (prev === day ? prev : day))
       }
     } catch (e) {
@@ -260,8 +261,7 @@ export default function App() {
     } else if (!adminRoute.admin && selectedId !== null) {
       clearSelection()
     }
-    // Yalnızca adres (ve giriş) değişince çalışır; selectedId/analyze eklenirse her seçimde tekrar tetiklenir.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Yalnızca adres (ve giriş) değişince çalışır; selectedId/analyze eklenirse her seçimde tekrar tetiklenir. eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loggedIn, routeMatchId, adminRoute.admin])
 
   // Cache silindikten sonra maç listesi API'den taze çekilir; ekrandaki tahmin korunur, sonraki analiz AI'dan yeniden üretilir.
@@ -324,8 +324,9 @@ export default function App() {
           </div>
         ) : (
           <div className="date-nav">
-            <button type="button" onClick={() => setDate(d => shiftDate(d, -1))} aria-label={t('date.prev')}>‹</button>
-            <input type="date" value={date} onChange={e => e.target.value && setDate(e.target.value)} aria-label={t('date.label')} />
+            {/* Tarihler bugünden başlar: önceki gün düğmesi bugünde pasif, takvimde geçmiş günler seçilemez. */}
+            <button type="button" onClick={() => setDate(d => notBeforeToday(shiftDate(d, -1)))} disabled={date <= todayInIstanbul()} aria-label={t('date.prev')}>‹</button>
+            <input type="date" value={date} min={todayInIstanbul()} onChange={e => e.target.value && setDate(notBeforeToday(e.target.value))} aria-label={t('date.label')} />
             <button type="button" onClick={() => setDate(d => shiftDate(d, 1))} aria-label={t('date.next')}>›</button>
           </div>
         )}

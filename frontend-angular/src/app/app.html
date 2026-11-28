@@ -19,8 +19,9 @@
           </div>
         } @else {
           <div class="date-nav">
-            <button type="button" (click)="shiftDay(-1)" [attr.aria-label]="i18n.t('date.prev')">‹</button>
-            <input type="date" [value]="date()" (change)="onDateInput($any($event.target).value)" [attr.aria-label]="i18n.t('date.label')" />
+            <!-- Tarihler bugünden başlar: önceki gün düğmesi bugünde pasif, takvimde geçmiş günler seçilemez. -->
+            <button type="button" (click)="shiftDay(-1)" [disabled]="date() <= today()" [attr.aria-label]="i18n.t('date.prev')">‹</button>
+            <input type="date" [value]="date()" [min]="today()" (change)="onDateInput($any($event.target))" [attr.aria-label]="i18n.t('date.label')" />
             <button type="button" (click)="shiftDay(1)" [attr.aria-label]="i18n.t('date.next')">›</button>
           </div>
         }
