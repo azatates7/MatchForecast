@@ -48,12 +48,20 @@ services:
       Kafka__Enabled: "true"
       Kafka__BootstrapServers: kafka:9092
       RateLimiting__TrustCloudflareHeader: "true" # API'ye yalnızca tunnel üzerinden ulaşılıyor; CF-Connecting-IP güvenilir.
-      Ai__Provider: Gemini                         # Ollama canlıda yok (bkz. Ai__Ollama__* ile Ollama Cloud seçeneği).
+      Ai__Provider: Gemini
     volumes: ["./logs:/app/logs"]
     depends_on: [redis, kafka]
+    # Liveness: süreç ayakta ve istek alıyor mu (bağımlılıklara bakmaz). "docker ps" durumu healthy/unhealthy gösterir.
+    # Not: Docker Compose sağlıksız container'ı kendiliğinden yeniden başlatmaz; durum izleme ve uyarı içindir.
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
 
   web:
-    build: ./frontend            # Angular için: ./frontend-angular
+    build: ./frontend-angular            # React için ./frontend Angular için: ./frontend-angular
     restart: unless-stopped
     depends_on: [api]
     # ports yok: dışarıya yalnızca Cloudflare Tunnel üzerinden açılır (sunucuda açık port gerekmez).

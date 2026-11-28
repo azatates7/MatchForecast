@@ -2,7 +2,7 @@ import type {
   AccuracyReport,
   AiUsageReport,
   AuthConfigResponse, CacheClearResponse, CreatePermissionRequest, CreateUserRequest, ForecastResult, GroupRequest, GroupResponse,
-  KafkaDlqReplayResult, KafkaDlqReport,
+  KafkaDlqPurgeResult, KafkaDlqReplayResult, KafkaDlqReport,
   MatchSummary, MeResponse, PasswordResponse, PermissionResponse, RoleRequest, RoleResponse, TokenResponse, UpdatePermissionRequest,
   UpdateUserRequest, UserResponse
 } from './types'
@@ -22,7 +22,8 @@ const apiFetch = (url: string, init: RequestInit = {}) =>
   fetch(url, { ...init, headers: { ...(init.headers as Record<string, string> | undefined), 'Accept-Language': getLang() } })
 
 let accessToken: string | null = null
-// Aynı anda 401 alan istekler TEK bir refresh çağrısını paylaşır. Refresh token tek kullanımlık olduğu için iki kez gönderilirse backend bunu "çalınmış token" sayar ve kullanıcının tüm oturumlarını kapatır.
+// Aynı anda 401 alan istekler TEK bir refresh çağrısını paylaşır. Refresh token tek kullanımlık olduğu için iki kez
+// gönderilirse backend bunu "çalınmış token" sayar ve kullanıcının tüm oturumlarını kapatır.
 let refreshing: Promise<string | null> | null = null
 let sessionExpiredHandler: (() => void) | null = null
 
@@ -230,3 +231,7 @@ export const getKafkaDlq = () => request<KafkaDlqReport>('/api/admin/kafka/dlq')
 export const replayKafkaDlq = (partition: number, offset: number) =>
   request<KafkaDlqReplayResult>(`/api/admin/kafka/dlq/${partition}/${offset}/replay`, 'POST')
 export const replayAllKafkaDlq = () => request<KafkaDlqReplayResult>('/api/admin/kafka/dlq/replay-all', 'POST')
+// Tek kayıt listeden kaldırılır (Kafka tek mesaj silmez); "tümünü sil" DLQ'yu Kafka'dan kalıcı olarak boşaltır.
+export const dismissKafkaDlq = (partition: number, offset: number) =>
+  request<void>(`/api/admin/kafka/dlq/${partition}/${offset}`, 'DELETE')
+export const purgeKafkaDlq = () => request<KafkaDlqPurgeResult>('/api/admin/kafka/dlq', 'DELETE')

@@ -46,6 +46,57 @@
         <p class="summary">{{ summary }}</p>
       }
 
+      @let ctx = context(f);
+      @if (ctx.any) {
+        <section class="match-context">
+          <h3 class="section-title">{{ i18n.t('context.title') }}</h3>
+          <div class="context-card">
+            @if (ctx.form.length > 0) {
+              <div class="context-row">
+                <span class="context-key">{{ i18n.t('context.form') }}</span>
+                <div>
+                  @for (c of ctx.form; track c.team) {
+                    <p class="context-team">
+                      <span class="context-team-name">{{ c.team }}</span>
+                      @if (c.form.length > 0) {
+                        <span class="form-results" [title]="i18n.t('context.formHint')">
+                          @for (r of c.form; track $index) {
+                            <span [class]="'form-result is-' + r" [title]="i18n.t(formName[r])" [attr.aria-label]="i18n.t(formName[r])">{{ i18n.t(formLabel[r]) }}</span>
+                          }
+                        </span>
+                      }
+                      @if (contextDetails(c); as details) {
+                        <span class="context-muted" [attr.title]="c.xgFor !== null || c.xgAgainst !== null ? i18n.t('context.xgHint') : null">{{ details }}</span>
+                      }
+                    </p>
+                  }
+                </div>
+              </div>
+            }
+            @if (ctx.rest.length > 0) {
+              <div class="context-row">
+                <span class="context-key">{{ i18n.t('context.rest') }}</span>
+                <div>
+                  @for (c of ctx.rest; track c.team; let i = $index) {
+                    @if (i > 0) {
+                      <span class="context-muted"> · </span>
+                    }
+                    {{ c.team }} <strong>{{ i18n.t('context.days', { n: c.restDays ?? 0 }) }}</strong>
+                    @if (c.previousCompetition) {
+                      <span class="context-muted"> {{ i18n.t('context.previous', { name: c.previousCompetition }) }}</span>
+                    }
+                    @if (c.congested) {
+                      <span class="absence-tag referee-strict" [title]="i18n.t('context.congestedHint')">{{ i18n.t('context.congested') }}</span>
+                    }
+                  }
+                </div>
+              </div>
+            }
+            <p class="context-note">{{ i18n.t('context.note') }}</p>
+          </div>
+        </section>
+      }
+
       @if (f.absences?.referee; as referee) {
         <section class="referee">
           <h3 class="section-title">{{ i18n.t('referee.title') }}</h3>

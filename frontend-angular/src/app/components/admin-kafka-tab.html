@@ -4,6 +4,9 @@
   @if (report()?.enabled && (report()?.pending ?? 0) > 0) {
     <button type="button" class="cache-btn" (click)="replayAll()" [disabled]="state().loading || action().busy">{{ i18n.t('kafka.replayAll') }}</button>
   }
+  @if (report()?.enabled && (report()?.total ?? 0) > 0) {
+    <button type="button" class="cache-btn danger-btn" (click)="purge()" [disabled]="state().loading || action().busy">{{ i18n.t('kafka.purge') }}</button>
+  }
 </div>
 @if (action().error) {
   <p class="note-error admin-status" role="alert">{{ action().error }}</p>
@@ -58,9 +61,12 @@
                 }
               </td>
               <td>
-                @if (!m.replayedAt) {
-                  <button type="button" class="cache-btn" (click)="replay(m)" [disabled]="action().busy">{{ i18n.t('kafka.replay') }}</button>
-                }
+                <div class="dlq-actions">
+                  @if (!m.replayedAt) {
+                    <button type="button" class="cache-btn" (click)="replay(m)" [disabled]="action().busy">{{ i18n.t('kafka.replay') }}</button>
+                  }
+                  <button type="button" class="cache-btn danger-btn" (click)="dismiss(m)" [disabled]="action().busy">{{ i18n.t('kafka.dismiss') }}</button>
+                </div>
               </td>
             </tr>
           }

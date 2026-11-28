@@ -1,12 +1,12 @@
 import { Component, inject, signal } from '@angular/core';
 import { I18nService } from '../core/i18n/i18n.service';
-import { getKafkaDlq, replayAllKafkaDlq, replayKafkaDlq } from '../core/api';
+import { dismissKafkaDlq, getKafkaDlq, purgeKafkaDlq, replayAllKafkaDlq, replayKafkaDlq } from '../core/api';
 import type { KafkaDlqMessage, KafkaDlqReplayResult, KafkaDlqReport } from '../core/types';
 import { idle, runAction, type ActionState } from './admin-action';
 
 /*
- * Kafka DLQ sekmesi (kafka.manage; Admin örtük olarak sahip). Veritabanına kaydedilemeyen tahmin mesajlarını hata
- * nedeniyle listeler; tek tek veya topluca yeniden işler (mesaj ana topic'e geri gönderilir, consumer tekrar kaydeder).
+ * Kafka DLQ sekmesi (kafka.manage; Admin örtük olarak sahip). Veritabanına kaydedilemeyen tahmin mesajlarını hata nedeniyle listeler; tek tek veya topluca yeniden işler (mesaj ana topic'e geri gönderilir, consumer tekrar kaydeder).
+ * Sil: kayıt listeden kaldırılır (Kafka tek mesaj silmez); Tümünü sil: DLQ Kafka'dan kalıcı olarak boşaltılır.
  * Okuma DLQ'yu değiştirmez. Asıl yetki kontrolü API'dedir (GET/POST /api/admin/kafka/dlq).
  * React karşılığı: frontend/src/components/admin/KafkaTab.tsx
  */
@@ -64,5 +64,29 @@ export class KafkaTab {
     const report = this.report();
     if (!report || !window.confirm(this.i18n.t('kafka.confirmAll', { n: this.num(report.pending) }))) return;
     this.runReplay(replayAllKafkaDlq);
+  }
+
+  private runAndReload(call: () => Promise<string>) {
+    let info: string | undefined;
+    runAction(this.action, async () => {
+      info = await call();
+      await this.reload();
+    }).then(() => {
+      if (info && !this.action().error) this.action.set({ busy: false, info });
+    });
+  }
+
+  protected dismiss(m: KafkaDlqMessage) {
+    if (!window.confirm(this.i18n.t('kafka.confirmDismiss'))) return;
+    this.runAndReload(async () => {
+      await dismissKafkaDlq(m.partition, m.offset);
+      return this.i18n.t('kafka.dismissed');
+    });
+  }
+
+  protected purge() {
+    const report = this.report();
+    if (!report || !window.confirm(this.i18n.t('kafka.confirmPurge', { n: this.num(report.total) }))) return;
+    this.runAndReload(async () => this.i18n.t('kafka.purged', { n: this.num((await purgeKafkaDlq()).deleted) }));
   }
 }

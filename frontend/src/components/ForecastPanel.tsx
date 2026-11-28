@@ -2,7 +2,10 @@ import { Fragment, useState } from 'react'
 import type { AbsenceReport, ForecastResult, MatchSummary, OutcomeProbabilities, RefereeInfo } from '../types'
 import StatsTable from './StatsTable'
 import { useI18n } from '../i18n/useI18n'
-import { ABSENCE_LABEL, STRICTNESS_CLASS, STRICTNESS_LABEL, absenceFootnote, groupAbsences, hasAbsenceList, refereeStats, sourceLabel } from '../Absences'
+import {
+  ABSENCE_LABEL, FORM_LABEL, FORM_NAME, STRICTNESS_CLASS, STRICTNESS_LABEL, absenceFootnote, groupAbsences, hasAbsenceList,
+  hasFormLine, refereeStats, sourceLabel, teamContexts, type TeamContext
+} from '../Absences'
 import { matchUrl } from '../MatchRoute'
 
 interface Props {
@@ -59,6 +62,78 @@ function Outcomes({ o }: { o: OutcomeProbabilities }) {
       <p className="btts">
         {t('outcome.btts')} <strong>{t('outcome.yes')} {pct(o.bttsYes)}</strong> · {t('outcome.no')} {pct(100 - o.bttsYes)}
       </p>
+    </section>
+  )
+}
+
+/*
+ * Maç bağlamı: takımların formu (son 5, lig sırası, sahaya göre gol ve xG ortalamaları) ve dinlenme süresi. Eksik oyuncu aramasıyla aynı aramadan gelir; yalnızca bulunan bilgiler gösterilir, hiç bilgi yoksa bölüm çıkmaz.
+ */
+function MatchContext({ match, report }: { match: MatchSummary; report: AbsenceReport }) {
+  const { t, locale } = useI18n()
+  const teams = teamContexts(report, match)
+  if (teams.length === 0) return null
+  const formTeams = teams.filter(hasFormLine)
+  const restTeams = teams.filter(c => c.restDays !== null)
+  const num = (n: number) => n.toLocaleString(locale, { maximumFractionDigits: 2 })
+
+  const details = (c: TeamContext) => {
+    const parts: string[] = []
+    if (c.position !== null) parts.push(t('context.position', { n: c.position }))
+    if (c.goalsFor !== null || c.goalsAgainst !== null) {
+      const goals = [
+        c.goalsFor !== null ? t('context.scored', { n: num(c.goalsFor) }) : null,
+        c.goalsAgainst !== null ? t('context.conceded', { n: num(c.goalsAgainst) }) : null
+      ].filter(Boolean).join(' / ')
+      const matches = c.venueMatches !== null ? ` ${t('context.venueMatches', { n: c.venueMatches })}` : ''
+      parts.push(`${t(c.home ? 'context.venueHome' : 'context.venueAway')} ${goals}${matches}`)
+    }
+    if (c.xgFor !== null || c.xgAgainst !== null)
+      parts.push(t('context.xg', { for: c.xgFor !== null ? num(c.xgFor) : '–', against: c.xgAgainst !== null ? num(c.xgAgainst) : '–' }))
+    return parts.join(' · ')
+  }
+
+  return (
+    <section className="match-context">
+      <h3 className="section-title">{t('context.title')}</h3>
+      <div className="context-card">
+        {formTeams.length > 0 && (
+          <div className="context-row">
+            <span className="context-key">{t('context.form')}</span>
+            <div>
+              {formTeams.map(c => (
+                <p key={c.team} className="context-team">
+                  <span className="context-team-name">{c.team}</span>
+                  {c.form.length > 0 && (
+                    <span className="form-results" title={t('context.formHint')}>
+                      {c.form.map((r, i) => (
+                        <span key={i} className={`form-result is-${r}`} title={t(FORM_NAME[r])} aria-label={t(FORM_NAME[r])}>{t(FORM_LABEL[r])}</span>
+                      ))}
+                    </span>
+                  )}
+                  {details(c) && <span className="context-muted" title={c.xgFor !== null || c.xgAgainst !== null ? t('context.xgHint') : undefined}>{details(c)}</span>}
+                </p>
+              ))}
+            </div>
+          </div>
+        )}
+        {restTeams.length > 0 && (
+          <div className="context-row">
+            <span className="context-key">{t('context.rest')}</span>
+            <div>
+              {restTeams.map((c, i) => (
+                <Fragment key={c.team}>
+                  {i > 0 && <span className="context-muted"> · </span>}
+                  {c.team} <strong>{t('context.days', { n: c.restDays ?? 0 })}</strong>
+                  {c.previousCompetition && <span className="context-muted"> {t('context.previous', { name: c.previousCompetition })}</span>}
+                  {c.congested && <> <span className="absence-tag referee-strict" title={t('context.congestedHint')}>{t('context.congested')}</span></>}
+                </Fragment>
+              ))}
+            </div>
+          </div>
+        )}
+        <p className="context-note">{t('context.note')}</p>
+      </div>
     </section>
   )
 }
@@ -216,6 +291,7 @@ export default function ForecastPanel({ match, forecast, loading, error, onRetry
         <>
           {summary && <p className="summary">{summary}</p>}
 
+          {forecast.absences && <MatchContext match={forecast.match} report={forecast.absences} />}
           {forecast.absences?.referee && <Referee referee={forecast.absences.referee} />}
           {forecast.absences && <Absences match={forecast.match} report={forecast.absences} />}
 

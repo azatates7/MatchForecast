@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useI18n } from '../../i18n/useI18n'
-import { getKafkaDlq, replayAllKafkaDlq, replayKafkaDlq } from '../../api'
+import { dismissKafkaDlq, getKafkaDlq, purgeKafkaDlq, replayAllKafkaDlq, replayKafkaDlq } from '../../api'
 import type { KafkaDlqMessage, KafkaDlqReplayResult, KafkaDlqReport } from '../../types'
 import { ActionStatus, useAction } from './AdminUI'
 
 /*
  * Kafka DLQ sekmesi (kafka.manage; Admin örtük olarak sahip). Veritabanına kaydedilemeyen tahmin mesajlarını hata nedeniyle listeler; tek tek veya topluca yeniden işler (mesaj ana topic'e geri gönderilir, consumer tekrar kaydeder).
+ * Sil: kayıt listeden kaldırılır (Kafka tek mesaj silmez); Tümünü sil: DLQ Kafka'dan kalıcı olarak boşaltılır.
  * Okuma DLQ'yu değiştirmez. Asıl yetki kontrolü API'dedir (GET/POST /api/admin/kafka/dlq).
  * Angular karşılığı: frontend-angular/src/app/components/admin-kafka-tab.ts
  */
@@ -48,6 +49,21 @@ export default function KafkaTab() {
     if (!report || !window.confirm(t('kafka.confirmAll', { n: num(report.pending) }))) return
     runReplay(replayAllKafkaDlq)
   }
+  const runAndReload = (call: () => Promise<string>) => {
+    setInfo(null)
+    action.run(async () => {
+      setInfo(await call())
+      await reload()
+    })
+  }
+  const dismiss = (m: KafkaDlqMessage) => {
+    if (!window.confirm(t('kafka.confirmDismiss'))) return
+    runAndReload(async () => { await dismissKafkaDlq(m.partition, m.offset); return t('kafka.dismissed') })
+  }
+  const purge = () => {
+    if (!report || !window.confirm(t('kafka.confirmPurge', { n: num(report.total) }))) return
+    runAndReload(async () => t('kafka.purged', { n: num((await purgeKafkaDlq()).deleted) }))
+  }
 
   return (
     <>
@@ -56,6 +72,9 @@ export default function KafkaTab() {
         <button type="button" className="cache-btn" onClick={reload} disabled={state.loading || action.busy}>{t('admin.usage.refresh')}</button>
         {report?.enabled && report.pending > 0 && (
           <button type="button" className="cache-btn" onClick={replayAll} disabled={state.loading || action.busy}>{t('kafka.replayAll')}</button>
+        )}
+        {report?.enabled && report.total > 0 && (
+          <button type="button" className="cache-btn danger-btn" onClick={purge} disabled={state.loading || action.busy}>{t('kafka.purge')}</button>
         )}
       </div>
       <ActionStatus state={action} />
@@ -101,11 +120,16 @@ export default function KafkaTab() {
                         : <span className="dlq-status-pending">{t('kafka.pending')}</span>}
                     </td>
                     <td>
-                      {!m.replayedAt && (
-                        <button type="button" className="cache-btn" onClick={() => replay(m)} disabled={action.busy}>
-                          {t('kafka.replay')}
+                      <div className="dlq-actions">
+                        {!m.replayedAt && (
+                          <button type="button" className="cache-btn" onClick={() => replay(m)} disabled={action.busy}>
+                            {t('kafka.replay')}
+                          </button>
+                        )}
+                        <button type="button" className="cache-btn danger-btn" onClick={() => dismiss(m)} disabled={action.busy}>
+                          {t('kafka.dismiss')}
                         </button>
-                      )}
+                      </div>
                     </td>
                   </tr>
                 ))}

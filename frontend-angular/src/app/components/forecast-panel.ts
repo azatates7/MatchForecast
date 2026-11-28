@@ -1,7 +1,10 @@
 import { Component, inject, input, output, signal } from '@angular/core';
 import { I18nService } from '../core/i18n/i18n.service';
 import type { ForecastResult, MatchSummary } from '../core/types';
-import { ABSENCE_LABEL, STRICTNESS_CLASS, STRICTNESS_LABEL, absenceFootnote, groupAbsences, hasAbsenceList, refereeStats, sourceLabel } from '../core/absences';
+import {
+  ABSENCE_LABEL, FORM_LABEL, FORM_NAME, STRICTNESS_CLASS, STRICTNESS_LABEL, absenceFootnote, groupAbsences, hasAbsenceList,
+  hasFormLine, refereeStats, sourceLabel, teamContexts, type TeamContext,
+} from '../core/absences';
 import { matchUrl } from '../core/match-route';
 import { StatsTable } from './stats-table';
 
@@ -37,6 +40,35 @@ export class ForecastPanel {
   protected readonly strictnessLabel = STRICTNESS_LABEL;
   protected readonly strictnessClass = STRICTNESS_CLASS;
   protected readonly refereeStats = refereeStats;
+
+  /*
+   * Maç bağlamı: takımların formu (son 5, lig sırası, sahaya göre gol ve xG ortalamaları) ve dinlenme süresi. Eksik oyuncu aramasıyla aynı aramadan gelir; yalnızca bulunan bilgiler gösterilir, hiç bilgi yoksa bölüm çıkmaz.
+   */
+  protected readonly formLabel = FORM_LABEL;
+  protected readonly formName = FORM_NAME;
+
+  protected context(f: ForecastResult) {
+    const teams = teamContexts(f.absences, f.match);
+    return { any: teams.length > 0, form: teams.filter(hasFormLine), rest: teams.filter(c => c.restDays !== null) };
+  }
+
+  protected contextDetails(c: TeamContext): string {
+    const t = this.i18n.t.bind(this.i18n);
+    const num = (n: number) => n.toLocaleString(this.i18n.locale(), { maximumFractionDigits: 2 });
+    const parts: string[] = [];
+    if (c.position !== null) parts.push(t('context.position', { n: c.position }));
+    if (c.goalsFor !== null || c.goalsAgainst !== null) {
+      const goals = [
+        c.goalsFor !== null ? t('context.scored', { n: num(c.goalsFor) }) : null,
+        c.goalsAgainst !== null ? t('context.conceded', { n: num(c.goalsAgainst) }) : null,
+      ].filter(Boolean).join(' / ');
+      const matches = c.venueMatches !== null ? ` ${t('context.venueMatches', { n: c.venueMatches })}` : '';
+      parts.push(`${t(c.home ? 'context.venueHome' : 'context.venueAway')} ${goals}${matches}`);
+    }
+    if (c.xgFor !== null || c.xgAgainst !== null)
+      parts.push(t('context.xg', { for: c.xgFor !== null ? num(c.xgFor) : '–', against: c.xgAgainst !== null ? num(c.xgAgainst) : '–' }));
+    return parts.join(' · ');
+  }
 
   protected refereeNum(n: number): string {
     return n.toLocaleString(this.i18n.locale(), { maximumFractionDigits: 2 });

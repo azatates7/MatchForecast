@@ -304,6 +304,7 @@ a.brand-link:focus-visible { outline-offset: 4px; border-radius: 6px; }
 .dlq-preview { font-family: ui-monospace, monospace; font-size: 0.78rem; color: var(--muted); word-break: break-all; }
 .dlq-status-done { color: var(--pitch); font-weight: 600; }
 .dlq-status-pending { color: var(--muted); }
+.dlq-actions { display: flex; gap: 0.4rem; justify-content: flex-end; white-space: nowrap; }
 
 /* Lig / turnuva filtresi */
 .league-filter {
@@ -835,6 +836,24 @@ a.brand-link:focus-visible { outline-offset: 4px; border-radius: 6px; }
 
 /* Eksik oyuncular: iki takım yan yana (dar ekranda alt alta), oyuncu adı + durum etiketi + neden */
 /* Hakem: eksik oyuncuların üstünde; kart eğilimi etiketi (kartçı kırmızı, dengeli nötr, serbest bırakan yeşil) */
+/* Maç bağlamı kartı: form (son 5) ve dinlenme */
+.match-context { margin: 0 0 1.25rem; max-width: 46rem; }
+.match-context .section-title { margin-top: 0; }
+.context-card { padding: 0.75rem 0.9rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); display: grid; gap: 0.7rem; }
+.context-row { display: grid; grid-template-columns: 7.5rem 1fr; gap: 0.6rem; align-items: baseline; font-size: 0.9rem; }
+.context-key { color: var(--muted); font-size: 0.82rem; }
+.context-team { display: flex; flex-wrap: wrap; gap: 0.35rem 0.5rem; align-items: center; margin: 0 0 0.3rem; }
+.context-team:last-child { margin-bottom: 0; }
+.context-team-name { font-weight: 600; min-width: 9.5rem; }
+.context-muted { color: var(--muted); font-size: 0.84rem; font-variant-numeric: tabular-nums; }
+.context-note { margin: 0; color: var(--muted); font-size: 0.8rem; }
+.form-results { display: inline-flex; gap: 3px; }
+.form-result { width: 1.15rem; height: 1.15rem; border-radius: 3px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; }
+.form-result.is-W { background: var(--pitch); color: var(--surface); }
+.form-result.is-D { background: var(--line); color: var(--ink); }
+.form-result.is-L { background: var(--danger); color: #fff; }
+@media (max-width: 560px) { .context-row { grid-template-columns: 1fr; gap: 0.25rem; } }
+
 .referee { margin: 0 0 1.25rem; max-width: 46rem; }
 .referee .section-title { margin-top: 0; }
 .referee-card { padding: 0.75rem 0.9rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); display: grid; gap: 0.35rem; }

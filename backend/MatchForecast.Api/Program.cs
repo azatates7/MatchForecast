@@ -246,6 +246,10 @@ try
     // Uygulama istek kabul etmeye hazır olduğunda bir kez "başlatıldı" maili (Smtp:SendStartupNotification).
     builder.Services.AddHostedService<StartupNotificationService>();
 
+    // Uygulama içi sağlık izleme: veritabanı/Redis/Kafka durumu değişince yöneticiye mail (HealthMonitor bölümü).
+    builder.Services.Configure<HealthMonitorOptions>(builder.Configuration.GetSection(HealthMonitorOptions.Section));
+    builder.Services.AddHostedService<HealthMonitorService>();
+
     // InstanceName boş olursa Cache Temizle "*" desenine düşüp Redis'teki her şeyi silerdi; bu yüzden startup'ta doğrulanır.
     builder.Services.AddOptions<RedisOptions>()
         .Bind(builder.Configuration.GetSection(RedisOptions.Section))

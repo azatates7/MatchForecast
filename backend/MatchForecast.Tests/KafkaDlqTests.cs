@@ -30,6 +30,8 @@ public class KafkaDlqTests(WebApplicationFactory<Program> factory) : IClassFixtu
 
         Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsync("/api/admin/kafka/dlq/0/5/replay", null)).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsync("/api/admin/kafka/dlq/replay-all", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await client.DeleteAsync("/api/admin/kafka/dlq/0/5")).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await client.DeleteAsync("/api/admin/kafka/dlq")).StatusCode);
     }
 
     [Theory]
@@ -41,6 +43,7 @@ public class KafkaDlqTests(WebApplicationFactory<Program> factory) : IClassFixtu
 
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/admin/kafka/dlq")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsync("/api/admin/kafka/dlq/replay-all", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.DeleteAsync("/api/admin/kafka/dlq")).StatusCode);
     }
 
     [Fact]

@@ -2,7 +2,7 @@ import type {
   AccuracyReport,
   AiUsageReport,
   AuthConfigResponse, CacheClearResponse, CreatePermissionRequest, CreateUserRequest, ForecastResult, GroupRequest, GroupResponse,
-  KafkaDlqReplayResult, KafkaDlqReport,
+  KafkaDlqPurgeResult, KafkaDlqReplayResult, KafkaDlqReport,
   MatchSummary, MeResponse, PasswordResponse, PermissionResponse, RoleRequest, RoleResponse, TokenResponse, UpdatePermissionRequest,
   UpdateUserRequest, UserResponse
 } from './types'
@@ -13,8 +13,7 @@ import { getLang, t } from './i18n/i18n'
  * - Access token yalnızca bellekte tutulur (kısa ömürlü; XSS ile kalıcı olarak ele geçirilemez).
  * - Refresh token localStorage'da tutulur ki sayfa yenilenince tekrar giriş gerekmesin. Bedeli: XSS olursa okunabilir.
  *   Daha güvenli seçenek httpOnly cookie'dir (backend değişikliği gerekir).
- * - Access token yoksa veya 401 alınırsa refresh token ile yenisi alınır; o da başarısız olursa oturum kapanır
- *   ve onSessionExpired ile uygulamaya haber verilir (login ekranı gösterilir).
+ * - Access token yoksa veya 401 alınırsa refresh token ile yenisi alınır; o da başarısız olursa oturum kapanır ve onSessionExpired ile uygulamaya haber verilir (login ekranı gösterilir).
  */
 const REFRESH_KEY = 'matchforecast.refreshToken'
 
@@ -186,8 +185,7 @@ export const removeFavoriteLeague = (league: string) =>
   request<string[]>(favoriteLeaguesUrl(league), 'DELETE')
 
 /*
- * Admin paneli. Yetkiler API'de kontrol edilir (users.view / users.manage / roles.manage / groups.manage /
- * permissions.manage); yetkisiz istek 403 ve ProblemDetails mesajıyla hata fırlatır.
+ * Admin paneli. Yetkiler API'de kontrol edilir (users.view / users.manage / roles.manage / groups.manage / permissions.manage); yetkisiz istek 403 ve ProblemDetails mesajıyla hata fırlatır.
  * Atama uçları (…/roles, …/groups, …/users, …/permissions) listeyi verilen id'lerle değiştirir.
  */
 export const getUsers = () => request<UserResponse[]>('/api/users')
@@ -233,3 +231,7 @@ export const getKafkaDlq = () => request<KafkaDlqReport>('/api/admin/kafka/dlq')
 export const replayKafkaDlq = (partition: number, offset: number) =>
   request<KafkaDlqReplayResult>(`/api/admin/kafka/dlq/${partition}/${offset}/replay`, 'POST')
 export const replayAllKafkaDlq = () => request<KafkaDlqReplayResult>('/api/admin/kafka/dlq/replay-all', 'POST')
+// Tek kayıt listeden kaldırılır (Kafka tek mesaj silmez); "tümünü sil" DLQ'yu Kafka'dan kalıcı olarak boşaltır.
+export const dismissKafkaDlq = (partition: number, offset: number) =>
+  request<void>(`/api/admin/kafka/dlq/${partition}/${offset}`, 'DELETE')
+export const purgeKafkaDlq = () => request<KafkaDlqPurgeResult>('/api/admin/kafka/dlq', 'DELETE')

@@ -24,7 +24,7 @@ public static class DatabaseSettings
 
     // DB'ye taşınan bölümler.
     private static readonly string[] Sections =
-        ["OddsProvider", "Ai", "Absences", "Accuracy", "Smtp", "Jwt", "Admin", "Redis", "Kafka", "Forecast", "RateLimiting", "Cors", "Auth"];
+        ["OddsProvider", "Ai", "Absences", "Accuracy", "Smtp", "Jwt", "Admin", "Redis", "Kafka", "Forecast", "RateLimiting", "Cors", "Auth", "HealthMonitor"];
 
     // Bu anahtarlar DB'de şifreli saklanır ve API'den hiçbir zaman açık metin dönmez.
     private static readonly HashSet<string> SecretKeys = new(StringComparer.OrdinalIgnoreCase)

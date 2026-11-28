@@ -1,4 +1,4 @@
-import type { AbsenceReport, AbsenceSource, LocalizedText, MatchSummary, RefereeInfo, TeamAbsence } from './types'
+import type { AbsenceReport, AbsenceSource, LocalizedText, MatchSummary, RefereeInfo, TeamAbsence, TeamForm } from './types'
 
 /*
  * Eksik oyuncuları ev/deplasman takımına göre gruplar ve etiketler. Saf mantık; React ve Angular aynı dosyayı kullanır (frontend/src/Absences.ts = frontend-angular/src/app/core/absences.ts).
@@ -89,3 +89,73 @@ export function sourceLabel(s: AbsenceSource): string {
   if (s.title) return s.title
   try { return new URL(s.url).hostname } catch { return s.url }
 }
+
+// ---- Maç bağlamı kartı (form ve dinlenme) ----
+
+export type FormResult = 'W' | 'D' | 'L'
+
+export const FORM_LABEL = { W: 'context.result.W', D: 'context.result.D', L: 'context.result.L' } as const
+export const FORM_NAME = { W: 'context.resultName.W', D: 'context.resultName.D', L: 'context.resultName.L' } as const
+
+// Bu kadar gün veya daha az dinlenen takım "yoğun fikstür" etiketi alır (backend prompt kuralıyla aynı eşik).
+export const CONGESTED_DAYS = 3
+
+export interface TeamContext {
+  team: string
+  home: boolean
+  form: FormResult[]
+  position: number | null
+  venueMatches: number | null
+  goalsFor: number | null
+  goalsAgainst: number | null
+  xgFor: number | null
+  xgAgainst: number | null
+  restDays: number | null
+  previousCompetition: string | null
+  congested: boolean
+}
+
+// Maçın İstanbul takvim günü (YYYY-MM-DD); dinlenme süresi takvim günü farkıdır (backend ile aynı).
+const istanbulDay = (iso: string) => {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit' })
+    .formatToParts(new Date(iso))
+  const get = (type: string) => parts.find(p => p.type === type)?.value ?? ''
+  return `${get('year')}-${get('month')}-${get('day')}`
+}
+
+const dayDiff = (from: string, to: string) =>
+  Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000)
+
+/*
+ * Kartın satırları: ev sahibi önce. Hiç bilgisi olmayan takım listeye girmez; liste boşsa kart gösterilmez.
+ * Dinlenme süresi maç günü ile son maç günü arasındaki takvim günü farkıdır (geçersiz/gelecek tarih yok sayılır).
+ */
+export function teamContexts(report: AbsenceReport | null | undefined, match: MatchSummary): TeamContext[] {
+  const matchDay = istanbulDay(match.kickoff)
+  return (report?.form ?? [])
+    .map((f: TeamForm): TeamContext => {
+      const rest = f.lastMatchDate ? dayDiff(f.lastMatchDate, matchDay) : null
+      const restDays = rest !== null && rest > 0 ? rest : null
+      return {
+        team: f.team,
+        home: f.team === match.homeTeam,
+        form: (f.last5 ?? '').split('').filter((c): c is FormResult => c === 'W' || c === 'D' || c === 'L'),
+        position: f.leaguePosition,
+        venueMatches: f.venueMatches,
+        goalsFor: f.venueGoalsFor,
+        goalsAgainst: f.venueGoalsAgainst,
+        xgFor: f.xgFor,
+        xgAgainst: f.xgAgainst,
+        restDays,
+        previousCompetition: restDays !== null ? f.lastMatchCompetition ?? null : null,
+        congested: restDays !== null && restDays <= CONGESTED_DAYS
+      }
+    })
+    .filter(c => c.form.length > 0 || c.position !== null || c.goalsFor !== null || c.goalsAgainst !== null
+      || c.xgFor !== null || c.xgAgainst !== null || c.restDays !== null)
+    .sort((a, b) => Number(b.home) - Number(a.home))
+}
+
+// Formu olan takımlar (form satırı) ve dinlenme bilgisi olan takımlar (dinlenme satırı) ayrı gösterilir.
+export const hasFormLine = (c: TeamContext) =>
+  c.form.length > 0 || c.position !== null || c.goalsFor !== null || c.goalsAgainst !== null || c.xgFor !== null || c.xgAgainst !== null

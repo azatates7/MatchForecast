@@ -11,7 +11,9 @@ namespace MatchForecast.Api.Controllers;
  * - GET: DLQ'daki son kayıtlar (en yeni önce) ve hata nedenleri. Okuma hiçbir offset'i değiştirmez.
  * - POST {partition}/{offset}/replay: tek kaydı ana topic'e geri gönderir (yeniden işlenir).
  * - POST replay-all: listedeki, henüz yeniden işlenmemiş tüm kayıtları geri gönderir.
- * Kafka kapalıysa GET Enabled=false döner, POST uçları 409.
+ * - DELETE {partition}/{offset}: tek kaydı listeden kaldırır (Kafka tek mesaj silmez; saklama süresi dolunca silinir).
+ * - DELETE: DLQ'daki tüm kayıtları Kafka'dan kalıcı olarak siler.
+ * Kafka kapalıysa GET Enabled=false döner, diğer uçlar 409.
  */
 [ApiController]
 [Route("api/admin/kafka/dlq")]
@@ -26,4 +28,14 @@ public sealed class KafkaDlqController(KafkaDlqService dlq) : ControllerBase
 
     [HttpPost("replay-all")]
     public Task<KafkaDlqReplayResponse> ReplayAll(CancellationToken ct) => dlq.ReplayAllAsync(ct);
+
+    [HttpDelete("{partition:int}/{offset:long}")]
+    public async Task<IActionResult> Dismiss(int partition, long offset)
+    {
+        await dlq.DismissAsync(partition, offset);
+        return NoContent();
+    }
+
+    [HttpDelete]
+    public async Task<KafkaDlqPurgeResponse> Purge(CancellationToken ct) => new(await dlq.PurgeAsync(ct));
 }

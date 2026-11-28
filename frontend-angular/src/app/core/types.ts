@@ -294,6 +294,10 @@ export interface KafkaDlqReport {
   messages: KafkaDlqMessage[]
 }
 
+export interface KafkaDlqPurgeResult {
+  deleted: number
+}
+
 export interface KafkaDlqReplayResult {
   replayed: number
   skipped: number
@@ -310,10 +314,29 @@ export interface AbsenceReport {
   checkedAt: string | null
   /** Aynı maç günü aramasında bulunan hakem; bulunamadıysa null (bölüm gösterilmez). */
   referee?: RefereeInfo | null
+  /** Aynı aramada bulunan takım formu ve son maç tarihi (maç bağlamı kartı); bulunamayan takım listede yok. */
+  form?: TeamForm[] | null
 }
 
 /**
- * Hakem ve kart eğilimi; bulunamayan alanlar null (gösterilmez). Ortalamalar maç başına, matches dayandıkları maç sayısı. strictness backend'de sarı kart ortalamasından hesaplanır: Strict >= 5, Lenient < 3.5, arası Balanced.
+ * Takımın bu sezonki formu (backend: TeamForm). Bulunamayan alanlar null. last5: en yeni önce W/D/L. venue*: bu maçtaki sahaya göre (ev sahibi iç saha, deplasman takımı deplasman); xg*: aynı maçların xG ortalaması. lastMatchDate (YYYY-MM-DD) / lastMatchCompetition: bu maçtan önceki son resmi maç (dinlenme süresi buradan).
+ */
+export interface TeamForm {
+  team: string
+  last5: string | null
+  leaguePosition: number | null
+  venueMatches: number | null
+  venueGoalsFor: number | null
+  venueGoalsAgainst: number | null
+  xgFor: number | null
+  xgAgainst: number | null
+  lastMatchDate?: string | null
+  lastMatchCompetition?: string | null
+}
+
+/**
+ * Hakem ve kart eğilimi; bulunamayan alanlar null (gösterilmez). Ortalamalar maç başına, matches dayandıkları maç sayısı.
+ * strictness backend'de sarı kart ortalamasından hesaplanır: Strict >= 5, Lenient < 3.5, arası Balanced.
  */
 export interface RefereeInfo {
   name: string

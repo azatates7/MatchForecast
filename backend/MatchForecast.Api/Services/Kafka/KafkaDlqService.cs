@@ -19,6 +19,10 @@ namespace MatchForecast.Api.Services.Kafka;
  * Kayıt idempotent olduğu için (fixture başına tek satır) aynı mesajın iki kez işlenmesi zarar vermez; yine de panelde çift tıklamayı önlemek için yeniden işlenen mesaj Redis'te işaretlenir (DLQ saklama süresinden biraz uzun).
  * Redis önbelleği temizlenirse bu işaretler de silinir; mesajlar tekrar "bekliyor" görünür, işlenmeleri yine güvenlidir.
  * Mesaj tekrar başarısız olursa consumer onu yeni bir DLQ kaydı olarak ekler (hata nedeniyle birlikte).
+ *
+ * Silme: Kafka tek bir mesajı silmeye izin vermez (bir partition'da yalnızca belirli bir offset'ten öncekilerin hepsi silinebilir). Bu yüzden iki ayrı işlem vardır:
+ * - Tek kayıt "sil": kayıt Redis'te gizlendi olarak işaretlenir, listeden ve sayılardan çıkar; Kafka'dan saklama süresi dolunca kalıcı olarak silinir. Önbellek temizlenirse gizlenen kayıtlar listede yeniden görünür.
+ * - "Tümünü sil": DeleteRecords ile DLQ'daki bütün kayıtlar (her partition'da son offset'e kadar) Kafka'dan kalıcı silinir.
  */
 public sealed class KafkaDlqService(
     IServiceProvider services,
@@ -41,12 +45,52 @@ public sealed class KafkaDlqService(
 
         var (records, total) = await Task.Run(() => ReadLatest(MaxMessages, ct), ct);
         var messages = new List<KafkaDlqMessageResponse>(records.Count);
+        var dismissed = 0;
         foreach (var r in records.OrderByDescending(r => r.Message.Timestamp.UnixTimestampMs))
+        {
+            if (await cache.ExistsAsync(DismissKey(r.Partition.Value, r.Offset.Value)))
+            {
+                dismissed++;
+                continue;
+            }
             messages.Add(ToResponse(r, await cache.GetAsync<DateTimeOffset?>(ReplayKey(r.Partition.Value, r.Offset.Value))));
+        }
 
-        // Liste kesildiyse eski kayıtların durumu bilinmez; bekleyen sayısı listedekilerden hesaplanır.
-        var pending = messages.Count(m => m.ReplayedAt is null) + Math.Max(0, total - messages.Count);
-        return new KafkaDlqReportResponse(true, Opt.ForecastGeneratedDlqTopic, total, pending, total > messages.Count, messages);
+        // Gizlenen (silinen) kayıtlar sayılmaz. Liste kesildiyse eski kayıtların durumu bilinmez; bekliyor sayılır.
+        var visibleTotal = total - dismissed;
+        var unlisted = Math.Max(0, total - records.Count);
+        var pending = messages.Count(m => m.ReplayedAt is null) + unlisted;
+        return new KafkaDlqReportResponse(true, Opt.ForecastGeneratedDlqTopic, visibleTotal, pending, unlisted > 0, messages);
+    }
+
+    // Tek kaydı listeden kaldırır (Kafka tek mesaj silmeye izin vermez; saklama süresi dolunca kalıcı silinir).
+    public async Task DismissAsync(int partition, long offset)
+    {
+        EnsureEnabled();
+        await cache.SetAsync(DismissKey(partition, offset), DateTimeOffset.Now, ReplayMarkTtl);
+        logger.LogInformation("DLQ message {Partition}/{Offset} dismissed from the admin panel.", partition, offset);
+    }
+
+    // DLQ'daki bütün kayıtları Kafka'dan kalıcı olarak siler (her partition'da son offset'e kadar). Dönüş: silinen kayıt sayısı.
+    public async Task<int> PurgeAsync(CancellationToken ct)
+    {
+        EnsureEnabled();
+        var targets = await Task.Run(() =>
+        {
+            using var consumer = CreateReader();
+            return Partitions()
+                .Select(p => (Tp: p, W: consumer.QueryWatermarkOffsets(p, TimeSpan.FromSeconds(5))))
+                .Where(x => x.W.High.Value > x.W.Low.Value)
+                .ToList();
+        }, ct);
+        if (targets.Count == 0)
+            return 0;
+
+        using var admin = KafkaClientFactory.CreateAdminClient(Opt);
+        await admin.DeleteRecordsAsync(targets.Select(x => new TopicPartitionOffset(x.Tp, x.W.High)));
+        var deleted = (int)targets.Sum(x => x.W.High.Value - x.W.Low.Value);
+        logger.LogWarning("DLQ purged from the admin panel: {Count} messages deleted.", deleted);
+        return deleted;
     }
 
     public async Task<KafkaDlqReplayResponse> ReplayAsync(int partition, long offset, CancellationToken ct)
@@ -73,6 +117,9 @@ public sealed class KafkaDlqService(
         int replayed = 0, skipped = 0, failed = 0;
         foreach (var r in records.OrderBy(r => r.Message.Timestamp.UnixTimestampMs))
         {
+            // Silinen (gizlenen) kayıtlar yeniden işlenmez ve sayılmaz.
+            if (await cache.ExistsAsync(DismissKey(r.Partition.Value, r.Offset.Value)))
+                continue;
             if (await cache.ExistsAsync(ReplayKey(r.Partition.Value, r.Offset.Value)))
                 skipped++;
             else if (await ProduceAsync(r, ct))
@@ -119,6 +166,7 @@ public sealed class KafkaDlqService(
     }
 
     private static string ReplayKey(int partition, long offset) => $"kafka:dlq:replayed:{partition}:{offset}";
+    private static string DismissKey(int partition, long offset) => $"kafka:dlq:dismissed:{partition}:{offset}";
 
     // Her partition'ın son kayıtlarını okur (toplamda en yeni `max` kadar). Dönüş: kayıtlar ve DLQ'daki toplam mesaj sayısı.
     private (List<ConsumeResult<int, string>> Records, int Total) ReadLatest(int max, CancellationToken ct)
@@ -143,6 +191,7 @@ public sealed class KafkaDlqService(
             var r = consumer.Consume(TimeSpan.FromMilliseconds(500));
             if (r is null)
                 continue;
+                
             if (!r.IsPartitionEOF && r.Message is not null)
                 records.Add(r);
             if (r.IsPartitionEOF || r.Offset.Value + 1 >= ends.GetValueOrDefault(r.Partition.Value))
