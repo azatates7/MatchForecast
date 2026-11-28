@@ -34,6 +34,7 @@ public interface IAbsenceResearcher
  *   Hakem bulunamazsa Referee null'dır; makul aralık dışındaki sayılar atılır. Hakem kısmı ayrıştırılamazsa eksik oyuncu
  *   listesi yine kullanılır.
  * - Form: aynı aramada (ek maliyet yok) iki takımın son 5 maçı, lig sırası, bu maçtaki sahaya göre gol ve xG ortalamaları istenir. Makul aralık dışındaki sayılar atılır; hiç verisi olmayan takım listeye girmez. Ayrıştırılamazsa form boş kalır, eksik oyuncu ve hakem bilgisi yine kullanılır.
+ * - Dinlenme: aynı aramada her takımın bir önceki resmi maçının tarihi ve turnuvası istenir (ek maliyet yok). Gün farkı modele bırakılmaz, prompt hazırlanırken kodda hesaplanır; maçtan sonraki veya 30 günden eski tarih atılır.
  */
 public sealed class GeminiAbsenceResearcher(
     HttpClient http,
@@ -96,6 +97,9 @@ public sealed class GeminiAbsenceResearcher(
           için DEPLASMAN lig maçları. Maç sayısı ile maç başına attığı ve yediği gol ortalaması.
         - xgFor, xgAgainst: aynı maçların maç başına beklenen gol (xG) ortalaması (FBref, Understat, Sofascore, FotMob vb.).
           Bulamazsan null yaz.
+        - lastMatchDate: takımın BU MAÇTAN ÖNCE oynadığı son resmi maçın tarihi, "yyyy-MM-dd" (lig, kupa, Avrupa kupaları
+          dahil; hazırlık maçları hariç). lastMatchCompetition: o maçın turnuvası (ör. "UEFA Avrupa Ligi", "Türkiye Kupası").
+          Emin değilsen ikisini de null yaz.
         - Bulamadığın her alanı null yaz; sayı veya sonuç uydurma. team alanına iki takım adından birini birebir yaz.
         - Form bilgisinin kaynaklarını da sources listesine ekle.
 
@@ -104,7 +108,8 @@ public sealed class GeminiAbsenceResearcher(
           "referee": { "name": "...", "matches": 12, "yellowPerMatch": 4.8, "redPerMatch": 0.2, "penaltiesPerMatch": 0.3,
                        "foulsPerMatch": 27.5, "style": "...", "styleEn": "..." },
           "form": [ { "team": "...", "last5": "WWDLW", "leaguePosition": 3, "venueMatches": 8, "venueGoalsFor": 2.1,
-                      "venueGoalsAgainst": 0.9, "xgFor": 1.9, "xgAgainst": 1.0 } ],
+                      "venueGoalsAgainst": 0.9, "xgFor": 1.9, "xgAgainst": 1.0, "lastMatchDate": "2026-01-15",
+                      "lastMatchCompetition": "..." } ],
           "sources": [ { "title": "...", "url": "https://..." } ] }
         Hakem bulunamazsa: "referee": null
         """;
@@ -272,27 +277,44 @@ public sealed class GeminiAbsenceResearcher(
         if (raw is not { ValueKind: JsonValueKind.Array } arr)
             return [];
 
+        var matchDay = DateOnly.FromDateTime(match.Kickoff.ToLocalTime().DateTime);
+
         var items = arr.EnumerateArray()
             .Where(e => e.ValueKind == JsonValueKind.Object)
             .Select(e => e.Deserialize<RawForm>(JsonOpts))
             .Where(f => f is not null)
             .Select(f => (Team: ResolveTeam(f!.Team, match), f: f!))
             .Where(x => x.Team is not null)
-            .Select(x => new TeamForm(
-                x.Team!,
-                NormalizeLast5(x.f.Last5),
-                x.f.LeaguePosition is >= 1 and <= 40 ? (int)Math.Round(x.f.LeaguePosition.Value) : null,
-                x.f.VenueMatches is >= 1 and <= 60 ? (int)Math.Round(x.f.VenueMatches.Value) : null,
-                InRange(x.f.VenueGoalsFor, 0, 6),
-                InRange(x.f.VenueGoalsAgainst, 0, 6),
-                InRange(x.f.XgFor, 0, 5),
-                InRange(x.f.XgAgainst, 0, 5)))
+            .Select(x =>
+            {
+                var lastMatch = ParseLastMatchDate(x.f.LastMatchDate, matchDay);
+                var competition = x.f.LastMatchCompetition?.Trim();
+                return new TeamForm(
+                    x.Team!,
+                    NormalizeLast5(x.f.Last5),
+                    x.f.LeaguePosition is >= 1 and <= 40 ? (int)Math.Round(x.f.LeaguePosition.Value) : null,
+                    x.f.VenueMatches is >= 1 and <= 60 ? (int)Math.Round(x.f.VenueMatches.Value) : null,
+                    InRange(x.f.VenueGoalsFor, 0, 6),
+                    InRange(x.f.VenueGoalsAgainst, 0, 6),
+                    InRange(x.f.XgFor, 0, 5),
+                    InRange(x.f.XgAgainst, 0, 5),
+                    lastMatch,
+                    // Turnuva adı yalnızca geçerli tarihle birlikte anlamlı; aşırı uzun metin atılır.
+                    lastMatch is not null && competition is { Length: > 0 and <= 60 } ? competition : null);
+            })
             .Where(f => f.HasData)
             .DistinctBy(f => f.Team)
             .ToList();
 
         return items.OrderBy(f => f.Team == match.HomeTeam ? 0 : 1).ToList();
     }
+
+    // Son maç bu maçtan önce (aynı gün değil) ve en fazla 30 gün önce olmalı; değilse güvenilmez sayılır.
+    private static DateOnly? ParseLastMatchDate(string? s, DateOnly matchDay) =>
+        DateOnly.TryParseExact(s?.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
+        && date < matchDay && date >= matchDay.AddDays(-30)
+            ? date
+            : null;
 
     private static string? NormalizeLast5(string? s)
     {
@@ -386,8 +408,7 @@ public sealed class GeminiAbsenceResearcher(
     }
 
     /*
-     * Token sayıları (usageMetadata): arama sonuçları modele girdi olarak verildiği için toolUsePromptTokenCount girdiye,
-     * düşünme (thoughtsTokenCount) çıktıya eklenir; ikisi de böyle faturalanır.
+     * Token sayıları (usageMetadata): arama sonuçları modele girdi olarak verildiği için toolUsePromptTokenCount girdiye, düşünme (thoughtsTokenCount) çıktıya eklenir; ikisi de böyle faturalanır.
      */
     private static AiCompletion ReadCompletion(JsonElement root)
     {
@@ -500,7 +521,8 @@ public sealed class GeminiAbsenceResearcher(
     // Referee ham bırakılır: bozuk hakem nesnesi eksik oyuncu listesinin ayrıştırılmasını engellemesin.
     private sealed record RawResponse(List<RawPlayer>? Players, List<RawSource>? Sources, JsonElement? Referee, JsonElement? Form = null);
     private sealed record RawForm(string? Team, string? Last5, double? LeaguePosition, double? VenueMatches,
-        double? VenueGoalsFor, double? VenueGoalsAgainst, double? XgFor, double? XgAgainst);
+        double? VenueGoalsFor, double? VenueGoalsAgainst, double? XgFor, double? XgAgainst,
+        string? LastMatchDate = null, string? LastMatchCompetition = null);
     private sealed record RawReferee(string? Name, double? Matches, double? YellowPerMatch, double? RedPerMatch,
         double? PenaltiesPerMatch, double? FoulsPerMatch, string? Style, string? StyleEn);
     private sealed record RawSource(string? Title, string? Url);

@@ -73,6 +73,7 @@ public sealed record RefereeInfo(
  * - Last5: son 5 resmi maç, en yeni önce, W/D/L harfleriyle (ör. "WWDLW").
  * - Venue*: bu maçtaki sahaya göre; ev sahibi için iç saha, deplasman takımı için deplasman maçları.
  *   VenueMatches bu ortalamaların dayandığı maç sayısı. Xg* aynı maçların beklenen gol (xG) ortalamaları.
+ * - LastMatchDate / LastMatchCompetition: bu maçtan önceki son resmi maçın tarihi ve turnuvası (tüm organizasyonlar); dinlenme süresi bundan kodda hesaplanır. Tarih maçtan önce ve en fazla 30 gün önce değilse atılır.
  */
 public sealed record TeamForm(
     string Team,
@@ -82,10 +83,15 @@ public sealed record TeamForm(
     double? VenueGoalsFor,
     double? VenueGoalsAgainst,
     double? XgFor,
-    double? XgAgainst)
+    double? XgAgainst,
+    DateOnly? LastMatchDate = null,
+    string? LastMatchCompetition = null)
 {
+    // Yalnızca kod içi kontrol; API cevabına ve önbelleğe yazılmaz.
+    [System.Text.Json.Serialization.JsonIgnore]
     public bool HasData => Last5 is not null || LeaguePosition is not null || VenueGoalsFor is not null
-                           || VenueGoalsAgainst is not null || XgFor is not null || XgAgainst is not null;
+                           || VenueGoalsAgainst is not null || XgFor is not null || XgAgainst is not null
+                           || LastMatchDate is not null;
 }
 
 /// <summary>Aramanın dayandığı web kaynağı (Gemini grounding). Url, Google'ın yönlendirme adresi olabilir.</summary>

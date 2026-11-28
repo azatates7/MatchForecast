@@ -103,4 +103,30 @@ public class ForecastPromptTests
         Assert.DoesNotContain("Form (", ForecastPrompt.BuildUser(Match, new AbsenceReport(AbsenceReport.Ready, [], [], DateTimeOffset.Now)));
         Assert.DoesNotContain("Form (", ForecastPrompt.BuildUser(Match, new AbsenceReport(AbsenceReport.Ready, [], [], DateTimeOffset.Now, null, [])));
     }
+
+    [Fact]
+    public void BuildUser_WritesRestDays_ComputedInCode()
+    {
+        var day = DateOnly.FromDateTime(Match.Kickoff.ToLocalTime().DateTime);
+        var form = new[]
+        {
+            new TeamForm("Galatasaray", null, null, null, null, null, null, null, day.AddDays(-3), "UEFA Avrupa Ligi"),
+            new TeamForm("Fenerbahce", "WWDLW", null, null, null, null, null, null, day.AddDays(-7))
+        };
+        var lines = Lines(ForecastPrompt.BuildUser(Match, new AbsenceReport(AbsenceReport.Ready, [], [], DateTimeOffset.Now, null, form)));
+
+        Assert.Contains("Dinlenme (son resmi maçtan bu maça): Galatasaray 3 gün (önceki maç: UEFA Avrupa Ligi); Fenerbahce 7 gün.", lines);
+        // Yalnızca dinlenme bilgisi olan takım form satırına girmez.
+        Assert.DoesNotContain(lines, l => l.StartsWith("- Galatasaray:", StringComparison.Ordinal));
+        Assert.Contains("- Fenerbahce: son 5 maç (en yeni önce) G G B M G.", lines);
+    }
+
+    [Fact]
+    public void BuildUser_OmitsRestLine_WhenNoDates()
+    {
+        var form = new[] { new TeamForm("Galatasaray", "WWDLW", 2, null, null, null, null, null) };
+        var prompt = ForecastPrompt.BuildUser(Match, new AbsenceReport(AbsenceReport.Ready, [], [], DateTimeOffset.Now, null, form));
+
+        Assert.DoesNotContain("Dinlenme", prompt);
+    }
 }

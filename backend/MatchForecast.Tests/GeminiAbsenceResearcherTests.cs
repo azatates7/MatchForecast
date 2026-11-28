@@ -293,6 +293,26 @@ public class GeminiAbsenceResearcherTests
     }
 
     [Fact]
+    public void ParseForm_KeepsLastMatchDate_OnlyIfBeforeMatchAndWithin30Days()
+    {
+        var match = Match(DateTimeOffset.Now);
+        var day = DateOnly.FromDateTime(match.Kickoff.ToLocalTime().DateTime);
+        string D(int offset) => day.AddDays(offset).ToString("yyyy-MM-dd");
+        var form = GeminiAbsenceResearcher.ParseForm(Referee($$"""
+            [ { "team": "CSKA Sofia", "lastMatchDate": "{{D(-3)}}", "lastMatchCompetition": "Bulgarian Cup" },
+              { "team": "Trabzonspor", "last5": "WDW", "lastMatchDate": "{{D(0)}}", "lastMatchCompetition": "Süper Lig" } ]
+            """), match);
+
+        // Yalnızca tarihi olan takım da listede kalır (dinlenme için).
+        Assert.Equal((day.AddDays(-3), "Bulgarian Cup"), (form[0].LastMatchDate, form[0].LastMatchCompetition));
+        // Maç günüyle aynı tarih geçersiz: tarih ve turnuva atılır, form verisi kalır.
+        Assert.Equal(("WDW", (DateOnly?)null, (string?)null), (form[1].Last5, form[1].LastMatchDate, form[1].LastMatchCompetition));
+
+        var old = GeminiAbsenceResearcher.ParseForm(Referee($$"""[ { "team": "CSKA Sofia", "lastMatchDate": "{{D(-31)}}" }, { "team": "Trabzonspor", "lastMatchDate": "26.11.2026" } ]"""), match);
+        Assert.Empty(old); // 30 günden eski ve biçimi yanlış tarih → takımın başka verisi yok
+    }
+
+    [Fact]
     public async Task OnMatchDay_ReadsForm_FromSameSearch()
     {
         const string body = """

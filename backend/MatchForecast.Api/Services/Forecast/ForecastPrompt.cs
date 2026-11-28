@@ -42,6 +42,10 @@ public static class ForecastPrompt
           rakibin yediği gol/xG ile birlikte değerlendir; xG varsa gerçekleşen golden daha güvenilir say. Son 5 maç ve lig
           sırası kısa vadeli eğilimi gösterir, aşırı ağırlık verme. Az maça (ör. 5'ten az) dayanan ortalamaları lig
           ortalamasına doğru çek. Form satırı olmayan takım için veri uydurma.
+        - Kullanıcı mesajında dinlenme satırı varsa: 3 gün veya daha az dinlenen takımda rotasyon ve tempo düşüşü olasılığını
+          hesaba kat (özellikle rakibi 5 gün veya daha fazla dinlendiyse); gol beklentisini en fazla hafifçe ayarla, kadrosu
+          geniş takımlarda etkiyi daha az say. Belirgin bir fark varsa ilgili reasoning'de kısaca an. Dinlenme satırı yoksa
+          veya bir takımın süresi yazmıyorsa bu konuda varsayım yapma.
         - reasoning: en fazla 1 cümle, Türkçe. reasoningEn: aynı cümlenin İngilizcesi.
         - summary: maçın 1-2 cümlelik genel değerlendirmesi, Türkçe. summaryEn: aynı metnin İngilizcesi.
         - Cevabın SADECE geçerli JSON olsun; açıklama, markdown veya kod bloğu ekleme.
@@ -69,6 +73,7 @@ public static class ForecastPrompt
         sb.AppendLine($"Başlama: {match.Kickoff.ToString("dd MMMM yyyy HH:mm", tr)}");
         sb.AppendLine();
         AppendForm(sb, match, absences?.Form);
+        AppendRest(sb, match, absences?.Form);
         AppendReferee(sb, absences?.Referee);
         AppendAbsences(sb, match, absences);
         sb.AppendLine();
@@ -77,18 +82,17 @@ public static class ForecastPrompt
     }
 
     /*
-     * Yalnızca bulunan alanlar yazılır; hiç form verisi yoksa bölüm eklenmez. Ör: Galatasaray: son 5 maç (en yeni önce) G G B M G; ligde 2. sıra; iç sahada maç başına 2,3 gol attı, 0,8 yedi (8 maç); xG 2,1 / 0,9."
+     * Yalnızca bulunan alanlar yazılır; hiç form verisi yoksa bölüm eklenmez. Ör: "- Galatasaray: son 5 maç (en yeni önce) G G B M G; ligde 2. sıra; iç sahada maç başına 2,3 gol attı, 0,8 yedi (8 maç); xG 2,1 / 0,9."
      */
     private static void AppendForm(StringBuilder sb, MatchSummary match, IReadOnlyList<TeamForm>? form)
     {
-        var teams = form?.Where(f => f.HasData).ToList();
-        if (teams is null || teams.Count == 0)
+        if (form is null || form.Count == 0)
             return;
 
         var tr = CultureInfo.GetCultureInfo("tr-TR");
         string N(double v) => v.ToString("0.0#", tr);
-        sb.AppendLine("Form (bu sezon, maç günü araması):");
-        foreach (var f in teams)
+        var lines = new List<string>();
+        foreach (var f in form)
         {
             var venue = f.Team == match.HomeTeam ? "iç sahada" : "deplasmanda";
             var parts = new List<string>();
@@ -105,14 +109,45 @@ public static class ForecastPrompt
             }
             if (f.XgFor is not null || f.XgAgainst is not null)
                 parts.Add($"xG {(f.XgFor is { } xf ? N(xf) : "?")} / {(f.XgAgainst is { } xa ? N(xa) : "?")} (lehine / aleyhine)");
-            sb.AppendLine($"- {f.Team}: {string.Join("; ", parts)}.");
+            // Yalnızca dinlenme bilgisi olan takım form satırına girmez (o bilgi AppendRest'te).
+            if (parts.Count > 0)
+                lines.Add($"- {f.Team}: {string.Join("; ", parts)}.");
         }
+        if (lines.Count == 0)
+            return;
+
+        sb.AppendLine("Form (bu sezon, maç günü araması):");
+        lines.ForEach(l => sb.AppendLine(l));
         sb.AppendLine();
     }
 
     /*
-     * Yalnızca hakemin istatistiği veya tarzı bulunduysa yazılır; bilinmeyen alanlar atlanır. Yalnızca ad biliniyorsa
-     * yazılmaz: model adı görünce kendi (güncel olmayabilecek) bilgisiyle hakem hakkında varsayım yapmasın. Ör:
+     * Dinlenme süresi, bu maçın günü ile takımın son resmi maçının günü arasındaki fark (kodda hesaplanır, modele bırakılmaz).
+     * Hiçbir takımın tarihi yoksa satır eklenmez; yalnızca birininki varsa yalnızca o yazılır. Ör:
+     * "Dinlenme (son resmi maçtan bu maça): Galatasaray 3 gün (önceki maç: UEFA Avrupa Ligi); Fenerbahce 7 gün."
+     */
+    private static void AppendRest(StringBuilder sb, MatchSummary match, IReadOnlyList<TeamForm>? form)
+    {
+        var matchDay = DateOnly.FromDateTime(match.Kickoff.ToLocalTime().DateTime);
+        var parts = (form ?? [])
+            .Where(f => f.LastMatchDate is { } d && d < matchDay)
+            .Select(f =>
+            {
+                var days = matchDay.DayNumber - f.LastMatchDate!.Value.DayNumber;
+                return string.IsNullOrWhiteSpace(f.LastMatchCompetition)
+                    ? $"{f.Team} {days} gün"
+                    : $"{f.Team} {days} gün (önceki maç: {f.LastMatchCompetition.Trim()})";
+            })
+            .ToList();
+        if (parts.Count == 0)
+            return;
+
+        sb.AppendLine($"Dinlenme (son resmi maçtan bu maça): {string.Join("; ", parts)}.");
+        sb.AppendLine();
+    }
+
+    /*
+     * Yalnızca hakemin istatistiği veya tarzı bulunduysa yazılır; bilinmeyen alanlar atlanır. Yalnızca ad biliniyorsa yazılmaz: model adı görünce kendi (güncel olmayabilecek) bilgisiyle hakem hakkında varsayım yapmasın. Ör:
      * "Hakem: Halil Umut Meler — maç başına 4,8 sarı, 0,2 kırmızı, 0,3 penaltı (12 maç). Tarz: Sert müdahaleye hızlı kart gösterir."
      */
     private static void AppendReferee(StringBuilder sb, RefereeInfo? r)
