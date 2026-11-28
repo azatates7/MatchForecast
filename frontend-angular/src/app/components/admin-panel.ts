@@ -8,6 +8,7 @@ import { GroupsTab } from './admin-groups-tab';
 import { PermissionsTab } from './admin-permissions-tab';
 import { UsageTab } from './admin-usage-tab';
 import { AccuracyTab } from './admin-accuracy-tab';
+import { KafkaTab } from './admin-kafka-tab';
 
 /*
  * Yönetim paneli iskeleti: yetkiye göre filtrelenmiş sekmeler (Kullanıcılar, Roller, Gruplar, Yetkiler, AI kullanımı, Tahmin isabeti).
@@ -16,7 +17,7 @@ import { AccuracyTab } from './admin-accuracy-tab';
  */
 @Component({
   selector: 'app-admin-panel',
-  imports: [UsersTab, RolesTab, GroupsTab, PermissionsTab, UsageTab, AccuracyTab],
+  imports: [UsersTab, RolesTab, GroupsTab, PermissionsTab, UsageTab, AccuracyTab, KafkaTab],
   templateUrl: './admin-panel.html',
 })
 export class AdminPanel {

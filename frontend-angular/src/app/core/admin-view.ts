@@ -3,11 +3,10 @@ import { hasPermission, PERMISSIONS, type MeResponse } from './types'
 
 /*
  * Yönetim görünümü (adres çubuğunda #admin veya #admin/<sekme>). Router kullanılmaz; App hashchange'i dinler.
- * Her sekme yalnızca ilgili yetkisi olana görünür (Admin hepsini görür). Hiç sekmesi olmayan biri #admin açarsa
- * maç ekranında kalır. Asıl kontrol API'dedir; bu yalnızca görünüm içindir.
+ * Her sekme yalnızca ilgili yetkisi olana görünür (Admin hepsini görür). Hiç sekmesi olmayan biri #admin açarsa maç ekranında kalır. Asıl kontrol API'dedir; bu yalnızca görünüm içindir.
  * Not: frontend/src/adminView.ts ile bu dosya birbirinin kopyasıdır, birlikte güncelleyin.
  */
-export type AdminTab = 'users' | 'roles' | 'groups' | 'permissions' | 'usage' | 'accuracy'
+export type AdminTab = 'users' | 'roles' | 'groups' | 'permissions' | 'usage' | 'accuracy' | 'kafka'
 
 export interface AdminTabDef {
   id: AdminTab
@@ -21,7 +20,8 @@ export const ADMIN_TABS: readonly AdminTabDef[] = [
   { id: 'groups', permission: PERMISSIONS.groupsManage, label: 'admin.tab.groups' },
   { id: 'permissions', permission: PERMISSIONS.permissionsManage, label: 'admin.tab.permissions' },
   { id: 'usage', permission: PERMISSIONS.aiUsageView, label: 'admin.tab.usage' },
-  { id: 'accuracy', permission: PERMISSIONS.accuracyView, label: 'admin.tab.accuracy' }
+  { id: 'accuracy', permission: PERMISSIONS.accuracyView, label: 'admin.tab.accuracy' },
+  { id: 'kafka', permission: PERMISSIONS.kafkaManage, label: 'admin.tab.kafka' }
 ]
 
 export const adminHash = (tab?: AdminTab) => (tab ? `#admin/${tab}` : '#admin')

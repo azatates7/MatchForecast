@@ -70,6 +70,9 @@ try
     builder.Services.AddSingleton<GoogleIdTokenValidator>();
 
     builder.Services.Configure<OddsProviderOptions>(builder.Configuration.GetSection(OddsProviderOptions.Section));
+    // API-Football günlük kota takibi: iki API-Football HttpClient'ına handler olarak eklenir (aşağıda).
+    builder.Services.AddSingleton<ApiFootballQuotaTracker>();
+    builder.Services.AddTransient<ApiFootballQuotaHandler>();
     builder.Services.Configure<AiOptions>(builder.Configuration.GetSection(AiOptions.Section));
     builder.Services.Configure<AbsencesOptions>(builder.Configuration.GetSection(AbsencesOptions.Section));
     builder.Services.Configure<AccuracyOptions>(builder.Configuration.GetSection(AccuracyOptions.Section));
@@ -182,7 +185,8 @@ try
         var o = sp.GetRequiredService<IOptions<OddsProviderOptions>>().Value;
         c.BaseAddress = new Uri(o.BaseUrl);
         c.DefaultRequestHeaders.Add("x-apisports-key", o.ApiKey);
-    });
+    })
+    .AddHttpMessageHandler<ApiFootballQuotaHandler>(); // Günlük kota başlıklarını okur (ApiFootballQuotaTracker).
 
     // AI sağlayıcısı Ai:Provider ile seçilir; iki sağlayıcının anahtarı user-secrets'ta aynı anda durabilir.
     var aiProvider = builder.Configuration[$"{AiOptions.Section}:{nameof(AiOptions.Provider)}"] ?? "Gemini";
@@ -289,6 +293,8 @@ try
         .ValidateOnStart();
     builder.Services.AddScoped<ForecastStore>();
 
+    // DLQ yönetimi (panel): Kafka kapalıyken de kayıtlı; rapor Enabled=false döner.
+    builder.Services.AddSingleton<KafkaDlqService>();
     var kafkaEnabled = builder.Configuration.GetValue<bool>($"{KafkaOptions.Section}:{nameof(KafkaOptions.Enabled)}");
     if (kafkaEnabled)
     {
@@ -318,7 +324,8 @@ try
             c.DefaultRequestHeaders.Add("x-goog-api-key", g.ApiKey);
     });
 
-    // Modelin yazdığı kaynak adreslerini denetler. Gemini anahtarı taşımayan ayrı istemci; yerel/özel IP'lere bağlanmaz, yönlendirme izlemez, proxy kullanmaz (SSRF koruması: SourceLinkChecker).
+    // Modelin yazdığı kaynak adreslerini denetler. Gemini anahtarı taşımayan ayrı istemci; yerel/özel IP'lere bağlanmaz,
+    // yönlendirme izlemez, proxy kullanmaz (SSRF koruması: SourceLinkChecker).
     builder.Services.AddHttpClient<ISourceLinkChecker, SourceLinkChecker>(c =>
         {
             c.Timeout = TimeSpan.FromSeconds(5);
@@ -345,7 +352,8 @@ try
         c.BaseAddress = new Uri(o.BaseUrl);
         c.Timeout = TimeSpan.FromSeconds(30);
         c.DefaultRequestHeaders.Add("x-apisports-key", o.ApiKey);
-    });
+    })
+    .AddHttpMessageHandler<ApiFootballQuotaHandler>();
     builder.Services.AddHostedService<ResultSettlementWorker>();
 
     // Süresi dolmuş refresh token'ları ve kullanılmış/süresi dolmuş şifre sıfırlama kayıtlarını günde bir siler.

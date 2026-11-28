@@ -97,11 +97,41 @@ public sealed class ApiFootballOddsProvider(
         if (doc.RootElement.TryGetProperty("errors", out var errors) && HasItems(errors))
         {
             var msg = errors.GetRawText();
+            var known = KnownError(errors);
             doc.Dispose();
             logger.LogWarning("API-Football error for {Path}: {Errors}", path, msg);
-            throw new ForecastException(Lang.T($"API-Football hatası: {msg}", $"API-Football error: {msg}"));
+            throw known ?? new ForecastException(Lang.T($"API-Football hatası: {msg}", $"API-Football error: {msg}"));
         }
         return doc;
+    }
+
+    /*
+     * Uygulama arızası olmayan, beklenen API-Football hataları 5xx yerine 4xx döner; böylece hata maili tetiklenmez
+     * (ExceptionMiddleware yalnızca 5xx'i mailler) ve kullanıcı anlaşılır bir mesaj görür.
+     * - plan: ücretsiz plan bu tarihi vermiyor (ör. yarından sonrası) → 400.
+     * - requests: günlük istek kotası doldu → 429 (kota uyarısını ApiFootballQuotaTracker ayrıca, günde bir kez mailler).
+     * - rateLimit: dakikalık sınır aşıldı → 429.
+     */
+    private static ForecastException? KnownError(JsonElement errors)
+    {
+        if (errors.ValueKind != JsonValueKind.Object)
+            return null;
+        if (errors.TryGetProperty("plan", out _))
+            return new ForecastException(Lang.T(
+                "Bu tarihin maçları API-Football planında açık değil; yalnızca yakın tarihler görüntülenebilir.",
+                "Matches for this date are not available on the API-Football plan; only nearby dates can be viewed."),
+                StatusCodes.Status400BadRequest);
+        if (errors.TryGetProperty("requests", out _))
+            return new ForecastException(Lang.T(
+                "API-Football günlük istek kotası doldu; maç listesi kota yenilenince tekrar alınabilir.",
+                "The API-Football daily request quota is exhausted; matches can be loaded again once it resets."),
+                StatusCodes.Status429TooManyRequests);
+        if (errors.TryGetProperty("rateLimit", out _))
+            return new ForecastException(Lang.T(
+                "API-Football'a kısa sürede çok fazla istek gönderildi; biraz sonra tekrar deneyin.",
+                "Too many requests were sent to API-Football in a short time; please try again shortly."),
+                StatusCodes.Status429TooManyRequests);
+        return null;
     }
 
     private static bool HasItems(JsonElement e) => e.ValueKind switch
@@ -130,6 +160,7 @@ public sealed class ApiFootballOddsProvider(
             ParseReferee(fixture));
     }
 
+    // "Halil Umut Meler, Turkey" → "Halil Umut Meler". Atama açıklanmadıysa alan null veya boş gelir.
     public static string? ParseReferee(JsonElement fixture)
     {
         if (!fixture.TryGetProperty("referee", out var r) || r.ValueKind != JsonValueKind.String)

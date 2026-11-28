@@ -2,6 +2,7 @@ import type {
   AccuracyReport,
   AiUsageReport,
   AuthConfigResponse, CacheClearResponse, CreatePermissionRequest, CreateUserRequest, ForecastResult, GroupRequest, GroupResponse,
+  KafkaDlqReplayResult, KafkaDlqReport,
   MatchSummary, MeResponse, PasswordResponse, PermissionResponse, RoleRequest, RoleResponse, TokenResponse, UpdatePermissionRequest,
   UpdateUserRequest, UserResponse
 } from './types'
@@ -159,6 +160,10 @@ async function request<T>(url: string, method = 'GET', body?: unknown): Promise<
 export const getMatches = (date: string) =>
   request<MatchSummary[]>(`/api/matches?date=${date}`)
 
+// Tahmini önbellekte hazır (anında açılan) maçların ID'leri; listede işaretlenir.
+export const getAnalyzed = (date: string) =>
+  request<number[]>(`/api/matches/analyzed?date=${date}`)
+
 export const getForecast = (id: number, refresh = false) =>
   request<ForecastResult>(`/api/matches/${id}/forecast${refresh ? '?refresh=true' : ''}`)
 
@@ -222,3 +227,9 @@ export const getAiUsage = (days: number) => request<AiUsageReport>(`/api/ai-usag
 
 // Tahmin isabet raporu (yalnızca accuracy.view; Admin örtük olarak sahip)
 export const getAccuracy = (days: number) => request<AccuracyReport>(`/api/accuracy?days=${days}`)
+
+// Kafka DLQ (kafka.manage): listeleme ve yeniden işleme.
+export const getKafkaDlq = () => request<KafkaDlqReport>('/api/admin/kafka/dlq')
+export const replayKafkaDlq = (partition: number, offset: number) =>
+  request<KafkaDlqReplayResult>(`/api/admin/kafka/dlq/${partition}/${offset}/replay`, 'POST')
+export const replayAllKafkaDlq = () => request<KafkaDlqReplayResult>('/api/admin/kafka/dlq/replay-all', 'POST')

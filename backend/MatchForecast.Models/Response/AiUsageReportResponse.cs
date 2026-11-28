@@ -7,7 +7,8 @@ public sealed record AiUsageReportResponse(
     DateOnly To,
     AiUsageTotalsResponse Totals,
     IReadOnlyList<AiUsageDailyResponse> Daily,
-    AiUsageSearchMonthResponse SearchMonth);
+    AiUsageSearchMonthResponse SearchMonth,
+    ApiFootballQuotaResponse? ApiFootball = null); // Henüz API-Football isteği yapılmadıysa null
 
 /// <summary>
 /// Bu ayın (seçilen dönemden bağımsız) Google araması sayacı. Limit: Absences:MonthlySearchLimit (0 = sınırsız);

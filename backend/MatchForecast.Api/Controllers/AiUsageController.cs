@@ -1,4 +1,5 @@
 using MatchForecast.Api.Options;
+using MatchForecast.Api.Services.ApiFootball;
 using MatchForecast.Api.Services.Security;
 using MatchForecast.Data.Configuration;
 using MatchForecast.Data.Seed;
@@ -17,7 +18,7 @@ namespace MatchForecast.Api.Controllers;
 [ApiController]
 [Route("api/ai-usage")]
 [RequirePermission(PermissionKeys.AiUsageView)]
-public sealed class AiUsageController(AppDbContext db, IOptions<AbsencesOptions> absenceOptions) : ControllerBase
+public sealed class AiUsageController(AppDbContext db, IOptions<AbsencesOptions> absenceOptions, ApiFootballQuotaTracker apiFootballQuota) : ControllerBase
 {
     private const int MaxDays = 90;
 
@@ -66,6 +67,7 @@ public sealed class AiUsageController(AppDbContext db, IOptions<AbsencesOptions>
         var opt = absenceOptions.Value;
 
         return new AiUsageReportResponse(from, to, totals, daily,
-            new AiUsageSearchMonthResponse(monthSearches, Math.Max(0, opt.MonthlySearchLimit), Math.Max(0, opt.FreeSearchesPerMonth)));
+            new AiUsageSearchMonthResponse(monthSearches, Math.Max(0, opt.MonthlySearchLimit), Math.Max(0, opt.FreeSearchesPerMonth)),
+            await apiFootballQuota.GetAsync());
     }
 }

@@ -21,6 +21,8 @@ export class MatchList {
   readonly emptyText = input<string>();
   /** true: her maçın altında fikstür ID'si (yalnızca Admin) */
   readonly showIds = input(false);
+  /** Tahmini önbellekte hazır (anında açılan) maçlar; sağda küçük bir işaretle gösterilir */
+  readonly analyzedIds = input<ReadonlySet<number>>(new Set());
   readonly select = output<number>();
 
   protected readonly i18n = inject(I18nService);

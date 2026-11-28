@@ -8,6 +8,7 @@ import GroupsTab from './GroupsTab'
 import PermissionsTab from './PermissionsTab'
 import UsageTab from './UsageTab'
 import AccuracyTab from './AccuracyTab'
+import KafkaTab from './KafkaTab'
 
 interface Props {
   me: MeResponse
@@ -60,6 +61,7 @@ export default function AdminPanel({ me, tab }: Props) {
           : active.id === 'groups' ? <GroupsTab me={me} />
           : active.id === 'usage' ? <UsageTab />
           : active.id === 'accuracy' ? <AccuracyTab />
+          : active.id === 'kafka' ? <KafkaTab />
           : <PermissionsTab />}
       </section>
     </main>

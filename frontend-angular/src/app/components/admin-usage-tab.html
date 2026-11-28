@@ -29,6 +29,17 @@
       <p>{{ i18n.t(level === 'full' ? 'admin.usage.monthFull' : 'admin.usage.monthNear') }}</p>
     }
   </div>
+  @if (r.apiFootball; as q) {
+    @let qLevel = quotaLevel(q);
+    <div class="usage-month" [class.is-near]="qLevel === 'near'" [class.is-full]="qLevel === 'full'" [attr.role]="qLevel === 'ok' ? null : 'status'">
+      <p>{{ i18n.t('admin.usage.apiFootball', { remaining: num(q.remaining), limit: num(q.limit), time: quotaTime(q.updatedAt) }) }}</p>
+      @if (qLevel !== 'ok') {
+        <p>{{ i18n.t(qLevel === 'full' ? 'admin.usage.apiFootballEmpty' : 'admin.usage.apiFootballLow') }}</p>
+      }
+    </div>
+  } @else {
+    <div class="usage-month"><p>{{ i18n.t('admin.usage.apiFootballNone') }}</p></div>
+  }
   <dl class="usage-stats">
     <div><dt>{{ i18n.t('admin.usage.calls') }}</dt><dd>{{ num(r.totals.calls) }}</dd></div>
     <div><dt>{{ i18n.t('admin.usage.failures') }}</dt><dd>{{ num(r.totals.failures) }}</dd></div>

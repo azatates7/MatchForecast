@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useI18n } from '../../i18n/useI18n'
 import { getAiUsage } from '../../api'
-import type { AiUsagePurpose, AiUsageReport, AiUsageSearchMonth } from '../../types'
+import type { AiUsagePurpose, AiUsageReport, AiUsageSearchMonth, ApiFootballQuota } from '../../types'
 import type { MessageKey } from '../../i18n/messages'
 
 const RANGES = [7, 30, 90] as const
@@ -12,8 +12,7 @@ const PURPOSE_LABEL: Record<AiUsagePurpose, MessageKey> = {
 }
 
 /*
- * AI kullanımı sekmesi (ai-usage.view; Admin örtük olarak sahip). Seçilen dönemin toplamları ve
- * gün/tür/sağlayıcı/model kırılımı salt okunurdur. Tür: tahmin üretimi veya eksik oyuncu araması (Google araması sayısıyla). Asıl yetki kontrolü API'dedir (GET /api/ai-usage).
+ * AI kullanımı sekmesi (ai-usage.view; Admin örtük olarak sahip). Seçilen dönemin toplamları ve gün/tür/sağlayıcı/model kırılımı salt okunurdur. Tür: tahmin üretimi veya eksik oyuncu araması (Google araması sayısıyla). Asıl yetki kontrolü API'dedir (GET /api/ai-usage).
  */
 /*
  * Bu ayın Google araması sayacı (seçilen dönemden bağımsız). Sınırın %90'ına gelince uyarı, dolunca eksik oyuncu aramasının durduğu söylenir (backend: Absences:MonthlySearchLimit).
@@ -30,6 +29,23 @@ function SearchMonth({ month }: { month: AiUsageSearchMonth }) {
           : t('admin.usage.monthUnlimited', { used: num(month.used), free: num(month.freeQuota) })}
       </p>
       {level !== 'ok' && <p>{t(level === 'full' ? 'admin.usage.monthFull' : 'admin.usage.monthNear')}</p>}
+    </div>
+  )
+}
+
+/*
+ * API-Football günlük istek kotası (son API-Football cevabının başlıklarından). Kalan istek %20'ye inince uyarı, bitince "doldu" uyarısı gösterilir (backend aynı eşikle yöneticiye günde bir kez mail atar: OddsProvider:QuotaWarnPercent).
+ */
+function ApiFootballQuotaLine({ quota }: { quota: ApiFootballQuota | null }) {
+  const { t, locale } = useI18n()
+  if (!quota) return <div className="usage-month"><p>{t('admin.usage.apiFootballNone')}</p></div>
+  const num = (n: number) => n.toLocaleString(locale)
+  const time = new Date(quota.updatedAt).toLocaleString(locale, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+  const level = quota.remaining <= 0 ? 'full' : quota.remaining * 100 <= quota.limit * 20 ? 'near' : 'ok'
+  return (
+    <div className={`usage-month${level === 'ok' ? '' : ` is-${level}`}`} role={level === 'ok' ? undefined : 'status'}>
+      <p>{t('admin.usage.apiFootball', { remaining: num(quota.remaining), limit: num(quota.limit), time })}</p>
+      {level !== 'ok' && <p>{t(level === 'full' ? 'admin.usage.apiFootballEmpty' : 'admin.usage.apiFootballLow')}</p>}
     </div>
   )
 }
@@ -79,6 +95,7 @@ export default function UsageTab() {
       {!state.loading && !state.error && report && (
         <>
           <SearchMonth month={report.searchMonth} />
+          <ApiFootballQuotaLine quota={report.apiFootball ?? null} />
           <dl className="usage-stats">
             <div><dt>{t('admin.usage.calls')}</dt><dd>{num(report.totals.calls)}</dd></div>
             <div><dt>{t('admin.usage.failures')}</dt><dd>{num(report.totals.failures)}</dd></div>

@@ -27,8 +27,27 @@ export const istanbulDate = (d: Date) => {
   return `${get('year')}-${get('month')}-${get('day')}`;
 };
 
-// Tarih seçimi bugünden (İstanbul) başlar: geçmiş bir gün verilirse bugün döner. ISO tarihler (YYYY-MM-DD) metin olarak karşılaştırılabilir.
-export const notBeforeToday = (iso: string) => {
-  const today = istanbulDate(new Date());
-  return iso < today ? today : iso;
+/*
+ * Seçilebilir tarihler: matches.any-date yetkisi olmayanlar (Admin dışındakiler) yalnızca bugünü ve yarını (İstanbul) seçebilir; yetkisi olanlar için sınır yok (geçmiş dahil). API de aynı kuralı uygular. ISO tarihler (YYYY-MM-DD) metin olarak karşılaştırılabilir.
+ */
+export const MATCH_DAYS_AHEAD = 1;
+
+export const selectableRange = () => {
+  const min = istanbulDate(new Date());
+  const d = new Date(`${min}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + MATCH_DAYS_AHEAD);
+  return { min, max: d.toISOString().slice(0, 10) };
+};
+
+export const isSelectableDate = (iso: string, anyDate: boolean) => {
+  if (anyDate) return true;
+  const { min, max } = selectableRange();
+  return iso >= min && iso <= max;
+};
+
+// Aralık dışındaki tarihi en yakın seçilebilir güne çeker (yetkisi olana dokunmaz).
+export const clampMatchDate = (iso: string, anyDate: boolean) => {
+  if (anyDate) return iso;
+  const { min, max } = selectableRange();
+  return iso < min ? min : iso > max ? max : iso;
 };

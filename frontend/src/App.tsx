@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
-import { addFavoriteLeague, clearCache, getFavoriteLeagues, getForecast, getMatches, getMe, hasSession, logout, onSessionExpired, removeFavoriteLeague } from './api'
+import { addFavoriteLeague, clearCache, getAnalyzed, getFavoriteLeagues, getForecast, getMatches, getMe, hasSession, logout, onSessionExpired, removeFavoriteLeague } from './api'
 import { hasPermission, type MeResponse } from './types'
 import type { ForecastResult, MatchSummary } from './types'
 import { isLive } from './components/MatchStatus'
@@ -13,11 +13,10 @@ import BrandLogo from './components/BrandLogo'
 import LanguageToggle from './components/LanguageToggle'
 import AdminPanel from './components/admin/AdminPanel'
 import { canOpenAdmin, clearHash, parseAdminHash } from './AdminView'
-import { istanbulDate, matchHash, notBeforeToday, parseMatchHash, replaceHash } from './MatchRoute'
+import { clampMatchDate, isSelectableDate, istanbulDate, matchHash, parseMatchHash, replaceHash, selectableRange } from './MatchRoute'
 import { useI18n } from './i18n/useI18n'
 
-// Canlı maç varken listenin arka planda yenilenme aralığı. API kotasını korumak için
-// kısa tutulmadı; aradaki dakikalar matchStatus.minuteLabel içinde yerelde ilerletilir.
+// Canlı maç varken listenin arka planda yenilenme aralığı. API kotasını korumak için kısa tutulmadı; aradaki dakikalar matchStatus.minuteLabel içinde yerelde ilerletilir.
 const LIVE_REFRESH_MS = 5 * 60_000
 // Ekrandaki dakika etiketinin güncellenme aralığı (ağ isteği yapmaz)
 const CLOCK_TICK_MS = 30_000
@@ -72,6 +71,13 @@ export default function App() {
   const canClearCache = hasPermission(me, 'cache.clear')
   // Fikstür ID'leri yalnızca Admin'e gösterilir (API-Football'da maçı sorgulamak, log ve Redis anahtarlarını bulmak için).
   const isAdmin = me?.roles.includes('Admin') ?? false
+  // Tarih seçimi: matches.any-date yetkisi (Admin dahil) yoksa yalnızca bugün ve yarın (API de aynı kuralı uygular).
+  const anyDate = hasPermission(me, 'matches.any-date')
+  // Tahmini önbellekte hazır olan maçlar (listede işaretlenir); liste her yüklendiğinde yenilenir.
+  const [analyzed, setAnalyzed] = useState<ReadonlySet<number>>(() => new Set())
+  const range = selectableRange()
+  // Yetki bilgisi gelince (veya değişince) seçili tarih izin verilen aralığa çekilir.
+  useEffect(() => { setDate(d => clampMatchDate(d, anyDate)) }, [anyDate])
 
   // Yönetim görünümü adresteki #admin[/sekme] ile açılır; yönetim yetkisi olmayan maç ekranında kalır.
   const [hash, setHash] = useState(() => window.location.hash)
@@ -111,6 +117,8 @@ export default function App() {
         setFetchedAt(Date.now())
         setNow(Date.now())
         setMatchesState({ loading: false })
+        // İşaret yalnızca görünüm içindir; alınamazsa liste işaretsiz kalır.
+        getAnalyzed(date).then(ids => { if (!isCancelled()) setAnalyzed(new Set(ids)) }).catch(() => {})
       })
       .catch((e: Error) => {
         if (isCancelled() || silent) return
@@ -231,11 +239,12 @@ export default function App() {
       if (seq !== requestSeq.current) return
       setForecast(result)
       setForecastState({ loading: false })
+      setAnalyzed(prev => (prev.has(result.match.id) ? prev : new Set(prev).add(result.match.id)))
       // Bağlantı veya geri tuşuyla başka günün maçı açıldıysa liste o güne geçer (maç listede seçili görünsün).
-      // Geçmiş bir maçın bağlantısında maç açılır ama liste bugünde kalır (tarihler bugünden başlar).
+      // O gün seçilebilir değilse (ör. normal kullanıcıya geçmiş bir maçın bağlantısı) maç açılır, liste olduğu günde kalır.
       if (!refresh) {
-        const day = notBeforeToday(istanbulDate(new Date(result.match.kickoff)))
-        setDate(prev => (prev === day ? prev : day))
+        const day = istanbulDate(new Date(result.match.kickoff))
+        if (isSelectableDate(day, anyDate)) setDate(prev => (prev === day ? prev : day))
       }
     } catch (e) {
       if (seq !== requestSeq.current) return
@@ -324,10 +333,10 @@ export default function App() {
           </div>
         ) : (
           <div className="date-nav">
-            {/* Tarihler bugünden başlar: önceki gün düğmesi bugünde pasif, takvimde geçmiş günler seçilemez. */}
-            <button type="button" onClick={() => setDate(d => notBeforeToday(shiftDate(d, -1)))} disabled={date <= todayInIstanbul()} aria-label={t('date.prev')}>‹</button>
-            <input type="date" value={date} min={todayInIstanbul()} onChange={e => e.target.value && setDate(notBeforeToday(e.target.value))} aria-label={t('date.label')} />
-            <button type="button" onClick={() => setDate(d => shiftDate(d, 1))} aria-label={t('date.next')}>›</button>
+            {/* Yetkisi olmayan yalnızca bugünü ve yarını seçebilir: sınırdaki ok pasif, takvim aralıkla sınırlı. */}
+            <button type="button" onClick={() => setDate(d => clampMatchDate(shiftDate(d, -1), anyDate))} disabled={!anyDate && date <= range.min} aria-label={t('date.prev')}>‹</button>
+            <input type="date" value={date} min={anyDate ? undefined : range.min} max={anyDate ? undefined : range.max} onChange={e => e.target.value && setDate(clampMatchDate(e.target.value, anyDate))} aria-label={t('date.label')} />
+            <button type="button" onClick={() => setDate(d => clampMatchDate(shiftDate(d, 1), anyDate))} disabled={!anyDate && date >= range.max} aria-label={t('date.next')}>›</button>
           </div>
         )}
         <div className="cache-actions">
@@ -392,6 +401,7 @@ export default function App() {
               now={now}
               emptyText={isGuest ? t('guest.noMatches') : undefined}
               showIds={isAdmin}
+              analyzedIds={analyzed}
             />
           </section>
   

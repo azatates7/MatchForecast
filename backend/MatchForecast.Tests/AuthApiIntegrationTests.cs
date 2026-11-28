@@ -139,7 +139,7 @@ public class AuthApiIntegrationTests : IClassFixture<WebApplicationFactory<Progr
         var token = (await (await LoginAsync(client)).Content.ReadFromJsonAsync<TokenResponse>())!;
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token.AccessToken);
 
-        var response = await client.GetAsync("/api/matches?date=2026-09-25");
+        var response = await client.GetAsync("/api/matches");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }

@@ -1,5 +1,5 @@
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
-import { addFavoriteLeague, clearCache, getFavoriteLeagues, getForecast, getMatches, getMe, hasSession, logout, onSessionExpired, removeFavoriteLeague } from './core/api';
+import { addFavoriteLeague, clearCache, getAnalyzed, getFavoriteLeagues, getForecast, getMatches, getMe, hasSession, logout, onSessionExpired, removeFavoriteLeague } from './core/api';
 import { hasPermission, type ForecastResult, type MatchSummary, type MeResponse } from './core/types';
 import { isLive } from './core/match-status';
 import { MatchList } from './components/match-list';
@@ -12,7 +12,7 @@ import { BrandLogo } from './components/brand-logo';
 import { SiteFooter } from './components/site-footer';
 import { AdminPanel } from './components/admin-panel';
 import { canOpenAdmin, clearHash, parseAdminHash } from './core/admin-view';
-import { istanbulDate, matchHash, notBeforeToday, parseMatchHash, replaceHash } from './core/match-route';
+import { clampMatchDate, isSelectableDate, istanbulDate, matchHash, parseMatchHash, replaceHash, selectableRange } from './core/match-route';
 import { I18nService } from './core/i18n/i18n.service';
 
 // Canlı maç varken listenin arka planda yenilenme aralığı. API kotasını korumak için kısa tutulmadı; aradaki dakikalar minuteLabel içinde yerelde ilerletilir.
@@ -81,6 +81,15 @@ export class App {
   protected readonly canClearCache = computed(() => hasPermission(this.me(), 'cache.clear'));
   // Fikstür ID'leri yalnızca Admin'e gösterilir (API-Football'da maçı sorgulamak, log ve Redis anahtarlarını bulmak için).
   protected readonly isAdmin = computed(() => this.me()?.roles.includes('Admin') ?? false);
+  // Tarih seçimi: matches.any-date yetkisi (Admin dahil) yoksa yalnızca bugün ve yarın (API de aynı kuralı uygular).
+  protected readonly anyDate = computed(() => hasPermission(this.me(), 'matches.any-date'));
+  // Tahmini önbellekte hazır olan maçlar (listede işaretlenir); liste her yüklendiğinde yenilenir.
+  protected readonly analyzed = signal<ReadonlySet<number>>(new Set());
+  // Yetki bilgisi gelince (veya değişince) seçili tarih izin verilen aralığa çekilir.
+  private readonly clampDateToRange = effect(() => {
+    const anyDate = this.anyDate();
+    untracked(() => this.date.update(d => clampMatchDate(d, anyDate)));
+  });
 
   // Yönetim görünümü adresteki #admin[/sekme] ile açılır; yönetim yetkisi olmayan maç ekranında kalır.
   protected readonly hash = signal(location.hash);
@@ -255,6 +264,8 @@ export class App {
         this.fetchedAt.set(Date.now());
         this.now.set(Date.now());
         this.matchesState.set({ loading: false });
+        // İşaret yalnızca görünüm içindir; alınamazsa liste işaretsiz kalır.
+        getAnalyzed(date).then(ids => { if (!isCancelled()) this.analyzed.set(new Set(ids)); }).catch(() => {});
       })
       .catch((e: Error) => {
         if (isCancelled() || silent) return;
@@ -280,18 +291,19 @@ export class App {
     this.forecastState.set({ loading: false });
   }
 
-  protected today() {
-    return todayInIstanbul();
+  // Seçilebilir aralık (bugün–yarın); yetkisi olana sınır uygulanmaz (şablonda min/max verilmez).
+  protected range() {
+    return selectableRange();
   }
 
   protected shiftDay(days: number) {
-    this.date.update(d => notBeforeToday(shiftDate(d, days)));
+    this.date.update(d => clampMatchDate(shiftDate(d, days), this.anyDate()));
   }
 
-  // Elle geçmiş bir tarih yazılırsa bugüne çekilir; input da düzeltilen değeri göstersin diye ayrıca yazılır.
+  // Elle aralık dışı bir tarih yazılırsa en yakın seçilebilir güne çekilir; input da düzeltilen değeri göstersin diye ayrıca yazılır.
   protected onDateInput(input: HTMLInputElement) {
     if (!input.value) return;
-    const value = notBeforeToday(input.value);
+    const value = clampMatchDate(input.value, this.anyDate());
     input.value = value;
     this.date.set(value);
   }
@@ -323,11 +335,12 @@ export class App {
       if (seq !== this.requestSeq) return;
       this.forecast.set(result);
       this.forecastState.set({ loading: false });
+      this.analyzed.update(prev => (prev.has(result.match.id) ? prev : new Set(prev).add(result.match.id)));
       // Bağlantı veya geri tuşuyla başka günün maçı açıldıysa liste o güne geçer (maç listede seçili görünsün).
-      // Geçmiş bir maçın bağlantısında maç açılır ama liste bugünde kalır (tarihler bugünden başlar).
+      // O gün seçilebilir değilse (ör. normal kullanıcıya geçmiş bir maçın bağlantısı) maç açılır, liste olduğu günde kalır.
       if (!refresh) {
-        const day = notBeforeToday(istanbulDate(new Date(result.match.kickoff)));
-        if (this.date() !== day) this.date.set(day);
+        const day = istanbulDate(new Date(result.match.kickoff));
+        if (isSelectableDate(day, this.anyDate()) && this.date() !== day) this.date.set(day);
       }
     } catch (e) {
       if (seq !== this.requestSeq) return;

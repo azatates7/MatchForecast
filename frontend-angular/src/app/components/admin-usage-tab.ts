@@ -1,7 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { I18nService } from '../core/i18n/i18n.service';
 import { getAiUsage } from '../core/api';
-import type { AiUsagePurpose, AiUsageReport, AiUsageSearchMonth } from '../core/types';
+import type { AiUsagePurpose, AiUsageReport, AiUsageSearchMonth, ApiFootballQuota } from '../core/types';
 import type { MessageKey } from '../core/i18n/messages';
 
 const PURPOSE_LABEL: Record<AiUsagePurpose, MessageKey> = {
@@ -53,6 +53,18 @@ export class UsageTab {
   protected usd(n: number): string {
     const digits = n === 0 ? 2 : 4;
     return n.toLocaleString(this.i18n.locale(), { style: 'currency', currency: 'USD', minimumFractionDigits: digits, maximumFractionDigits: digits });
+  }
+
+  /*
+   * API-Football günlük istek kotası: kalan %20'ye inince uyarı, bitince "doldu" (backend aynı eşikle günde bir kez
+   * mail atar: OddsProvider:QuotaWarnPercent).
+   */
+  protected quotaLevel(q: ApiFootballQuota): 'ok' | 'near' | 'full' {
+    return q.remaining <= 0 ? 'full' : q.remaining * 100 <= q.limit * 20 ? 'near' : 'ok';
+  }
+
+  protected quotaTime(iso: string): string {
+    return new Date(iso).toLocaleString(this.i18n.locale(), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   }
 
   protected date(d: string): string {

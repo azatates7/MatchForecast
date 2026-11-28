@@ -2,6 +2,7 @@ import type {
   AccuracyReport,
   AiUsageReport,
   AuthConfigResponse, CacheClearResponse, CreatePermissionRequest, CreateUserRequest, ForecastResult, GroupRequest, GroupResponse,
+  KafkaDlqReplayResult, KafkaDlqReport,
   MatchSummary, MeResponse, PasswordResponse, PermissionResponse, RoleRequest, RoleResponse, TokenResponse, UpdatePermissionRequest,
   UpdateUserRequest, UserResponse
 } from './types'
@@ -12,8 +13,7 @@ import { getLang, t } from './i18n/i18n'
  * - Access token yalnızca bellekte tutulur (kısa ömürlü; XSS ile kalıcı olarak ele geçirilemez).
  * - Refresh token localStorage'da tutulur ki sayfa yenilenince tekrar giriş gerekmesin. Bedeli: XSS olursa okunabilir.
  *   Daha güvenli seçenek httpOnly cookie'dir (backend değişikliği gerekir).
- * - Access token yoksa veya 401 alınırsa refresh token ile yenisi alınır; o da başarısız olursa oturum kapanır
- *   ve onSessionExpired ile uygulamaya haber verilir (login ekranı gösterilir).
+ * - Access token yoksa veya 401 alınırsa refresh token ile yenisi alınır; o da başarısız olursa oturum kapanır ve onSessionExpired ile uygulamaya haber verilir (login ekranı gösterilir).
  */
 const REFRESH_KEY = 'matchforecast.refreshToken'
 
@@ -22,8 +22,7 @@ const apiFetch = (url: string, init: RequestInit = {}) =>
   fetch(url, { ...init, headers: { ...(init.headers as Record<string, string> | undefined), 'Accept-Language': getLang() } })
 
 let accessToken: string | null = null
-// Aynı anda 401 alan istekler TEK bir refresh çağrısını paylaşır. Refresh token tek kullanımlık olduğu için iki kez
-// gönderilirse backend bunu "çalınmış token" sayar ve kullanıcının tüm oturumlarını kapatır.
+// Aynı anda 401 alan istekler TEK bir refresh çağrısını paylaşır. Refresh token tek kullanımlık olduğu için iki kez gönderilirse backend bunu "çalınmış token" sayar ve kullanıcının tüm oturumlarını kapatır.
 let refreshing: Promise<string | null> | null = null
 let sessionExpiredHandler: (() => void) | null = null
 
@@ -159,6 +158,10 @@ async function request<T>(url: string, method = 'GET', body?: unknown): Promise<
 export const getMatches = (date: string) =>
   request<MatchSummary[]>(`/api/matches?date=${date}`)
 
+// Tahmini önbellekte hazır (anında açılan) maçların ID'leri; listede işaretlenir.
+export const getAnalyzed = (date: string) =>
+  request<number[]>(`/api/matches/analyzed?date=${date}`)
+
 export const getForecast = (id: number, refresh = false) =>
   request<ForecastResult>(`/api/matches/${id}/forecast${refresh ? '?refresh=true' : ''}`)
 
@@ -181,8 +184,7 @@ export const removeFavoriteLeague = (league: string) =>
   request<string[]>(favoriteLeaguesUrl(league), 'DELETE')
 
 /*
- * Admin paneli. Yetkiler API'de kontrol edilir (users.view / users.manage / roles.manage / groups.manage /
- * permissions.manage); yetkisiz istek 403 ve ProblemDetails mesajıyla hata fırlatır.
+ * Admin paneli. Yetkiler API'de kontrol edilir (users.view / users.manage / roles.manage / groups.manage / permissions.manage); yetkisiz istek 403 ve ProblemDetails mesajıyla hata fırlatır.
  * Atama uçları (…/roles, …/groups, …/users, …/permissions) listeyi verilen id'lerle değiştirir.
  */
 export const getUsers = () => request<UserResponse[]>('/api/users')
@@ -222,3 +224,9 @@ export const getAiUsage = (days: number) => request<AiUsageReport>(`/api/ai-usag
 
 // Tahmin isabet raporu (yalnızca accuracy.view; Admin örtük olarak sahip)
 export const getAccuracy = (days: number) => request<AccuracyReport>(`/api/accuracy?days=${days}`)
+
+// Kafka DLQ (kafka.manage): listeleme ve yeniden işleme.
+export const getKafkaDlq = () => request<KafkaDlqReport>('/api/admin/kafka/dlq')
+export const replayKafkaDlq = (partition: number, offset: number) =>
+  request<KafkaDlqReplayResult>(`/api/admin/kafka/dlq/${partition}/${offset}/replay`, 'POST')
+export const replayAllKafkaDlq = () => request<KafkaDlqReplayResult>('/api/admin/kafka/dlq/replay-all', 'POST')

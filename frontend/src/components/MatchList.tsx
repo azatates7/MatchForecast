@@ -16,12 +16,14 @@ interface Props {
   emptyText?: string
   /** true: her maçın altında fikstür ID'si (yalnızca Admin) */
   showIds?: boolean
+  /** Tahmini önbellekte hazır (anında açılan) maçlar; sağda küçük bir işaretle gösterilir */
+  analyzedIds?: ReadonlySet<number>
 }
 
 const time = (iso: string, locale: string) =>
   new Date(iso).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
 
-export default function MatchList({ matches, loading, error, selectedId, onSelect, fetchedAt, now, emptyText, showIds = false }: Props) {
+export default function MatchList({ matches, loading, error, selectedId, onSelect, fetchedAt, now, emptyText, showIds = false, analyzedIds }: Props) {
   const { t, locale } = useI18n()
   if (loading) return <p className="note">{t('matches.loading')}</p>
   if (error) return <p className="note note-error">{error}</p>
@@ -62,6 +64,9 @@ export default function MatchList({ matches, loading, error, selectedId, onSelec
                       <span>{m.awayTeam}</span>
                       {showIds && <span className="match-id">#{m.id}</span>}
                     </span>
+                    {analyzedIds?.has(m.id) && (
+                      <span className="match-analyzed" title={t('matches.analyzed')} aria-label={t('matches.analyzed')}>✓</span>
+                    )}
                   </button>
                 </li>
               )

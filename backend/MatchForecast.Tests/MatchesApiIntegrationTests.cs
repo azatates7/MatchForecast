@@ -39,8 +39,8 @@ public class MatchesApiIntegrationTests : IClassFixture<WebApplicationFactory<Pr
             });
         }).CreateAuthorizedClient();
 
-        // Act
-        var response = await client.GetAsync("/api/matches?date=2026-09-25");
+        // Act (tarih verilmezse bugün; normal kullanıcı yalnızca bugünü ve yarını görebilir)
+        var response = await client.GetAsync("/api/matches");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);

@@ -19,10 +19,10 @@
           </div>
         } @else {
           <div class="date-nav">
-            <!-- Tarihler bugünden başlar: önceki gün düğmesi bugünde pasif, takvimde geçmiş günler seçilemez. -->
-            <button type="button" (click)="shiftDay(-1)" [disabled]="date() <= today()" [attr.aria-label]="i18n.t('date.prev')">‹</button>
-            <input type="date" [value]="date()" [min]="today()" (change)="onDateInput($any($event.target))" [attr.aria-label]="i18n.t('date.label')" />
-            <button type="button" (click)="shiftDay(1)" [attr.aria-label]="i18n.t('date.next')">›</button>
+            <!-- Yetkisi olmayan yalnızca bugünü ve yarını seçebilir: sınırdaki ok pasif, takvim aralıkla sınırlı. -->
+            <button type="button" (click)="shiftDay(-1)" [disabled]="!anyDate() && date() <= range().min" [attr.aria-label]="i18n.t('date.prev')">‹</button>
+            <input type="date" [value]="date()" [attr.min]="anyDate() ? null : range().min" [attr.max]="anyDate() ? null : range().max" (change)="onDateInput($any($event.target))" [attr.aria-label]="i18n.t('date.label')" />
+            <button type="button" (click)="shiftDay(1)" [disabled]="!anyDate() && date() >= range().max" [attr.aria-label]="i18n.t('date.next')">›</button>
           </div>
         }
       }
@@ -91,6 +91,7 @@
             [now]="now()"
             [emptyText]="isGuest() ? i18n.t('guest.noMatches') : undefined"
             [showIds]="isAdmin()"
+            [analyzedIds]="analyzed()"
             (select)="selectMatch($event)"
           />
         </section>

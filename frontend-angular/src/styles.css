@@ -264,7 +264,7 @@ a.brand-link:focus-visible { outline-offset: 4px; border-radius: 6px; }
 
 .match {
   display: grid;
-  grid-template-columns: 4rem 1fr;
+  grid-template-columns: 4rem 1fr auto; /* saat | takımlar | "analiz hazır" işareti (varsa) */
   align-items: center;
   width: 100%;
   text-align: left;
@@ -290,6 +290,20 @@ a.brand-link:focus-visible { outline-offset: 4px; border-radius: 6px; }
 }
 
 .match-teams { display: flex; flex-direction: column; line-height: 1.3; }
+
+/* Tahmini önbellekte hazır maç: anında açılır */
+.match-analyzed {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.15rem; height: 1.15rem; border-radius: 50%;
+  background: var(--pitch-soft); color: var(--pitch);
+  font-size: 0.7rem; font-weight: 700; line-height: 1;
+}
+
+/* Kafka DLQ sekmesi */
+.dlq-error { max-width: 26rem; font-size: 0.82rem; color: var(--danger); word-break: break-word; }
+.dlq-preview { font-family: ui-monospace, monospace; font-size: 0.78rem; color: var(--muted); word-break: break-all; }
+.dlq-status-done { color: var(--pitch); font-weight: 600; }
+.dlq-status-pending { color: var(--muted); }
 
 /* Lig / turnuva filtresi */
 .league-filter {

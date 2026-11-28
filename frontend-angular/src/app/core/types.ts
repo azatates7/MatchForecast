@@ -110,7 +110,9 @@ export const PERMISSIONS = {
   forecastRefresh: 'forecast.refresh',
   appSettingsManage: 'app-settings.manage',
   aiUsageView: 'ai-usage.view',
-  accuracyView: 'accuracy.view'
+  accuracyView: 'accuracy.view',
+  matchesAnyDate: 'matches.any-date',
+  kafkaManage: 'kafka.manage'
 } as const
 
 // ---- Admin paneli (kullanıcı / rol / grup / yetki yönetimi) ----
@@ -250,15 +252,57 @@ export interface AiUsageSearchMonth {
   freeQuota: number
 }
 
+/** API-Football günlük istek kotası (son API-Football cevabının başlıklarından); updatedAt sonrası istekler sayılmamıştır. */
+export interface ApiFootballQuota {
+  limit: number
+  remaining: number
+  updatedAt: string
+}
+
 export interface AiUsageReport {
   from: string
   to: string
   totals: AiUsageTotals
   daily: AiUsageDaily[]
   searchMonth: AiUsageSearchMonth
+  /** Henüz API-Football isteği yapılmadıysa null */
+  apiFootball: ApiFootballQuota | null
 }
 
-// Eksik oyuncu raporu (maç günü resmi açıklamalardan; backend: AbsenceReport). state: "Preliminary" maç günü değil, şu ana kadar açıklananlar tarandı (ön bilgi; günde bir ve maç günü yeniden taranır) | "Ready" maç günü tarandı | "Pending" ön bilgi kapalı (eksikler maç günü netleşir) | "Unavailable" alınamadı
+// ---- Kafka DLQ (yönetim paneli; kafka.manage) ----
+
+/** DLQ'daki tek mesaj. match/kickoff gövdeden okunur (bozuksa null, preview gövdenin başı). replayedAt: panelden yeniden işlendiği an. */
+export interface KafkaDlqMessage {
+  partition: number
+  offset: number
+  timestamp: string
+  fixtureId: number
+  match: string | null
+  kickoff: string | null
+  error: string | null
+  preview: string | null
+  replayedAt: string | null
+}
+
+/** enabled=false: Kafka kapalı. truncated=true: yalnızca en yeni kayıtlar listede. */
+export interface KafkaDlqReport {
+  enabled: boolean
+  topic: string
+  total: number
+  pending: number
+  truncated: boolean
+  messages: KafkaDlqMessage[]
+}
+
+export interface KafkaDlqReplayResult {
+  replayed: number
+  skipped: number
+  failed: number
+}
+
+// Eksik oyuncu raporu (maç günü resmi açıklamalardan; backend: AbsenceReport).
+// state: "Preliminary" maç günü değil, şu ana kadar açıklananlar tarandı (ön bilgi; günde bir ve maç günü yeniden
+// taranır) | "Ready" maç günü tarandı | "Pending" ön bilgi kapalı (eksikler maç günü netleşir) | "Unavailable" alınamadı
 export interface AbsenceReport {
   state: 'Pending' | 'Preliminary' | 'Ready' | 'Unavailable'
   players: TeamAbsence[]
@@ -269,8 +313,7 @@ export interface AbsenceReport {
 }
 
 /**
- * Hakem ve kart eğilimi; bulunamayan alanlar null (gösterilmez). Ortalamalar maç başına, matches dayandıkları maç sayısı.
- * strictness backend'de sarı kart ortalamasından hesaplanır: Strict >= 5, Lenient < 3.5, arası Balanced.
+ * Hakem ve kart eğilimi; bulunamayan alanlar null (gösterilmez). Ortalamalar maç başına, matches dayandıkları maç sayısı. strictness backend'de sarı kart ortalamasından hesaplanır: Strict >= 5, Lenient < 3.5, arası Balanced.
  */
 export interface RefereeInfo {
   name: string

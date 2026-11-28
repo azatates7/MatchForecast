@@ -1,0 +1,71 @@
+<p class="admin-hint admin-note admin-intro">{{ i18n.t('kafka.intro') }}</p>
+<div class="admin-toolbar">
+  <button type="button" class="cache-btn" (click)="reload()" [disabled]="state().loading || action().busy">{{ i18n.t('admin.usage.refresh') }}</button>
+  @if (report()?.enabled && (report()?.pending ?? 0) > 0) {
+    <button type="button" class="cache-btn" (click)="replayAll()" [disabled]="state().loading || action().busy">{{ i18n.t('kafka.replayAll') }}</button>
+  }
+</div>
+@if (action().error) {
+  <p class="note-error admin-status" role="alert">{{ action().error }}</p>
+} @else if (action().info) {
+  <p class="auth-info admin-status" role="status">{{ action().info }}</p>
+}
+
+@if (state().loading) {
+  <p class="admin-placeholder pulse">{{ i18n.t('admin.loading') }}</p>
+} @else if (state().error) {
+  <p class="note-error" role="alert">{{ state().error }}</p>
+} @else if (report(); as r) {
+  @if (!r.enabled) {
+    <p class="admin-placeholder">{{ i18n.t('kafka.disabled') }}</p>
+  } @else if (r.total === 0) {
+    <p class="admin-placeholder">{{ i18n.t('kafka.empty') }}</p>
+  } @else {
+    <p class="admin-muted">
+      {{ i18n.t('kafka.summary', { total: num(r.total), pending: num(r.pending) }) }}
+      @if (r.truncated) {
+        · {{ i18n.t('kafka.truncated', { n: num(r.messages.length) }) }}
+      }
+    </p>
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>{{ i18n.t('kafka.col.time') }}</th>
+            <th>{{ i18n.t('kafka.col.match') }}</th>
+            <th>{{ i18n.t('kafka.col.error') }}</th>
+            <th>{{ i18n.t('kafka.col.status') }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (m of r.messages; track m.partition + ':' + m.offset) {
+            <tr>
+              <td>{{ time(m.timestamp) }}</td>
+              <td>
+                {{ m.match ?? i18n.t('kafka.broken') }}
+                <div class="match-id">#{{ m.fixtureId }}{{ m.kickoff ? ' · ' + time(m.kickoff) : '' }} · p{{ m.partition }}/{{ m.offset }}</div>
+                @if (m.preview) {
+                  <div class="dlq-preview">{{ m.preview }}</div>
+                }
+              </td>
+              <td><span class="dlq-error">{{ m.error ?? '–' }}</span></td>
+              <td>
+                @if (m.replayedAt) {
+                  <span class="dlq-status-done" [attr.title]="time(m.replayedAt)">{{ i18n.t('kafka.replayed') }}</span>
+                } @else {
+                  <span class="dlq-status-pending">{{ i18n.t('kafka.pending') }}</span>
+                }
+              </td>
+              <td>
+                @if (!m.replayedAt) {
+                  <button type="button" class="cache-btn" (click)="replay(m)" [disabled]="action().busy">{{ i18n.t('kafka.replay') }}</button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+}

@@ -64,6 +64,9 @@ public sealed class ForecastService(
         return results;
     }
 
+    // Maç listesindeki "analiz edildi" işareti de bu anahtara bakar (MatchesController.GetAnalyzed).
+    public static string CacheKey(int fixtureId) => $"forecast:v6:{fixtureId}";
+
     public async Task<ForecastResult> GetForecastAsync(int fixtureId, bool refresh, CancellationToken ct)
     {
         /*
@@ -72,7 +75,7 @@ public sealed class ForecastService(
          * v5: sonuca MissingPlayers eklendi (v4 kayıtlarında bu alan yok, ekran eksik oyuncu bölümünü gösteremez).
          * v4: prompt'a eksik oyuncular eklendi. v3: iki dilli metinler.
          */
-        var key = $"forecast:v6:{fixtureId}";
+        var key = CacheKey(fixtureId);
         if (!refresh)
         {
             var cached = await cache.GetAsync<ForecastResult>(key);
