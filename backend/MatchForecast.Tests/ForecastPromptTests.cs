@@ -116,9 +116,13 @@ public class ForecastPromptTests
         var lines = Lines(ForecastPrompt.BuildUser(Match, new AbsenceReport(AbsenceReport.Ready, [], [], DateTimeOffset.Now, null, form)));
 
         Assert.Contains("Dinlenme (son resmi maçtan bu maça): Galatasaray 3 gün (önceki maç: UEFA Avrupa Ligi); Fenerbahce 7 gün.", lines);
-        // Yalnızca dinlenme bilgisi olan takım form satırına girmez.
-        Assert.DoesNotContain(lines, l => l.StartsWith("- Galatasaray:", StringComparison.Ordinal));
-        Assert.Contains("- Fenerbahce: son 5 maç (en yeni önce) G G B M G.", lines);
+        // Yalnızca dinlenme bilgisi olan takım form bölümüne girmez (eksik oyuncular bölümünde adı geçmesi normal).
+        var formSection = lines
+            .SkipWhile(l => l != "Form (bu sezon, maç günü araması):")
+            .Skip(1)
+            .TakeWhile(l => l.Length > 0)
+            .ToList();
+        Assert.Equal(new[] { "- Fenerbahce: son 5 maç (en yeni önce) G G B M G." }, formSection);
     }
 
     [Fact]
