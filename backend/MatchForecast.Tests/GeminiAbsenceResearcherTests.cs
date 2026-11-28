@@ -51,7 +51,7 @@ public class GeminiAbsenceResearcherTests
     }
 
     private (GeminiAbsenceResearcher Researcher, List<string> Bodies) Create(
-        Func<HttpResponseMessage> responder, bool enabled = true, string apiKey = "test-key")
+        Func<HttpResponseMessage> responder, bool enabled = true, string apiKey = "test-key", int preliminaryDaysAhead = 1)
     {
         var bodies = new List<string>();
         var http = new HttpClient(new StubHandler(responder, bodies)) { BaseAddress = new Uri("https://gemini.test/v1beta/") };
@@ -59,7 +59,7 @@ public class GeminiAbsenceResearcherTests
         ai.Gemini.ApiKey = apiKey;
         ai.Gemini.Model = "gemini-test";
         var researcher = new GeminiAbsenceResearcher(http, new InMemoryRedisCacheService(), Options.Create(ai),
-            Options.Create(new AbsencesOptions { Enabled = enabled, CacheMinutes = 240 }), _usage.Object, _links.Object,
+            Options.Create(new AbsencesOptions { Enabled = enabled, CacheMinutes = 240, PreliminaryDaysAhead = preliminaryDaysAhead }), _usage.Object, _links.Object,
             NullLogger<GeminiAbsenceResearcher>.Instance);
         return (researcher, bodies);
     }
@@ -68,14 +68,74 @@ public class GeminiAbsenceResearcherTests
         new(code) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
 
     [Fact]
-    public async Task ReturnsPending_AndDoesNotSearch_BeforeMatchDay()
+    public async Task ReturnsPending_AndDoesNotSearch_BeyondPreliminaryWindow()
     {
-        var (researcher, bodies) = Create(() => Json(HttpStatusCode.OK, GroundedResponse));
+        var (researcher, bodies) = Create(() => Json(HttpStatusCode.OK, GroundedResponse), preliminaryDaysAhead: 1);
 
         var report = await researcher.GetAsync(Match(DateTimeOffset.Now.AddDays(2)), CancellationToken.None);
 
         Assert.Equal(AbsenceReport.Pending, report.State);
         Assert.Empty(bodies);
+    }
+
+    [Fact]
+    public async Task DayBeforeMatch_SearchesOnce_AsPreliminary()
+    {
+        var (researcher, bodies) = Create(() => Json(HttpStatusCode.OK, GroundedResponse));
+        var match = Match(DateTime.Now.Date.AddDays(1).AddHours(20)); // yarın 20:00
+
+        var report = await researcher.GetAsync(match, CancellationToken.None);
+        await researcher.GetAsync(match, CancellationToken.None); // önbellekten
+
+        Assert.Equal(AbsenceReport.Preliminary, report.State);
+        Assert.True(report.IsResearched);
+        Assert.Equal(3, report.Players.Count);
+        var body = Assert.Single(bodies);
+        // İstek gövdesi JSON'da Türkçe harfler kaçışlı (\u00E7) yazıldığı için ASCII kısım aranır.
+        Assert.Contains("Not: Bug", body);
+    }
+
+    [Fact]
+    public async Task SeveralDaysBeforeMatch_IsAlsoPreliminary_ByDefault()
+    {
+        var (researcher, bodies) = Create(() => Json(HttpStatusCode.OK, GroundedResponse), preliminaryDaysAhead: new AbsencesOptions().PreliminaryDaysAhead);
+
+        var report = await researcher.GetAsync(Match(DateTime.Now.Date.AddDays(3).AddHours(20)), CancellationToken.None);
+
+        Assert.Equal(AbsenceReport.Preliminary, report.State);
+        Assert.Contains("Not: Bug", Assert.Single(bodies));
+    }
+
+    [Fact]
+    public void PreliminaryTtl_IsDailyRefresh_EndingAtMatchDayStart()
+    {
+        var opt = new AbsencesOptions { PreliminaryCacheHours = 24 };
+
+        Assert.Equal(TimeSpan.FromHours(24), GeminiAbsenceResearcher.PreliminaryTtl(TimeSpan.FromDays(4), opt));
+        Assert.Equal(TimeSpan.FromHours(5), GeminiAbsenceResearcher.PreliminaryTtl(TimeSpan.FromHours(5), opt));
+        Assert.Equal(TimeSpan.FromMinutes(1), GeminiAbsenceResearcher.PreliminaryTtl(TimeSpan.Zero, opt));
+    }
+
+    [Fact]
+    public async Task DayBeforeMatch_IsPending_WhenPreliminaryDisabled()
+    {
+        var (researcher, bodies) = Create(() => Json(HttpStatusCode.OK, GroundedResponse), preliminaryDaysAhead: 0);
+
+        var report = await researcher.GetAsync(Match(DateTime.Now.Date.AddDays(1).AddHours(20)), CancellationToken.None);
+
+        Assert.Equal(AbsenceReport.Pending, report.State);
+        Assert.Empty(bodies);
+    }
+
+    [Fact]
+    public async Task OnMatchDay_DoesNotSendPreliminaryNote()
+    {
+        var (researcher, bodies) = Create(() => Json(HttpStatusCode.OK, GroundedResponse));
+
+        var report = await researcher.GetAsync(Match(DateTimeOffset.Now), CancellationToken.None);
+
+        Assert.Equal(AbsenceReport.Ready, report.State);
+        Assert.DoesNotContain("Not: Bug", Assert.Single(bodies));
     }
 
     [Theory]
@@ -166,7 +226,8 @@ public class GeminiAbsenceResearcherTests
     [Fact]
     public async Task DoesNotRecordUsage_WhenServedFromCache_OrBeforeMatchDay()
     {
-        var (researcher, _) = Create(() => Json(HttpStatusCode.OK, GroundedResponse));
+        // Ön bilgi kapalı: maç gününden önce arama (ve kullanım kaydı) yok.
+        var (researcher, _) = Create(() => Json(HttpStatusCode.OK, GroundedResponse), preliminaryDaysAhead: 0);
         var match = Match(DateTimeOffset.Now);
 
         await researcher.GetAsync(match, CancellationToken.None);

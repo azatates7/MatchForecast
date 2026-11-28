@@ -1,7 +1,7 @@
 import { Component, inject, input, output, signal } from '@angular/core';
 import { I18nService } from '../core/i18n/i18n.service';
 import type { ForecastResult, MatchSummary } from '../core/types';
-import { ABSENCE_LABEL, STRICTNESS_CLASS, STRICTNESS_LABEL, absenceFootnote, groupAbsences, refereeStats, sourceLabel } from '../core/absences';
+import { ABSENCE_LABEL, STRICTNESS_CLASS, STRICTNESS_LABEL, absenceFootnote, groupAbsences, hasAbsenceList, refereeStats, sourceLabel } from '../core/absences';
 import { matchUrl } from '../core/match-route';
 import { StatsTable } from './stats-table';
 
@@ -21,6 +21,7 @@ export class ForecastPanel {
   // Eksik oyuncular (React: ForecastPanel içindeki Absences); maç günü resmi açıklamalardan, öncesinde "maç günü netleşir".
   protected readonly absenceLabel = ABSENCE_LABEL;
   protected readonly absenceFootnote = absenceFootnote;
+  protected readonly hasAbsenceList = hasAbsenceList;
   protected readonly sourceLabel = sourceLabel;
 
   // Maçın paylaşılabilir adresini (#match/<id>) panoya kopyalar; herkese görünür. Açan kişinin yetkisini API denetler.

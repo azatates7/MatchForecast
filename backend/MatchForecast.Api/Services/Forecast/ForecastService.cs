@@ -146,6 +146,7 @@ public sealed class ForecastService(
     /*
      * Tahmin önbellek süresi (Ai:CacheMinutes) eksik oyuncu durumuna göre kısalır:
      * - Pending (maç günü değil): en geç maç gününün başında (00:00) biter; maç günü tahmin eksiklerle yeniden üretilir.
+     * - Preliminary (ön bilgi): ayrıca ön bilginin yenilenme aralığını (Absences:PreliminaryCacheHours) aşmaz; yenilenen eksik listesiyle tahmin de güncellenir. Maç günü kesinleşen eksiklerle yeniden üretilir.
      * - Ready (maç günü): Absences:CacheMinutes'ı aşmaz; kadro bilgisi maça yaklaştıkça netleştiği için tahmin de tazelenir.
      */
     public TimeSpan ForecastCacheTtl(MatchSummary match, AbsenceReport absences, DateTime now)
@@ -155,6 +156,11 @@ public sealed class ForecastService(
         {
             var untilMatchDay = match.Kickoff.ToLocalTime().Date - now;
             ttl = untilMatchDay < ttl ? untilMatchDay : ttl;
+        }
+        else if (absences.State == AbsenceReport.Preliminary)
+        {
+            var refresh = GeminiAbsenceResearcher.PreliminaryTtl(match.Kickoff.ToLocalTime().Date - now, absenceOptions.Value);
+            ttl = refresh < ttl ? refresh : ttl;
         }
         else if (absences.State == AbsenceReport.Ready)
         {

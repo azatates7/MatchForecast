@@ -194,6 +194,30 @@ public class ForecastServiceTests
     }
 
     [Fact]
+    public void ForecastCacheTtl_EndsAtMatchDayStart_WhenAbsencesPreliminary()
+    {
+        var now = new DateTime(2026, 11, 27, 20, 0, 0);
+        var match = new MatchSummary(1, new DateTimeOffset(2026, 11, 28, 21, 0, 0, TimeSpan.FromHours(3)), "Süper Lig", "Turkey", "A", "B", "NS");
+        var service = CreateServiceWith(cacheMinutes: 1440);
+        var preliminary = new AbsenceReport(AbsenceReport.Preliminary, [], [], DateTimeOffset.Now);
+
+        // 27.11 20:00 → 28.11 00:00 = 4 saat: maç günü tahmin kesinleşen eksiklerle yeniden üretilir.
+        Assert.Equal(TimeSpan.FromHours(4), service.ForecastCacheTtl(match, preliminary, now));
+    }
+
+    [Fact]
+    public void ForecastCacheTtl_RefreshesDaily_WhenPreliminaryAndMatchIsDaysAway()
+    {
+        var now = new DateTime(2026, 11, 24, 20, 0, 0);
+        var match = new MatchSummary(1, new DateTimeOffset(2026, 11, 28, 21, 0, 0, TimeSpan.FromHours(3)), "Süper Lig", "Turkey", "A", "B", "NS");
+        var service = CreateServiceWith(cacheMinutes: 1440 * 7);
+        var preliminary = new AbsenceReport(AbsenceReport.Preliminary, [], [], DateTimeOffset.Now);
+
+        // Maç 4 gün sonra: ön bilgi günde bir yenilendiği için tahmin de 24 saatte bir güncellenir.
+        Assert.Equal(TimeSpan.FromHours(24), service.ForecastCacheTtl(match, preliminary, now));
+    }
+
+    [Fact]
     public void ForecastCacheTtl_IsLimitedByAbsenceRefresh_OnMatchDay()
     {
         var match = new MatchSummary(1, DateTimeOffset.Now.AddHours(5), "Süper Lig", "Turkey", "A", "B", "NS");

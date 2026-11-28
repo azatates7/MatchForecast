@@ -82,9 +82,12 @@
       @if (f.absences; as report) {
         <section class="absences">
           <h3 class="section-title">{{ i18n.t('absences.title') }}</h3>
+          @if (report.state === 'Preliminary') {
+            <p class="absences-note">{{ i18n.t('absences.preliminary') }}</p>
+          }
           @if (report.state === 'Pending') {
             <p class="absences-none">{{ i18n.t('absences.pending') }}</p>
-          } @else if (report.state !== 'Ready') {
+          } @else if (!hasAbsenceList(report)) {
             <p class="absences-none">{{ i18n.t('absences.unavailable') }}</p>
           } @else if (report.players.length === 0) {
             <p class="absences-none">{{ i18n.t('absences.none') }}</p>
@@ -112,7 +115,7 @@
               }
             </div>
           }
-          @if (report.state === 'Ready') {
+          @if (hasAbsenceList(report)) {
             <p class="absences-meta">
               @if (report.checkedAt) {
                 {{ i18n.t('absences.checkedAt', { time: checkedAt(report.checkedAt) }) }}

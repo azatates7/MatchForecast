@@ -38,8 +38,14 @@ export function groupAbsences(match: MatchSummary, players: TeamAbsence[]): { te
   }))
 }
 
+// Eksik listesi gösterilebilir mi: maç günü taraması veya maç öncesi ön bilgi.
+export function hasAbsenceList(report: AbsenceReport | null | undefined): boolean {
+  return report?.state === 'Ready' || report?.state === 'Preliminary'
+}
+
 // Dipnot: tahminin hangi eksik oyuncu (ve hakem) bilgisiyle üretildiğini söyler.
 export function absenceFootnote(report: AbsenceReport | null | undefined) {
+  if (report?.state === 'Preliminary') return 'forecast.footnotePreliminary' as const
   if (report?.state === 'Ready' && refereeUsedInForecast(report.referee)) return 'forecast.footnoteReferee' as const
   if (report?.state === 'Ready') return 'forecast.footnote' as const
   if (report?.state === 'Pending') return 'forecast.footnotePending' as const

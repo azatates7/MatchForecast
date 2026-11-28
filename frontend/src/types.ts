@@ -258,10 +258,9 @@ export interface AiUsageReport {
   searchMonth: AiUsageSearchMonth
 }
 
-// Eksik oyuncu raporu (maç günü resmi açıklamalardan; backend: AbsenceReport).
-// state: "Pending" maç günü değil (eksikler maç günü netleşir) | "Ready" tarandı | "Unavailable" alınamadı
+// Eksik oyuncu raporu (maç günü resmi açıklamalardan; backend: AbsenceReport). state: "Preliminary" maç günü değil, şu ana kadar açıklananlar tarandı (ön bilgi; günde bir ve maç günü yeniden taranır) | "Ready" maç günü tarandı | "Pending" ön bilgi kapalı (eksikler maç günü netleşir) | "Unavailable" alınamadı
 export interface AbsenceReport {
-  state: 'Pending' | 'Ready' | 'Unavailable'
+  state: 'Pending' | 'Preliminary' | 'Ready' | 'Unavailable'
   players: TeamAbsence[]
   sources: AbsenceSource[]
   checkedAt: string | null
@@ -270,8 +269,7 @@ export interface AbsenceReport {
 }
 
 /**
- * Hakem ve kart eğilimi; bulunamayan alanlar null (gösterilmez). Ortalamalar maç başına, matches dayandıkları maç sayısı.
- * strictness backend'de sarı kart ortalamasından hesaplanır: Strict >= 5, Lenient < 3.5, arası Balanced.
+ * Hakem ve kart eğilimi; bulunamayan alanlar null (gösterilmez). Ortalamalar maç başına, matches dayandıkları maç sayısı. strictness backend'de sarı kart ortalamasından hesaplanır: Strict >= 5, Lenient < 3.5, arası Balanced.
  */
 export interface RefereeInfo {
   name: string

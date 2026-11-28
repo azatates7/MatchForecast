@@ -92,7 +92,7 @@ public class ForecastPromptTests
         };
         var prompt = ForecastPrompt.BuildUser(Match, new AbsenceReport(AbsenceReport.Ready, [], [], DateTimeOffset.Now, null, form));
 
-        Assert.Contains("Form (bu sezon, maç günü araması):", Lines(prompt));
+        Assert.Contains("Form (bu sezon, güncel web araması):", Lines(prompt));
         Assert.Contains("- Galatasaray: son 5 maç (en yeni önce) G G B M G; ligde 2. sıra; iç sahada maç başına 2,3 gol attı, 0,8 yedi (8 maç); xG 2,1 / 0,9 (lehine / aleyhine).", Lines(prompt));
         Assert.Contains("- Fenerbahce: ligde 3. sıra; deplasmanda maç başına 1,6 gol attı.", Lines(prompt));
     }
@@ -118,7 +118,7 @@ public class ForecastPromptTests
         Assert.Contains("Dinlenme (son resmi maçtan bu maça): Galatasaray 3 gün (önceki maç: UEFA Avrupa Ligi); Fenerbahce 7 gün.", lines);
         // Yalnızca dinlenme bilgisi olan takım form bölümüne girmez (eksik oyuncular bölümünde adı geçmesi normal).
         var formSection = lines
-            .SkipWhile(l => l != "Form (bu sezon, maç günü araması):")
+            .SkipWhile(l => l != "Form (bu sezon, güncel web araması):")
             .Skip(1)
             .TakeWhile(l => l.Length > 0)
             .ToList();
@@ -132,5 +132,17 @@ public class ForecastPromptTests
         var prompt = ForecastPrompt.BuildUser(Match, new AbsenceReport(AbsenceReport.Ready, [], [], DateTimeOffset.Now, null, form));
 
         Assert.DoesNotContain("Dinlenme", prompt);
+    }
+
+    [Fact]
+    public void BuildUser_MarksPreliminaryAbsences()
+    {
+        var report = new AbsenceReport(AbsenceReport.Preliminary,
+            [new TeamAbsence("Galatasaray", "M. Icardi", TeamAbsence.Injured, new("Diz sakatlığı", "Knee"))], [], DateTimeOffset.Now);
+        var lines = Lines(ForecastPrompt.BuildUser(Match, report));
+
+        Assert.Contains("Eksik oyuncular (ön bilgi: şu ana kadar açıklananlar; maç günü kesinleşir):", lines);
+        Assert.Contains("- Galatasaray: M. Icardi (sakat, Diz sakatlığı)", lines);
+        Assert.Contains("- Fenerbahce: açıklanan eksik yok", lines);
     }
 }

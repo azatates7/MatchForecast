@@ -202,7 +202,10 @@ public static class AccuracyReportBuilder
                 picks.Add(new Pick(p.Market!, p.Confidence, hit.Value));
         }
 
-        var hadAbsences = string.Equals(stored.Absences?.State, AbsenceReport.Ready, StringComparison.OrdinalIgnoreCase);
+        // Ön bilgiyle (maç gününden önce) üretilen tahmin de eksik listesini kullanmıştır.
+        var hadAbsences = stored.Absences?.State is { } state
+                          && (state.Equals(AbsenceReport.Ready, StringComparison.OrdinalIgnoreCase)
+                              || state.Equals(AbsenceReport.Preliminary, StringComparison.OrdinalIgnoreCase));
         return new Evaluated(f, r, predicted, probability, predicted == actual, brier, picks, unsettled, hadAbsences);
     }
 

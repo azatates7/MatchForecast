@@ -33,7 +33,8 @@ public static class ForecastPrompt
           savunma oyuncusu eksikse rakibin gol beklentisini buna göre ayarla. Belirgin etkisi olan bir eksik varsa
           ilgili reasoning'de ve summary'de kısaca an.
         - Listede olmayan hiçbir oyuncunun eksik olduğunu varsayma ve isim uydurma. Eksikler henüz netleşmediyse veya
-          bilgi alınamadıysa bu konuda yorum yapma.
+          bilgi alınamadıysa bu konuda yorum yapma. Liste "ön bilgi" ise kesin sayılmaz: "şüpheli" oyuncuların etkisini
+          daha da az say.
         - Kullanıcı mesajında hakem satırı varsa yellowCards ve redCards beklentisini hakemin maç başı ortalamalarına ve
           tarzına göre ayarla (lig ve takım etkisini de koruyarak); kart reasoning'inde hakemi kısaca an.
           Hakem satırı yoksa hakem hakkında hiçbir varsayım yapma ve hakemden söz etme.
@@ -116,7 +117,7 @@ public static class ForecastPrompt
         if (lines.Count == 0)
             return;
 
-        sb.AppendLine("Form (bu sezon, maç günü araması):");
+        sb.AppendLine("Form (bu sezon, güncel web araması):");
         lines.ForEach(l => sb.AppendLine(l));
         sb.AppendLine();
     }
@@ -182,13 +183,16 @@ public static class ForecastPrompt
                 sb.AppendLine("Eksik oyuncular: henüz netleşmedi (maç günü açıklanır).");
                 return;
             case AbsenceReport.Ready:
+                sb.AppendLine("Eksik oyuncular (maç günü resmi açıklamalar):");
+                break;
+            case AbsenceReport.Preliminary:
+                sb.AppendLine("Eksik oyuncular (ön bilgi: şu ana kadar açıklananlar; maç günü kesinleşir):");
                 break;
             default:
                 sb.AppendLine("Eksik oyuncular: bilgi alınamadı.");
                 return;
         }
 
-        sb.AppendLine("Eksik oyuncular (maç günü resmi açıklamalar):");
         foreach (var team in new[] { match.HomeTeam, match.AwayTeam })
         {
             var players = absences!.Players.Where(p => p.Team == team).Select(Describe).ToList();

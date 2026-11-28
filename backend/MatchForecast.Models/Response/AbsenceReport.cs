@@ -6,10 +6,11 @@ namespace MatchForecast.Models.Response;
  * Bir maç için eksik oyuncu raporu. Maç günü resmi açıklamalar (kulüp, lig/federasyon, UEFA, basın toplantısı)
  * web araması ile taranarak oluşturulur; elle girilmez.
  * State:
- *   - "Pending": maç günü gelmedi; eksikler maç günü netleşir (arama yapılmaz).
+ *   - "Pending": maç gününe Absences:PreliminaryDaysAhead günden fazla var (veya ön bilgi kapalı); arama yapılmaz.
+ *   - "Preliminary": maç günü değil; şu ana kadar açıklanan eksikler tarandı (ön bilgi). Günde bir yenilenir (Absences:PreliminaryCacheHours), maç günü ayrıca taranır ("Ready" olur); ekranda "maç günü yeniden kontrol edilecek" notu çıkar.
  *   - "Ready": maç günü tarandı; Players boş olabilir (resmi açıklamada eksik bulunamadı).
  *   - "Unavailable": özellik kapalı ya da arama başarısız; model ve ekran bu konuda varsayım yapmaz.
- * Referee: aynı maç günü aramasında bulunan hakem bilgisi (ek arama yapılmaz). Bulunamadıysa null; o durumda ekranda hakem bölümü ve prompt'ta hakem satırı olmaz. Sources her ikisinin kaynaklarını içerir.
+ * Referee: aynı aramada (ön bilgi veya maç günü) bulunan hakem bilgisi (ek arama yapılmaz). Bulunamadıysa null; o durumda ekranda hakem bölümü ve prompt'ta hakem satırı olmaz. Sources her ikisinin kaynaklarını içerir.
  * Form: aynı aramada bulunan takımların güncel form verisi (ek arama yapılmaz). Bulunamayan takım listede yer almaz; liste boşsa prompt'ta form satırı olmaz.
  */
 public sealed record AbsenceReport(
@@ -21,10 +22,15 @@ public sealed record AbsenceReport(
     IReadOnlyList<TeamForm>? Form = null)
 {
     public const string Pending = "Pending";
+    public const string Preliminary = "Preliminary";
     public const string Ready = "Ready";
     public const string Unavailable = "Unavailable";
 
     public static AbsenceReport PendingReport() => new(Pending, [], [], null);
+
+    // Tarama yapıldı (ön bilgi veya maç günü): eksik listesi, hakem ve form kullanılabilir.
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsResearched => State is Ready or Preliminary;
     public static AbsenceReport UnavailableReport() => new(Unavailable, [], [], null);
 }
 
@@ -69,7 +75,7 @@ public sealed record RefereeInfo(
 }
 
 /*
- * Takımın bu sezonki güncel formu (maç günü araması). Team dışındaki her alan bulunamadıysa null'dır (uydurulmaz).
+ * Takımın bu sezonki güncel formu (eksik oyuncu aramasıyla aynı arama). Team dışındaki her alan bulunamadıysa null'dır (uydurulmaz).
  * - Last5: son 5 resmi maç, en yeni önce, W/D/L harfleriyle (ör. "WWDLW").
  * - Venue*: bu maçtaki sahaya göre; ev sahibi için iç saha, deplasman takımı için deplasman maçları.
  *   VenueMatches bu ortalamaların dayandığı maç sayısı. Xg* aynı maçların beklenen gol (xG) ortalamaları.

@@ -15,13 +15,15 @@ namespace MatchForecast.Api.Services.Absences;
 
 public interface IAbsenceResearcher
 {
-    /// <summary>Maçın eksik oyuncu raporu. Maç günü değilse "Pending"; hata/kapalıysa "Unavailable". Hiçbir zaman exception fırlatmaz.</summary>
+    /// <summary>Maçın eksik oyuncu raporu. Maç günü "Ready", yakın günlerde "Preliminary", daha ileride "Pending"; hata/kapalıysa "Unavailable". Hiçbir zaman exception fırlatmaz.</summary>
     Task<AbsenceReport> GetAsync(MatchSummary match, CancellationToken ct);
 }
 
 /*
  * Maç günü, Gemini'nin Google araması (tools: google_search) ile iki takımın eksik oyuncularını çıkarır.
- * - Maç gününden önce arama yapılmaz ("Pending"): kadro, ceza ve UEFA listesi bilgisi maç gününe doğru netleşir.
+ * - Maç gününe Absences:PreliminaryDaysAhead günden fazla varsa arama yapılmaz ("Pending").
+ * - Bu aralıktaysa şu ana kadar açıklananlar taranır ("Preliminary", ön bilgi). Ön bilgi ayrı anahtarla
+ *   Absences:PreliminaryCacheHours (en geç maç gününün başına) kadar önbellekte kalır, sonra yeniden taranır; maç günü ayrıca taranır ("Ready"). Kadro, ceza ve UEFA listesi bilgisi maç gününe doğru netleştiği için ön bilgi kesin sayılmaz.
  * - Kaynakta açıkça yazmayan oyuncu eklenmez; kesinleşmeyen her durum "Doubtful" (şüpheli) olarak yazılır.
  * - Sonuç Absences:CacheMinutes kadar önbellekte kalır; başarısız deneme 15 dk önbelleğe alınır (ücretli aramayı tekrarlamamak için).
  * - Fail-open: kapalı, anahtar yok, ücretsiz katman (400), kota veya geçersiz cevap → "Unavailable"; tahmin akışı durmaz.
@@ -97,8 +99,8 @@ public sealed class GeminiAbsenceResearcher(
           için DEPLASMAN lig maçları. Maç sayısı ile maç başına attığı ve yediği gol ortalaması.
         - xgFor, xgAgainst: aynı maçların maç başına beklenen gol (xG) ortalaması (FBref, Understat, Sofascore, FotMob vb.).
           Bulamazsan null yaz.
-        - lastMatchDate: takımın BU MAÇTAN ÖNCE oynadığı son resmi maçın tarihi, "yyyy-MM-dd" (lig, kupa, Avrupa kupaları
-          dahil; hazırlık maçları hariç). lastMatchCompetition: o maçın turnuvası (ör. "UEFA Avrupa Ligi", "Türkiye Kupası").
+        - lastMatchDate: takımın BU MAÇTAN HEMEN ÖNCEKİ resmi maçının tarihi, "yyyy-MM-dd" (lig, kupa, Avrupa kupaları
+          dahil; hazırlık maçları hariç). Bu maçtan önce oynanacak, fikstürde planlı bir maçı varsa onun tarihini yaz. lastMatchCompetition: o maçın turnuvası (ör. "UEFA Avrupa Ligi", "Türkiye Kupası").
           Emin değilsen ikisini de null yaz.
         - Bulamadığın her alanı null yaz; sayı veya sonuç uydurma. team alanına iki takım adından birini birebir yaz.
         - Form bilgisinin kaynaklarını da sources listesine ekle.
@@ -122,10 +124,14 @@ public sealed class GeminiAbsenceResearcher(
             return AbsenceReport.UnavailableReport();
 
         // Konteyner saati İstanbul (TZ); maç günü yerel takvim gününe göre belirlenir.
-        if (DateOnly.FromDateTime(match.Kickoff.ToLocalTime().DateTime) > DateOnly.FromDateTime(DateTime.Now))
+        var matchDay = match.Kickoff.ToLocalTime().Date;
+        var daysAhead = (matchDay - DateTime.Now.Date).Days;
+        if (daysAhead > 0 && daysAhead > opt.PreliminaryDaysAhead)
             return AbsenceReport.PendingReport();
 
-        var key = $"absences:v1:{match.Id}";
+        // Ön bilgi maç günü taramasından ayrı anahtarda tutulur: maç günü ilk istekte liste yeniden taranır.
+        var preliminary = daysAhead > 0;
+        var key = preliminary ? $"absences:v1:pre:{match.Id}" : $"absences:v1:{match.Id}";
         var cached = await cache.GetAsync<AbsenceReport>(key);
         if (cached is not null)
             return cached;
@@ -145,8 +151,12 @@ public sealed class GeminiAbsenceResearcher(
         TimeSpan ttl;
         try
         {
-            report = await SearchAsync(match, model, usage, ct);
-            ttl = TimeSpan.FromMinutes(Math.Max(1, opt.CacheMinutes));
+            report = await SearchAsync(match, model, usage, preliminary ? daysAhead : 0, ct);
+            if (preliminary && report.State == AbsenceReport.Ready)
+                report = report with { State = AbsenceReport.Preliminary };
+            ttl = preliminary
+                ? PreliminaryTtl(matchDay - DateTime.Now, opt)
+                : TimeSpan.FromMinutes(Math.Max(1, opt.CacheMinutes));
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
@@ -158,6 +168,14 @@ public sealed class GeminiAbsenceResearcher(
         await RecordUsageAsync(match.Id, model, usage, Stopwatch.GetElapsedTime(started));
         await cache.SetAsync(key, report, ttl);
         return report;
+    }
+
+    // Ön bilgi: PreliminaryCacheHours, en geç maç gününün başı (00:00); en az 1 dk.
+    public static TimeSpan PreliminaryTtl(TimeSpan untilMatchDay, AbsencesOptions opt)
+    {
+        var ttl = TimeSpan.FromHours(Math.Max(1, opt.PreliminaryCacheHours));
+        if (untilMatchDay < ttl) ttl = untilMatchDay;
+        return ttl < TimeSpan.FromMinutes(1) ? TimeSpan.FromMinutes(1) : ttl;
     }
 
     // Sayaç okunamazsa (DB hatası) arama engellenmez: maliyet koruması, özelliği tamamen durdurmamalı.
@@ -206,7 +224,8 @@ public sealed class GeminiAbsenceResearcher(
         public int? FailedStatusCode { get; set; }
     }
 
-    private async Task<AbsenceReport> SearchAsync(MatchSummary match, string model, SearchUsage usage, CancellationToken ct)
+    // daysAhead > 0: maç günü değil (ön bilgi); model bunu bilir, kesinleşmeyen durumları Doubtful yazar.
+    private async Task<AbsenceReport> SearchAsync(MatchSummary match, string model, SearchUsage usage, int daysAhead, CancellationToken ct)
     {
         var tr = System.Globalization.CultureInfo.GetCultureInfo("tr-TR");
         var user = $"""
@@ -217,6 +236,9 @@ public sealed class GeminiAbsenceResearcher(
             {(match.Referee is null
                 ? "Hakem: henüz bilinmiyor; resmi atama açıklandıysa bul, açıklanmadıysa referee alanını null yaz."
                 : $"Hakem (resmi atama): {match.Referee}. Bu hakemin istatistiklerini ve tarzını ara.")}
+            {(daysAhead > 0
+                ? $"Not: Bugün maç günü değil, maça {daysAhead} gün var. Bugüne kadar açıklanmış ceza ve sakatlıkları yaz; maç gününe kadar netleşmeyecek durumları Doubtful yaz."
+                : "")}
             """;
 
         var body = new

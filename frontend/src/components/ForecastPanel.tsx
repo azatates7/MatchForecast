@@ -2,7 +2,7 @@ import { Fragment, useState } from 'react'
 import type { AbsenceReport, ForecastResult, MatchSummary, OutcomeProbabilities, RefereeInfo } from '../types'
 import StatsTable from './StatsTable'
 import { useI18n } from '../i18n/useI18n'
-import { ABSENCE_LABEL, STRICTNESS_CLASS, STRICTNESS_LABEL, absenceFootnote, groupAbsences, refereeStats, sourceLabel } from '../Absences'
+import { ABSENCE_LABEL, STRICTNESS_CLASS, STRICTNESS_LABEL, absenceFootnote, groupAbsences, hasAbsenceList, refereeStats, sourceLabel } from '../Absences'
 import { matchUrl } from '../MatchRoute'
 
 interface Props {
@@ -99,14 +99,15 @@ function Referee({ referee }: { referee: RefereeInfo }) {
   )
 }
 
-// Modelin dikkate aldığı eksik oyuncular: maç günü resmi açıklamalardan; öncesinde "maç günü netleşir".
+// Modelin dikkate aldığı eksik oyuncular: maç günü resmi açıklamalardan; maç gününden önce şu ana kadar açıklananlar ("maç günü yeniden kontrol edilecek" notuyla). Ön bilgi kapalıysa "maç günü netleşir".
 function Absences({ match, report }: { match: MatchSummary; report: AbsenceReport }) {
   const { t, loc, locale } = useI18n()
   return (
     <section className="absences">
       <h3 className="section-title">{t('absences.title')}</h3>
+      {report.state === 'Preliminary' && <p className="absences-note">{t('absences.preliminary')}</p>}
       {report.state === 'Pending' ? <p className="absences-none">{t('absences.pending')}</p>
-        : report.state !== 'Ready' ? <p className="absences-none">{t('absences.unavailable')}</p>
+        : !hasAbsenceList(report) ? <p className="absences-none">{t('absences.unavailable')}</p>
         : report.players.length === 0 ? <p className="absences-none">{t('absences.none')}</p>
         : (
           <div className="absences-grid">
@@ -128,7 +129,7 @@ function Absences({ match, report }: { match: MatchSummary; report: AbsenceRepor
             ))}
           </div>
         )}
-      {report.state === 'Ready' && (
+      {hasAbsenceList(report) && (
         <p className="absences-meta">
           {report.checkedAt && t('absences.checkedAt', { time: new Date(report.checkedAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }) })}
           {report.sources.length > 0 && (
